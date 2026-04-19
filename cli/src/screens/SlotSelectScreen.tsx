@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useInput } from 'ink';
 import { Box, Text } from '../components';
 import type { Database } from '../db';
-import { getAllSlotInfo, SLOT_NAMES, type SlotInfo } from '../db';
+import { getAllSlotInfo, SLOT_NAMES } from '../db';
 
 export interface SlotSelectScreenProps {
   db: Database;
@@ -21,13 +21,21 @@ export const SlotSelectScreen: React.FC<SlotSelectScreenProps> = ({
   onSelectSlot,
   onBack
 }) => {
-  const slots = getAllSlotInfo(db);
+  // Memoize slots to prevent re-fetching on every render
+  const slots = useMemo(() => getAllSlotInfo(db), [db]);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   
   // Filter to only saved slots if in continue mode
   const availableSlots = mode === 'continue' 
     ? slots.filter(s => !s.isEmpty)
     : slots;
+  
+  // Reset index if out of bounds (safety)
+  React.useEffect(() => {
+    if (selectedIndex >= availableSlots.length && availableSlots.length > 0) {
+      setSelectedIndex(availableSlots.length - 1);
+    }
+  }, [availableSlots.length, selectedIndex]);
   
   // If continue mode and no saves, show message
   if (mode === 'continue' && availableSlots.length === 0) {
@@ -47,9 +55,16 @@ export const SlotSelectScreen: React.FC<SlotSelectScreenProps> = ({
   
   useInput((input, key) => {
     if (key.upArrow) {
-      setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev));
+      setSelectedIndex(prev => {
+        const newIndex = prev > 0 ? prev - 1 : prev;
+        return newIndex;
+      });
     } else if (key.downArrow) {
-      setSelectedIndex(prev => (prev < availableSlots.length - 1 ? prev : prev));
+      setSelectedIndex(prev => {
+        const maxIndex = availableSlots.length - 1;
+        const newIndex = prev < maxIndex ? prev + 1 : prev;
+        return newIndex;
+      });
     } else if (key.return) {
       const slot = availableSlots[selectedIndex];
       if (slot) {
