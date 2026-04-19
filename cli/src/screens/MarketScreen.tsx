@@ -7,6 +7,18 @@ export interface MarketScreenProps {
   onBack: () => void;
 }
 
+// Helper to pad strings for alignment
+const left = (str: string, width: number): string => str.padEnd(width);
+const right = (str: string, width: number): string => str.padStart(width);
+
+// Column widths
+const W = {
+  product: 12,
+  buying: 8,
+  selling: 9,
+  stock: 10,
+};
+
 /**
  * Market trading screen.
  * Shows commodity prices and allows buying/selling.
@@ -20,53 +32,59 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ onBack }) => {
   return (
     <Box flexDirection="column" padding={1}>
       {/* Header */}
-      <Box borderStyle="round" padding={1} marginBottom={1}>
+      <Box borderStyle="round" padding={1} marginBottom={1} alignItems="center">
         <Text variant="info" bold>
           CLASS II PORT - TRADING POST ALPHA
         </Text>
       </Box>
       
       {/* Market prices */}
-      <Box flexDirection="column" borderStyle="single" padding={1} marginBottom={1}>
+      <Box flexDirection="column" borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
         <Text variant="muted" bold>MARKET PRICES:</Text>
-        <Box padding={1} />
+        <Box paddingY={1} />
         
-        <Box flexDirection="row" justifyContent="space-between">
-          <Text>Product</Text>
-          <Text>Buying</Text>
-          <Text>Selling</Text>
-          <Text>In Stock</Text>
+        {/* Header row */}
+        <Box flexDirection="row" width={100}>
+          <Text bold>{left('Product', W.product)}</Text>
+          <Text bold>{right('Buying', W.buying)}</Text>
+          <Text bold>{right('Selling', W.selling)}</Text>
+          <Text bold>{right('In Stock', W.stock)}</Text>
         </Box>
         
-        <Box flexDirection="row" justifyContent="space-between">
-          <Text variant="warning">Ore</Text>
-          <Text variant="danger">95</Text>
-          <Text variant="success">120</Text>
-          <Text>500</Text>
+        <Box paddingY={0} />
+        
+        {/* Ore row */}
+        <Box flexDirection="row" width={100}>
+          <Text variant="warning">{left('Ore', W.product)}</Text>
+          <Text variant="danger">{right('95', W.buying)}</Text>
+          <Text variant="success">{right('120', W.selling)}</Text>
+          <Text>{right('500', W.stock)}</Text>
         </Box>
         
-        <Box flexDirection="row" justifyContent="space-between">
-          <Text variant="warning">Organics</Text>
-          <Text variant="danger">45</Text>
-          <Text variant="success">60</Text>
-          <Text>1,200</Text>
+        {/* Organics row */}
+        <Box flexDirection="row" width={100}>
+          <Text variant="warning">{left('Organics', W.product)}</Text>
+          <Text variant="danger">{right('45', W.buying)}</Text>
+          <Text variant="success">{right('60', W.selling)}</Text>
+          <Text>{right('1,200', W.stock)}</Text>
         </Box>
         
-        <Box flexDirection="row" justifyContent="space-between">
-          <Text variant="warning">Equipment</Text>
-          <Text variant="danger">200</Text>
-          <Text variant="success">250</Text>
-          <Text>50</Text>
+        {/* Equipment row */}
+        <Box flexDirection="row" width={100}>
+          <Text variant="warning">{left('Equipment', W.product)}</Text>
+          <Text variant="danger">{right('200', W.buying)}</Text>
+          <Text variant="success">{right('250', W.selling)}</Text>
+          <Text>{right('50', W.stock)}</Text>
         </Box>
       </Box>
       
       {/* Cargo hold */}
-      <Box borderStyle="single" padding={1}>
+      <Box borderStyle="single" paddingX={2} paddingY={1}>
         <Text variant="muted" bold>YOUR CARGO (Merchant Ship):</Text>
-        <Box padding={1} />
-        <Text>Ore: 0 / 100</Text>
-        <Text>Organics: 0 / 100</Text>
-        <Text>Equipment: 0 / 100</Text>
+        <Box paddingY={1} />
+        <Text>Ore:        0 / 100</Text>
+        <Text>Organics:   0 / 100</Text>
+        <Text>Equipment:  0 / 100</Text>
       </Box>
     </Box>
   );

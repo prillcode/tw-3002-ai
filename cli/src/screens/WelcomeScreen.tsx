@@ -58,7 +58,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     >
       {/* Title - Using Ink's border instead of manual ASCII art */}
       <Box 
-        borderStyle="double" 
+        borderStyle="round" 
         borderColor="green"
         paddingX={3} 
         paddingY={1} 
