@@ -229,9 +229,9 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       </Box>
       
       {/* Main content - 2 column layout */}
-      <Box flexDirection="row" gap={2} marginBottom={1}>
+      <Box flexDirection="row" gap={4} marginBottom={1}>
         {/* Left: Commodities */}
-        <Box flexDirection="column" width={45}>
+        <Box flexDirection="column" width={38}>
           <CommoditySelector
             commodities={marketData.map(m => ({
               type: m.commodity,
@@ -247,20 +247,21 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         </Box>
         
         {/* Right: Transaction panel */}
-        <Box flexDirection="column" width={30}>
+        <Box flexDirection="column" width={35}>
           {mode !== 'browse' && currentCommodity && (
             <Box 
               borderStyle="round" 
               borderColor={mode === 'buy' ? 'green' : 'red'}
-              padding={1}
+              paddingX={2}
+              paddingY={1}
             >
               <Text bold color={mode === 'buy' ? 'green' : 'red'}>
-                {mode === 'buy' ? 'PURCHASE ORDER' : 'SALE ORDER'}
+                {mode === 'buy' ? '🛒 PURCHASE ORDER' : '💰 SALE ORDER'}
               </Text>
               
               <Box paddingY={1} />
               
-              <Text>{currentCommodity.label}</Text>
+              <Text bold>{currentCommodity.label}</Text>
               <Text color="muted">
                 @ {mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice} cr/unit
               </Text>
@@ -280,7 +281,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           )}
           
           {mode === 'browse' && (
-            <Box borderStyle="single" borderColor="muted" padding={1}>
+            <Box borderStyle="single" borderColor="muted" paddingX={2} paddingY={1}>
               <Text color="muted" dimColor>Quick Keys:</Text>
               <Box paddingY={0} />
               <Text color="green">[B] Buy mode</Text>
