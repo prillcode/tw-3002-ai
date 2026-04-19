@@ -13,26 +13,26 @@ export const AnsiTitle: React.FC = () => {
       <Box 
         borderStyle="double" 
         borderColor="cyan"
-        paddingX={4} 
-        paddingY={2}
+        paddingX={2} 
+        paddingY={1}
         flexDirection="column"
         alignItems="center"
       >
-        {/* TW 3002 AI - Large ASCII Letters */}
+        {/* TW 3002 - Large ASCII Letters with CORRECT numbers */}
         <Text color="cyan" bold>
-          {'████████╗ ██╗    ██╗  ██████╗   ██████╗   ██████╗  ██████╗'}
+          {'████████╗ ██╗    ██╗ ██████╗  ██████╗  ██████╗  ██████╗ '}
         </Text>
         <Text color="cyan" bold>
-          {'╚══██╔══╝ ██║    ██║ ╚═════██╗ ╚═════██╗ ╚═════██╗ ╚═════██╗'}
+          {'╚══██╔══╝ ██║    ██║ ╚════██╗ ██╔═████╗ ██╔═████╗ ██╔═████╗'}
         </Text>
         <Text color="cyan" bold>
-          {'   ██║    ██║ █╗ ██║  ██████╔╝  ██████╔╝  ██████╔╝  ██████╔╝'}
+          {'   ██║    ██║ █╗ ██║  █████╔╝ ██║██╔██║ ██║██╔██║ ██║██╔██║'}
         </Text>
         <Text color="cyan" bold>
-          {'   ██║    ██║███╗██║  ╚═══██╔╝  ╚═══██╔╝  ╚═══██╔╝  ╚═══██╔╝ '}
+          {'   ██║    ██║███╗██║ ╚═══██╗ ████╔╝██║ ████╔╝██║ ████╔╝██║'}
         </Text>
         <Text color="cyan" bold>
-          {'   ██║    ╚███╔███╔╝ ██████╔╝  ██████╔╝  ██████╔╝  ██████╔╝ '}
+          {'   ██║    ╚███╔███╔╝ ██████╔╝ ╚██████╔╝ ╚██████╔╝ ╚██████╔╝'}
         </Text>
         <Text color="cyan" bold>
           {'   ╚═╝     ╚══╝╚══╝  ╚═════╝   ╚═════╝   ╚═════╝   ╚═════╝ '}
@@ -44,11 +44,11 @@ export const AnsiTitle: React.FC = () => {
         <Box 
           borderStyle="single" 
           borderColor="magenta"
-          paddingX={3}
+          paddingX={4}
           paddingY={0}
         >
           <Text color="magenta" bold>
-            {'  AAA   III  '}
+            {' A I '}
           </Text>
         </Box>
       </Box>
