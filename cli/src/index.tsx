@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { render } from 'ink';
 import { useScreen } from './hooks';
 import { AppLayout } from './components';
@@ -10,12 +10,17 @@ import { WelcomeScreen, SectorScreen, MarketScreen } from './screens';
  */
 const App = () => {
   const { currentScreen, navigateTo, goBack } = useScreen({ initial: 'welcome' });
+  const [shipName, setShipName] = useState<string>('');
+  const [showWelcomeStatus, setShowWelcomeStatus] = useState(true);
 
   // Determine status bar items based on current screen
   const getStatusItems = () => {
     switch (currentScreen) {
       case 'welcome':
-        return [
+        return showWelcomeStatus ? [
+          { key: 'Any Key', action: 'Continue' },
+          { key: 'Q', action: 'Quit' }
+        ] : [
           { key: '↑↓', action: 'Navigate' },
           { key: 'Enter', action: 'Select' },
           { key: 'Q', action: 'Quit' }
@@ -45,7 +50,11 @@ const App = () => {
       case 'welcome':
         return (
           <WelcomeScreen
-            onNewGame={() => navigateTo('sector')}
+            onNewGame={(name) => {
+              setShipName(name);
+              setShowWelcomeStatus(false);
+              navigateTo('sector');
+            }}
             onQuit={() => process.exit(0)}
           />
         );
@@ -63,7 +72,10 @@ const App = () => {
           />
         );
       default:
-        return <WelcomeScreen onNewGame={() => navigateTo('sector')} onQuit={() => process.exit(0)} />;
+        return <WelcomeScreen onNewGame={(name) => {
+          setShipName(name);
+          navigateTo('sector');
+        }} onQuit={() => process.exit(0)} />;
     }
   };
 

@@ -1,11 +1,13 @@
-import React from 'react';
-import { Box, Text, Menu } from '../components';
+import React, { useState } from 'react';
+import { Box, Text, Menu, AnsiTitle, PressAnyKey, ShipNameInput } from '../components';
+
+type WelcomeState = 'title' | 'menu' | 'shipInput';
 
 export interface WelcomeScreenProps {
-  /** Called when New Game is selected. */
-  onNewGame: () => void;
+  /** Called when New Game flow completes with ship name. */
+  onNewGame: (shipName: string) => void;
   
-  /** Called when Continue is selected. */
+  /** Called when Continue is selected (if saves exist). */
   onContinue?: () => void;
   
   /** Called when Settings is selected. */
@@ -16,8 +18,13 @@ export interface WelcomeScreenProps {
 }
 
 /**
- * Welcome screen with title and main menu.
- * First screen players see when launching the game.
+ * Welcome screen with authentic BBS-era flow.
+ * 
+ * Flow:
+ * 1. Title screen (ANSI art + "Press any key")
+ * 2. Main menu (New Game / Continue / Quit)
+ * 3. Ship name input (for new games)
+ * 4. Navigate to game
  */
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
   onNewGame, 
@@ -25,6 +32,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onSettings,
   onQuit 
 }) => {
+  const [welcomeState, setWelcomeState] = useState<WelcomeState>('title');
+  const [pendingShipName, setPendingShipName] = useState<string>('');
+
   const menuItems = [
     { id: 'new', label: 'New Game' },
     ...(onContinue ? [{ id: 'continue', label: 'Continue' }] : []),
@@ -32,10 +42,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     { id: 'quit', label: 'Quit' }
   ];
 
-  const handleSelect = (id: string) => {
+  const handleMenuSelect = (id: string) => {
     switch (id) {
       case 'new':
-        onNewGame();
+        setWelcomeState('shipInput');
         break;
       case 'continue':
         onContinue?.();
@@ -49,6 +59,47 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     }
   };
 
+  const handleShipSubmit = (name: string) => {
+    setPendingShipName(name);
+    onNewGame(name);
+  };
+
+  const handleShipCancel = () => {
+    setWelcomeState('menu');
+  };
+
+  // Render based on current state
+  if (welcomeState === 'title') {
+    return (
+      <Box 
+        flexDirection="column" 
+        alignItems="center" 
+        justifyContent="center"
+        padding={2}
+      >
+        <AnsiTitle />
+        
+        <Box paddingY={2} />
+        
+        <Text color="magenta" dimColor>
+          A Trade Wars 2002 Revival with LLM-Driven NPCs
+        </Text>
+        
+        <PressAnyKey onPress={() => setWelcomeState('menu')} />
+      </Box>
+    );
+  }
+
+  if (welcomeState === 'shipInput') {
+    return (
+      <ShipNameInput 
+        onSubmit={handleShipSubmit}
+        onCancel={handleShipCancel}
+      />
+    );
+  }
+
+  // Menu state (default)
   return (
     <Box 
       flexDirection="column" 
@@ -56,35 +107,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       justifyContent="center"
       padding={2}
     >
-      {/* Title - Using Ink's border instead of manual ASCII art */}
       <Box 
         borderStyle="round" 
-        borderColor="green"
+        borderColor="cyan"
         paddingX={3} 
         paddingY={1} 
-        marginBottom={1}
+        marginBottom={2}
         alignItems="center"
       >
-        <Text variant="success" bold> TW 3002 AI </Text>
+        <Text color="cyan" bold> TW 3002 AI </Text>
       </Box>
       
-      {/* Subtitle */}
-      <Box marginBottom={1}>
-        <Text variant="muted">
-          A Trade Wars 2002 Revival
-        </Text>
-      </Box>
-      
-      <Text variant="muted" dimColor>
-        Terminal-native space trading with LLM-driven NPCs
+      <Text color="muted" dimColor>
+        Main Menu
       </Text>
       
       <Box paddingY={2} />
       
-      {/* Menu */}
       <Menu 
         items={menuItems}
-        onSelect={handleSelect}
+        onSelect={handleMenuSelect}
         onCancel={onQuit}
       />
     </Box>
