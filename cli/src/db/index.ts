@@ -4,9 +4,13 @@ export {
   saveGame,
   loadGame,
   hasSave,
-  getSaveInfo,
+  hasAnySave,
+  getSlotInfo,
+  getAllSlotInfo,
   clearSave,
+  clearAllSaves,
   safeLoadGame,
+  SLOT_NAMES,
   type GameState,
-  type SaveInfo
+  type SlotInfo
 } from './saveLoad';

@@ -14,23 +14,36 @@ export interface GameState {
   maxTurns: number;
 }
 
-export interface SaveInfo {
-  shipName: string;
-  updatedAt: string;
+export interface SlotInfo {
+  slotId: number;
+  shipName: string | null;
+  credits: number | null;
+  updatedAt: string | null;
+  isEmpty: boolean;
 }
 
+// Slot names for display
+export const SLOT_NAMES: Record<number, string> = {
+  1: 'Galaxy A',
+  2: 'Galaxy B',
+  3: 'Galaxy C'
+};
+
 /**
- * Save current game state to SQLite.
- * Uses INSERT OR REPLACE to update existing save (id is always 1).
+ * Save current game state to specific slot.
  */
-export const saveGame = (db: Database, state: GameState): void => {
+export const saveGame = (db: Database, slotId: number, state: GameState): void => {
+  if (slotId < 1 || slotId > 3) {
+    throw new Error('Invalid slot ID. Must be 1, 2, or 3.');
+  }
+  
   db.run(
     `INSERT INTO saves (
-      id, ship_name, credits, current_sector,
+      slot_id, ship_name, credits, current_sector,
       cargo_ore, cargo_organics, cargo_equipment,
       hull, turns, max_turns, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(slot_id) DO UPDATE SET
       ship_name = excluded.ship_name,
       credits = excluded.credits,
       current_sector = excluded.current_sector,
@@ -42,7 +55,7 @@ export const saveGame = (db: Database, state: GameState): void => {
       max_turns = excluded.max_turns,
       updated_at = excluded.updated_at`,
     [
-      1, // Single save slot
+      slotId,
       state.shipName,
       state.credits,
       state.currentSector,
@@ -57,13 +70,14 @@ export const saveGame = (db: Database, state: GameState): void => {
 };
 
 /**
- * Load game state from SQLite.
- * Returns null if no save exists.
+ * Load game state from specific slot.
  */
-export const loadGame = (db: Database): GameState | null => {
+export const loadGame = (db: Database, slotId: number): GameState | null => {
+  if (slotId < 1 || slotId > 3) return null;
+  
   const row = db.query(
-    'SELECT * FROM saves WHERE id = 1'
-  ).get() as any;
+    'SELECT * FROM saves WHERE slot_id = ?'
+  ).get(slotId) as any;
   
   if (!row) return null;
   
@@ -83,44 +97,80 @@ export const loadGame = (db: Database): GameState | null => {
 };
 
 /**
- * Check if a save game exists.
+ * Check if a specific slot has a save.
  */
-export const hasSave = (db: Database): boolean => {
+export const hasSave = (db: Database, slotId: number): boolean => {
+  if (slotId < 1 || slotId > 3) return false;
+  
   const result = db.query(
-    'SELECT COUNT(*) as count FROM saves WHERE id = 1'
+    'SELECT COUNT(*) as count FROM saves WHERE slot_id = ?'
+  ).get(slotId) as any;
+  return result.count > 0;
+};
+
+/**
+ * Check if ANY slot has a save (for showing Continue in menu).
+ */
+export const hasAnySave = (db: Database): boolean => {
+  const result = db.query(
+    'SELECT COUNT(*) as count FROM saves'
   ).get() as any;
   return result.count > 0;
 };
 
 /**
- * Get save info for display in menu.
+ * Get info for a specific slot.
  */
-export const getSaveInfo = (db: Database): SaveInfo | null => {
-  const row = db.query(
-    'SELECT ship_name, updated_at FROM saves WHERE id = 1'
-  ).get() as any;
+export const getSlotInfo = (db: Database, slotId: number): SlotInfo => {
+  if (slotId < 1 || slotId > 3) {
+    return { slotId, shipName: null, credits: null, updatedAt: null, isEmpty: true };
+  }
   
-  if (!row) return null;
+  const row = db.query(
+    'SELECT ship_name, credits, updated_at FROM saves WHERE slot_id = ?'
+  ).get(slotId) as any;
+  
+  if (!row) {
+    return { slotId, shipName: null, credits: null, updatedAt: null, isEmpty: true };
+  }
   
   return {
+    slotId,
     shipName: row.ship_name,
-    updatedAt: row.updated_at
+    credits: row.credits,
+    updatedAt: row.updated_at,
+    isEmpty: false
   };
 };
 
 /**
- * Clear the save game (for New Game).
+ * Get info for all 3 slots.
  */
-export const clearSave = (db: Database): void => {
-  db.run('DELETE FROM saves WHERE id = 1');
+export const getAllSlotInfo = (db: Database): SlotInfo[] => {
+  return [1, 2, 3].map(slotId => getSlotInfo(db, slotId));
+};
+
+/**
+ * Clear a specific slot (for New Game on existing slot).
+ */
+export const clearSave = (db: Database, slotId: number): void => {
+  if (slotId < 1 || slotId > 3) return;
+  db.run('DELETE FROM saves WHERE slot_id = ?', [slotId]);
+};
+
+/**
+ * Clear all slots (nuclear option).
+ */
+export const clearAllSaves = (db: Database): void => {
+  db.run('DELETE FROM saves');
 };
 
 /**
  * Safe load with error handling.
  */
-export const safeLoadGame = (db: Database): GameState | null => {
+export const safeLoadGame = (db: Database, slotId: number): GameState | null => {
   try {
-    return loadGame(db);
+    return loadGame(db, slotId);
   } catch (err) {
     console.error('Failed to load save:', err);
     return null;

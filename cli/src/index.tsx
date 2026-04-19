@@ -2,44 +2,42 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { render } from 'ink';
 import { useScreen } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen } from './screens';
-import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState } from './db';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen } from './screens';
+import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
+
+type AppMode = 'welcome' | 'slotSelect' | 'shipName' | 'sector' | 'market';
+type SelectMode = 'new' | 'continue' | null;
 
 const App = () => {
   const { currentScreen, navigateTo, goBack } = useScreen({ initial: 'welcome' });
   const db = useMemo(() => initDatabase(), []);
   
-  // Track if save exists for showing Continue option
-  const [saveExists, setSaveExists] = useState(false);
+  // Track current mode/flow
+  const [appMode, setAppMode] = useState<AppMode>('welcome');
+  const [selectMode, setSelectMode] = useState<SelectMode>(null);
   
-  // Game state (persisted to SQLite)
+  // Selected slot for gameplay
+  const [selectedSlot, setSelectedSlot] = useState<number>(1);
+  
+  // Game state (per slot)
   const [shipName, setShipName] = useState<string>('');
   const [currentSectorId, setCurrentSectorId] = useState<number>(42);
   const [shipState, setShipState] = useState({
     credits: 5000,
-    cargo: {
-      ore: 0,
-      organics: 0,
-      equipment: 0
-    },
+    cargo: { ore: 0, organics: 0, equipment: 0 },
     maxCargo: 100,
     hull: 100,
     turns: 100,
     maxTurns: 100
   });
   
-  // Track new game confirmation
+  // Confirmation dialogs
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
-  const [pendingShipName, setPendingShipName] = useState<string>('');
+  const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
-  // Check for existing save on mount
-  useEffect(() => {
-    setSaveExists(hasSave(db));
-  }, [db]);
-  
   // Auto-save whenever state changes
   useEffect(() => {
-    if (shipName) { // Only save after ship is named
+    if (shipName && selectedSlot) {
       const gameState: GameState = {
         shipName,
         credits: shipState.credits,
@@ -49,25 +47,45 @@ const App = () => {
         turns: shipState.turns,
         maxTurns: shipState.maxTurns
       };
-      saveGame(db, gameState);
-      setSaveExists(true);
+      saveGame(db, selectedSlot, gameState);
     }
-  }, [shipName, currentSectorId, shipState, db]);
+  }, [shipName, currentSectorId, shipState, selectedSlot, db]);
 
-  // Handle new game (with confirmation if save exists)
-  const handleNewGameRequest = (name: string) => {
-    if (saveExists) {
-      setPendingShipName(name);
-      setShowNewGameConfirm(true);
-    } else {
-      startNewGame(name);
+  // Handle New Game request
+  const handleNewGame = () => {
+    setSelectMode('new');
+    setAppMode('slotSelect');
+  };
+  
+  // Handle Continue request
+  const handleContinue = () => {
+    setSelectMode('continue');
+    setAppMode('slotSelect');
+  };
+  
+  // Handle slot selection
+  const handleSelectSlot = (slotId: number, isEmpty: boolean) => {
+    setSelectedSlot(slotId);
+    
+    if (selectMode === 'new') {
+      if (isEmpty) {
+        // Empty slot - start fresh
+        startNewGame(slotId);
+      } else {
+        // Slot has save - confirm overwrite
+        setPendingSlot(slotId);
+        setShowNewGameConfirm(true);
+      }
+    } else if (selectMode === 'continue') {
+      // Continue - load existing save
+      loadExistingGame(slotId);
     }
   };
   
-  // Actually start new game
-  const startNewGame = (name: string) => {
-    clearSave(db);
-    setShipName(name);
+  // Start fresh game in slot
+  const startNewGame = (slotId: number) => {
+    clearSave(db, slotId);
+    setShipName('');
     setCurrentSectorId(42);
     setShipState({
       credits: 5000,
@@ -77,13 +95,21 @@ const App = () => {
       turns: 100,
       maxTurns: 100
     });
-    setSaveExists(false);
-    navigateTo('sector');
+    setAppMode('shipName');
   };
   
-  // Handle continue from save
-  const handleContinue = () => {
-    const save = loadGame(db);
+  // Confirm overwrite and start new
+  const confirmOverwrite = () => {
+    if (pendingSlot) {
+      startNewGame(pendingSlot);
+      setShowNewGameConfirm(false);
+      setPendingSlot(null);
+    }
+  };
+  
+  // Load existing game from slot
+  const loadExistingGame = (slotId: number) => {
+    const save = loadGame(db, slotId);
     if (save) {
       setShipName(save.shipName);
       setCurrentSectorId(save.currentSector);
@@ -95,14 +121,21 @@ const App = () => {
         turns: save.turns,
         maxTurns: save.maxTurns
       });
-      navigateTo('sector');
+      setSelectedSlot(slotId);
+      setAppMode('sector');
     }
   };
-
-  // Handle quit with final save
+  
+  // Handle ship name submission
+  const handleShipNameSubmit = (name: string) => {
+    setShipName(name);
+    setAppMode('sector');
+  };
+  
+  // Handle quit
   const handleQuit = () => {
-    if (shipName) {
-      saveGame(db, {
+    if (shipName && selectedSlot) {
+      saveGame(db, selectedSlot, {
         shipName,
         credits: shipState.credits,
         currentSector: currentSectorId,
@@ -114,75 +147,64 @@ const App = () => {
     }
     process.exit(0);
   };
-
-  // Determine status bar items
-  const getStatusItems = () => {
-    switch (currentScreen) {
-      case 'welcome':
-        return [
-          { key: '↑↓', action: 'Navigate' },
-          { key: 'Enter', action: 'Select' },
-          { key: 'Q', action: 'Quit' }
-        ];
-      case 'sector':
-        return [
-          { key: '↑↓←→', action: 'Move' },
-          { key: 'M', action: 'Market' },
-          { key: 'Esc', action: 'Back' },
-          { key: 'Q', action: 'Quit' }
-        ];
-      case 'market':
-        return [
-          { key: '↑↓', action: 'Select' },
-          { key: 'B', action: 'Buy' },
-          { key: 'S', action: 'Sell' },
-          { key: 'Esc', action: 'Back' },
-          { key: 'Q', action: 'Quit' }
-        ];
-      default:
-        return [{ key: 'Q', action: 'Quit' }];
+  
+  // Handle back navigation
+  const handleBack = () => {
+    if (appMode === 'slotSelect') {
+      setAppMode('welcome');
+      setSelectMode(null);
+    } else if (appMode === 'shipName') {
+      setAppMode('slotSelect');
+    } else if (appMode === 'sector') {
+      setAppMode('welcome');
+    } else if (appMode === 'market') {
+      setAppMode('sector');
     }
   };
 
-  // Show new game confirmation
-  if (showNewGameConfirm) {
-    return (
-      <ConfirmDialog
-        message="Starting a new game will overwrite your current save. Continue?"
-        onConfirm={() => {
-          startNewGame(pendingShipName);
-          setShowNewGameConfirm(false);
-        }}
-        onCancel={() => setShowNewGameConfirm(false)}
-        defaultToConfirm={false}
-      />
-    );
-  }
-
-  // Render current screen
-  const renderScreen = () => {
-    switch (currentScreen) {
+  // Render based on current mode
+  const renderContent = () => {
+    switch (appMode) {
       case 'welcome':
         return (
           <WelcomeScreen
-            onNewGame={handleNewGameRequest}
-            onContinue={saveExists ? handleContinue : undefined}
+            onNewGame={handleNewGame}
+            onContinue={handleContinue}
             onQuit={handleQuit}
-            saveExists={saveExists}
+            db={db}
           />
         );
+        
+      case 'slotSelect':
+        if (!selectMode) return null;
+        return (
+          <SlotSelectScreen
+            db={db}
+            mode={selectMode}
+            onSelectSlot={handleSelectSlot}
+            onBack={handleBack}
+          />
+        );
+        
+      case 'shipName':
+        return (
+          <WelcomeScreen
+            onNewGame={handleShipNameSubmit}
+            onQuit={handleQuit}
+            db={db}
+            skipToShipName
+          />
+        );
+        
       case 'sector':
         return (
           <SectorScreen
-            onMarket={() => navigateTo('market')}
-            onBack={() => goBack()}
+            onMarket={() => setAppMode('market')}
+            onBack={handleBack}
             shipName={shipName || 'Unnamed Vessel'}
             currentSectorId={currentSectorId}
             onUpdateSector={setCurrentSectorId}
-            shipState={{
-              ...shipState,
-              name: shipName
-            }}
+            shipState={{ ...shipState, name: shipName }}
             onUpdateShip={(newState) => {
               setShipState(prev => ({
                 ...prev,
@@ -194,10 +216,11 @@ const App = () => {
             }}
           />
         );
+        
       case 'market':
         return (
           <MarketScreen
-            onBack={() => goBack()}
+            onBack={() => setAppMode('sector')}
             currentSectorId={currentSectorId}
             shipState={{
               name: shipName,
@@ -214,21 +237,70 @@ const App = () => {
             }}
           />
         );
+        
       default:
-        return (
-          <WelcomeScreen
-            onNewGame={handleNewGameRequest}
-            onContinue={saveExists ? handleContinue : undefined}
-            onQuit={handleQuit}
-            saveExists={saveExists}
-          />
-        );
+        return null;
     }
   };
 
+  // Status bar items based on mode
+  const getStatusItems = () => {
+    switch (appMode) {
+      case 'welcome':
+        return [
+          { key: '↑↓', action: 'Navigate' },
+          { key: 'Enter', action: 'Select' },
+          { key: 'Q', action: 'Quit' }
+        ];
+      case 'slotSelect':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'Enter', action: 'Choose' },
+          { key: 'Esc', action: 'Back' }
+        ];
+      case 'shipName':
+        return [
+          { key: 'Type', action: 'Name' },
+          { key: 'Enter', action: 'Confirm' },
+          { key: 'Esc', action: 'Cancel' }
+        ];
+      case 'sector':
+        return [
+          { key: '↑↓←→', action: 'Move' },
+          { key: 'M', action: 'Market' },
+          { key: 'Esc', action: 'Menu' },
+          { key: 'Q', action: 'Quit' }
+        ];
+      case 'market':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'B', action: 'Buy' },
+          { key: 'S', action: 'Sell' },
+          { key: 'Esc', action: 'Back' }
+        ];
+      default:
+        return [{ key: 'Q', action: 'Quit' }];
+    }
+  };
+
+  // Show overwrite confirmation
+  if (showNewGameConfirm) {
+    return (
+      <ConfirmDialog
+        message={`Galaxy ${pendingSlot === 1 ? 'A' : pendingSlot === 2 ? 'B' : 'C'} already has a save. Overwrite?`}
+        onConfirm={confirmOverwrite}
+        onCancel={() => {
+          setShowNewGameConfirm(false);
+          setPendingSlot(null);
+        }}
+        defaultToConfirm={false}
+      />
+    );
+  }
+
   return (
     <AppLayout statusItems={getStatusItems()}>
-      {renderScreen()}
+      {renderContent()}
     </AppLayout>
   );
 };

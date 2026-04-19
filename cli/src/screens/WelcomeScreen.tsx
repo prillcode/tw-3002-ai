@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Text, Menu, AnsiTitle, PressAnyKey, ShipNameInput } from '../components';
+import type { Database } from '../db';
+import { hasAnySave } from '../db';
 
 type WelcomeState = 'title' | 'menu' | 'shipInput';
 
@@ -13,37 +15,44 @@ export interface WelcomeScreenProps {
   /** Called when Quit is selected. */
   onQuit: () => void;
   
-  /** Whether a save game exists to continue. */
-  saveExists: boolean;
+  /** Database instance for checking saves. */
+  db: Database;
+  
+  /** Skip to ship name input directly (for new game in slot). */
+  skipToShipName?: boolean;
 }
 
 /**
  * Welcome screen with authentic BBS-era flow.
- * 
- * Flow:
- * 1. Title screen (ANSI art + "Press any key")
- * 2. Main menu (New Game / Continue / Quit)
- * 3. Ship name input (for new games)
- * 4. Navigate to game
  */
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
   onNewGame, 
   onContinue,
   onQuit,
-  saveExists
+  db,
+  skipToShipName = false
 }) => {
-  const [welcomeState, setWelcomeState] = useState<WelcomeState>('title');
+  const [welcomeState, setWelcomeState] = useState<WelcomeState>(
+    skipToShipName ? 'shipInput' : 'title'
+  );
+  const [saveExists, setSaveExists] = useState(() => hasAnySave(db));
+
+  // Check for saves when entering menu
+  const checkSavesAndShowMenu = () => {
+    setSaveExists(hasAnySave(db));
+    setWelcomeState('menu');
+  };
 
   const menuItems = [
     { id: 'new', label: 'New Game' },
-    ...(onContinue ? [{ id: 'continue', label: 'Continue' }] : []),
+    ...(onContinue && saveExists ? [{ id: 'continue', label: 'Continue' }] : []),
     { id: 'quit', label: 'Quit' }
   ];
 
   const handleMenuSelect = (id: string) => {
     switch (id) {
       case 'new':
-        setWelcomeState('shipInput');
+        onNewGame(''); // Trigger slot selection in parent
         break;
       case 'continue':
         onContinue?.();
@@ -59,7 +68,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   const handleShipCancel = () => {
-    setWelcomeState('menu');
+    if (skipToShipName) {
+      onQuit(); // Go back to slot select via quit
+    } else {
+      setWelcomeState('menu');
+    }
   };
 
   // Render based on current state
@@ -82,17 +95,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         {saveExists && (
           <Box marginTop={1}>
             <Text color="green" dimColor>
-              ✓ Save game detected
+              ✓ Save game(s) detected
             </Text>
           </Box>
         )}
         
-        <PressAnyKey onPress={() => setWelcomeState('menu')} />
+        <PressAnyKey onPress={checkSavesAndShowMenu} />
       </Box>
     );
   }
 
-  if (welcomeState === 'shipInput') {
+  if (welcomeState === 'shipInput' || skipToShipName) {
     return (
       <ShipNameInput 
         onSubmit={handleShipSubmit}
@@ -101,7 +114,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     );
   }
 
-  // Menu state (default)
+  // Menu state
   return (
     <Box 
       flexDirection="column" 
