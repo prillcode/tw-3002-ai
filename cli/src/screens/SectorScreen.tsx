@@ -3,6 +3,20 @@ import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog
 import { useKeyHandler } from '../hooks';
 import { getSector, getNeighbors } from '../data/mockGalaxy';
 
+export interface ShipState {
+  name: string;
+  credits: number;
+  cargo: {
+    ore: number;
+    organics: number;
+    equipment: number;
+  };
+  maxCargo: number;
+  hull: number;
+  turns: number;
+  maxTurns: number;
+}
+
 export interface SectorScreenProps {
   /** Navigate to market screen. */
   onMarket: () => void;
@@ -14,7 +28,16 @@ export interface SectorScreenProps {
   shipName: string;
   
   /** Starting sector ID. */
-  startingSector?: number;
+  currentSectorId: number;
+  
+  /** Update current sector on jump. */
+  onUpdateSector: (sectorId: number) => void;
+  
+  /** Ship state. */
+  shipState: ShipState;
+  
+  /** Update ship state. */
+  onUpdateShip: (state: ShipState) => void;
 }
 
 /**
@@ -30,10 +53,11 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   onMarket, 
   onBack,
   shipName,
-  startingSector = 42
+  currentSectorId,
+  onUpdateSector,
+  shipState,
+  onUpdateShip
 }) => {
-  // Track current sector
-  const [currentSectorId, setCurrentSectorId] = useState(startingSector);
   const currentSector = getSector(currentSectorId)!;
   const neighbors = getNeighbors(currentSectorId);
   
@@ -42,21 +66,6 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   
   // Track quit confirmation dialog
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
-  
-  // Mock ship status (will be real state in later phases)
-  const [shipStatus, setShipStatus] = useState({
-    credits: 5000,
-    cargo: {
-      ore: 10,
-      organics: 5,
-      equipment: 0,
-      total: 15,
-      max: 100
-    },
-    hull: 100,
-    turns: 95,
-    maxTurns: 100
-  });
 
   // Handle jump to selected sector
   const handleJump = () => {
@@ -65,14 +74,19 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
     const targetSector = neighbors[selectedIndex];
     if (!targetSector) return;
     
+    // Check turns
+    if (shipState.turns <= 0) {
+      return; // Can't jump without turns
+    }
+    
     // Update sector
-    setCurrentSectorId(targetSector.id);
+    onUpdateSector(targetSector.id);
     
     // Decrement turns (fuel consumption)
-    setShipStatus(prev => ({
-      ...prev,
-      turns: Math.max(0, prev.turns - 1)
-    }));
+    onUpdateShip({
+      ...shipState,
+      turns: Math.max(0, shipState.turns - 1)
+    });
     
     // Reset selection
     setSelectedIndex(0);
@@ -98,20 +112,20 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
     onEscape: onBack,
   });
 
-  // Get sector for display (for jump preview)
-  const selectedSector = neighbors[selectedIndex];
-
   // Show quit confirmation dialog
   if (showQuitConfirm) {
     return (
       <ConfirmDialog
-        message={`Quit the game and return to shell?`}
+        message="Quit the game and return to shell?"
         onConfirm={() => process.exit(0)}
         onCancel={() => setShowQuitConfirm(false)}
         defaultToConfirm={false}
       />
     );
   }
+
+  // Get sector for display (for jump preview)
+  const selectedSector = neighbors[selectedIndex];
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -140,11 +154,12 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
         {/* Right: Ship Status */}
         <ShipStatus
           shipName={shipName}
-          credits={shipStatus.credits}
-          cargo={shipStatus.cargo}
-          hull={shipStatus.hull}
-          turns={shipStatus.turns}
-          maxTurns={shipStatus.maxTurns}
+          credits={shipState.credits}
+          cargo={shipState.cargo}
+          maxCargo={shipState.maxCargo}
+          hull={shipState.hull}
+          turns={shipState.turns}
+          maxTurns={shipState.maxTurns}
           currentSector={currentSectorId}
         />
       </Box>
@@ -175,7 +190,7 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
       </Box>
       
       {/* No turns warning */}
-      {shipStatus.turns === 0 && (
+      {shipState.turns === 0 && (
         <Box marginTop={1} alignItems="center">
           <Text color="red" bold>
             ⚠ OUT OF TURNS — Cannot jump!

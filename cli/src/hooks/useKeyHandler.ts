@@ -28,6 +28,12 @@ export interface KeyHandlers {
   /** M key pressed (market). */
   onM?: () => void;
   
+  /** B key pressed (buy). */
+  onB?: () => void;
+  
+  /** S key pressed (sell). */
+  onS?: () => void;
+  
   /** Any other key pressed. */
   onInput?: (input: string, key: Key) => void;
 }
@@ -78,6 +84,10 @@ export const useKeyHandler = (options: UseKeyHandlerOptions) => {
       handlers.onH();
     } else if (input === 'm' && handlers.onM) {
       handlers.onM();
+    } else if (input === 'b' && handlers.onB) {
+      handlers.onB();
+    } else if (input === 's' && handlers.onS) {
+      handlers.onS();
     } else if (handlers.onInput) {
       handlers.onInput(input, key);
     }

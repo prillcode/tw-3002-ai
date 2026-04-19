@@ -116,3 +116,68 @@ export const getNeighbors = (sectorId: number): Sector[] => {
   if (!sector) return [];
   return sector.neighbors.map(id => getSector(id)).filter((s): s is Sector => s !== undefined);
 };
+
+// Market data types
+export type CommodityType = 'ore' | 'organics' | 'equipment';
+
+export interface MarketData {
+  commodity: CommodityType;
+  label: string;
+  buyPrice: number;    // Price player pays to buy from port
+  sellPrice: number;   // Price player gets for selling to port
+  portStock: number;
+}
+
+// Base prices by commodity
+const basePrices: Record<CommodityType, number> = {
+  ore: 100,
+  organics: 50,
+  equipment: 200
+};
+
+// Port class multipliers (affects spread)
+const classMultipliers: Record<'I' | 'II' | 'III', number> = {
+  'I': 0.05,   // 5% - best prices, tightest spread
+  'II': 0.10,  // 10%
+  'III': 0.15  // 15% - worst prices, widest spread
+};
+
+/** Generate market data for a port */
+export const getMarketData = (port: Port): MarketData[] => {
+  const multiplier = classMultipliers[port.class];
+  
+  // Generate prices for all commodities
+  const commodities: CommodityType[] = ['ore', 'organics', 'equipment'];
+  
+  return commodities.map(commodity => {
+    const base = basePrices[commodity];
+    const isSpecialist = port.type === 
+      (commodity === 'ore' ? 'Ore' : 
+       commodity === 'organics' ? 'Organics' : 'Equipment');
+    
+    // Specialist ports have better prices for their type
+    let buyPrice: number;
+    let sellPrice: number;
+    
+    if (isSpecialist) {
+      // Specialist: buying = cheaper for player (they want it), selling = cheaper for player (they sell bulk)
+      buyPrice = Math.round(base * (1 - multiplier * 1.5));  // Good deal buying
+      sellPrice = Math.round(base * (1 - multiplier));       // Good deal selling
+    } else {
+      // Non-specialist: standard markup
+      buyPrice = Math.round(base * (1 + multiplier));
+      sellPrice = Math.round(base * (1 - multiplier * 0.5));
+    }
+    
+    // Port inventory varies by type and class
+    const portStock = port.class === 'I' ? 1000 : port.class === 'II' ? 500 : 250;
+    
+    return {
+      commodity,
+      label: commodity.charAt(0).toUpperCase() + commodity.slice(1),
+      buyPrice,
+      sellPrice,
+      portStock
+    };
+  });
+};

@@ -9,9 +9,8 @@ export interface ShipStatusProps {
     ore: number;
     organics: number;
     equipment: number;
-    total: number;
-    max: number;
   };
+  maxCargo: number;
   hull: number;
   turns: number;
   maxTurns: number;
@@ -26,11 +25,15 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
   shipName,
   credits,
   cargo,
+  maxCargo,
   hull,
   turns,
   maxTurns,
   currentSector
 }) => {
+  // Calculate cargo total
+  const cargoTotal = cargo.ore + cargo.organics + cargo.equipment;
+  
   // Color coding based on thresholds
   const getCreditsColor = () => {
     if (credits < 100) return 'red';
@@ -74,8 +77,8 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
         
         <Box width={16}>
           <Text color="muted">Cargo:</Text>
-          <Text color={cargo.total > cargo.max * 0.8 ? 'yellow' : 'white'}>
-            {cargo.total}/{cargo.max}
+          <Text color={cargoTotal > maxCargo * 0.8 ? 'yellow' : 'white'}>
+            {cargoTotal}/{maxCargo}
           </Text>
         </Box>
         
