@@ -4,34 +4,67 @@ import { Text } from './Text';
 
 /**
  * ANSI art title component for TW 3002 AI.
- * Renders ASCII-style title with authentic BBS colors.
+ * Renders clean ASCII-style title with authentic BBS colors.
  */
 export const AnsiTitle: React.FC = () => {
-  // Simplified ASCII art that renders well in terminals
-  const titleLines = [
-    '╔═══════════════════════════════════════════════════════════╗',
-    '║                                                           ║',
-    '║   TTTTTTT  WWW       WWW    333333     00000     222222   ║',
-    '║      T      WWW     WWW    33    33   00   00   22    22  ║',
-    '║      T       WWW   WWW         333    00   00        22   ║',
-    '║      T        WWW WWW        333      00   00      22     ║',
-    '║      T         WW WW       3333333     0000000   2222222  ║',
-    '║                          33    33          00             ║',
-    '║                          33    33     00   00   2222222222  ║',
-    '║                           3333333     000000              ║',
-    '║                                                           ║',
-    '║                    AI  EDITION                            ║',
-    '║                                                           ║',
-    '╚═══════════════════════════════════════════════════════════╝',
-  ];
-
   return (
-    <Box flexDirection="column" alignItems="center">
-      {titleLines.map((line, index) => (
-        <Text key={index} color="cyan">
-          {line}
+    <Box flexDirection="column" alignItems="center" paddingY={1}>
+      {/* Main Title Box */}
+      <Box 
+        borderStyle="double" 
+        borderColor="cyan"
+        paddingX={4} 
+        paddingY={2}
+        flexDirection="column"
+        alignItems="center"
+      >
+        {/* TW 3002 AI - Large ASCII Letters */}
+        <Text color="cyan" bold>
+          {'████████╗ ██╗    ██╗  ██████╗   ██████╗   ██████╗  ██████╗'}
         </Text>
-      ))}
+        <Text color="cyan" bold>
+          {'╚══██╔══╝ ██║    ██║ ╚═════██╗ ╚═════██╗ ╚═════██╗ ╚═════██╗'}
+        </Text>
+        <Text color="cyan" bold>
+          {'   ██║    ██║ █╗ ██║  ██████╔╝  ██████╔╝  ██████╔╝  ██████╔╝'}
+        </Text>
+        <Text color="cyan" bold>
+          {'   ██║    ██║███╗██║  ╚═══██╔╝  ╚═══██╔╝  ╚═══██╔╝  ╚═══██╔╝ '}
+        </Text>
+        <Text color="cyan" bold>
+          {'   ██║    ╚███╔███╔╝ ██████╔╝  ██████╔╝  ██████╔╝  ██████╔╝ '}
+        </Text>
+        <Text color="cyan" bold>
+          {'   ╚═╝     ╚══╝╚══╝  ╚═════╝   ╚═════╝   ╚═════╝   ╚═════╝ '}
+        </Text>
+        
+        <Box paddingY={1} />
+        
+        {/* AI Badge */}
+        <Box 
+          borderStyle="single" 
+          borderColor="magenta"
+          paddingX={3}
+          paddingY={0}
+        >
+          <Text color="magenta" bold>
+            {'  AAA   III  '}
+          </Text>
+        </Box>
+      </Box>
+      
+      {/* Subtitle */}
+      <Box marginTop={2}>
+        <Text color="yellow" dimColor>
+          A Trade Wars 2002 Revival
+        </Text>
+      </Box>
+      
+      <Box marginTop={0}>
+        <Text color="magenta" dimColor>
+          with LLM-Driven NPCs
+        </Text>
+      </Box>
     </Box>
   );
 };

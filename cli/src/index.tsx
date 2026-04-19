@@ -11,16 +11,12 @@ import { WelcomeScreen, SectorScreen, MarketScreen } from './screens';
 const App = () => {
   const { currentScreen, navigateTo, goBack } = useScreen({ initial: 'welcome' });
   const [shipName, setShipName] = useState<string>('');
-  const [showWelcomeStatus, setShowWelcomeStatus] = useState(true);
 
   // Determine status bar items based on current screen
   const getStatusItems = () => {
     switch (currentScreen) {
       case 'welcome':
-        return showWelcomeStatus ? [
-          { key: 'Any Key', action: 'Continue' },
-          { key: 'Q', action: 'Quit' }
-        ] : [
+        return [
           { key: '↑↓', action: 'Navigate' },
           { key: 'Enter', action: 'Select' },
           { key: 'Q', action: 'Quit' }
@@ -52,7 +48,6 @@ const App = () => {
           <WelcomeScreen
             onNewGame={(name) => {
               setShipName(name);
-              setShowWelcomeStatus(false);
               navigateTo('sector');
             }}
             onQuit={() => process.exit(0)}

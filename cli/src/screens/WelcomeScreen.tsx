@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Box, Text, Menu, ShipNameInput } from '../components';
+import { Box, Text, Menu, AnsiTitle, PressAnyKey, ShipNameInput } from '../components';
 
-type WelcomeState = 'menu' | 'shipInput';
+type WelcomeState = 'title' | 'menu' | 'shipInput';
 
 export interface WelcomeScreenProps {
   /** Called when New Game flow completes with ship name. */
@@ -32,7 +32,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onSettings,
   onQuit 
 }) => {
-  const [welcomeState, setWelcomeState] = useState<WelcomeState>('menu');
+  const [welcomeState, setWelcomeState] = useState<WelcomeState>('title');
   const [pendingShipName, setPendingShipName] = useState<string>('');
 
   const menuItems = [
@@ -69,6 +69,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   // Render based on current state
+  if (welcomeState === 'title') {
+    return (
+      <Box 
+        flexDirection="column" 
+        alignItems="center" 
+        justifyContent="center"
+        padding={2}
+      >
+        <AnsiTitle />
+        
+        <Box paddingY={2} />
+        
+        <PressAnyKey onPress={() => setWelcomeState('menu')} />
+      </Box>
+    );
+  }
+
   if (welcomeState === 'shipInput') {
     return (
       <ShipNameInput 
