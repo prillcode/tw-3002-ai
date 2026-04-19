@@ -50,23 +50,36 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   return (
-    <Box flexDirection="column" alignItems="center" padding={2}>
-      {/* Title */}
-      <Box borderStyle="round" padding={1} marginBottom={1}>
-        <Text variant="success" bold>
-          ╔═══════════════════════════╗
-          ║  TW 3002 AI               ║
-          ║  A Trade Wars 2002 Revival ║
-          ╚═══════════════════════════╝
-        </Text>
+    <Box 
+      flexDirection="column" 
+      alignItems="center" 
+      justifyContent="center"
+      padding={2}
+    >
+      {/* Title - Using Ink's border instead of manual ASCII art */}
+      <Box 
+        borderStyle="double" 
+        borderColor="green"
+        paddingX={3} 
+        paddingY={1} 
+        marginBottom={1}
+        alignItems="center"
+      >
+        <Text variant="success" bold> TW 3002 AI </Text>
       </Box>
       
       {/* Subtitle */}
-      <Text variant="muted" bold>
+      <Box marginBottom={1}>
+        <Text variant="muted">
+          A Trade Wars 2002 Revival
+        </Text>
+      </Box>
+      
+      <Text variant="muted" dimColor>
         Terminal-native space trading with LLM-driven NPCs
       </Text>
       
-      <Box padding={2} />
+      <Box paddingY={2} />
       
       {/* Menu */}
       <Menu 
