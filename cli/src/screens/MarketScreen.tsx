@@ -38,6 +38,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [showTradeConfirm, setShowTradeConfirm] = useState(false);
   
   const currentCommodity = marketData[selectedIndex];
   const currentCargo = shipState.cargo[currentCommodity?.commodity as CommodityType] || 0;
@@ -110,7 +111,9 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev));
         setMessage(null);
       } else {
-        setQuantity(prev => Math.max(1, prev - 1));
+        // In buy/sell mode: UP increases quantity
+        const max = mode === 'buy' ? buyMax : sellMax;
+        setQuantity(prev => Math.min(max, prev + 1));
       }
     },
     onDown: () => {
@@ -118,28 +121,37 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         setSelectedIndex(prev => (prev < marketData.length - 1 ? prev + 1 : prev));
         setMessage(null);
       } else {
-        const max = mode === 'buy' ? buyMax : sellMax;
-        setQuantity(prev => Math.min(max, prev + 1));
+        // In buy/sell mode: DOWN decreases quantity
+        setQuantity(prev => Math.max(1, prev - 1));
       }
     },
     onLeft: () => {
       if (mode !== 'browse') {
+        // LEFT decreases quantity (alternative to DOWN)
         setQuantity(prev => Math.max(1, prev - 1));
       }
     },
     onRight: () => {
       if (mode !== 'browse') {
+        // RIGHT increases quantity (alternative to UP)
         const max = mode === 'buy' ? buyMax : sellMax;
         setQuantity(prev => Math.min(max, prev + 1));
       }
     },
     onReturn: () => {
-      if (mode === 'browse') {
+      if (showTradeConfirm) {
+        // Execute the trade
+        if (mode === 'buy') {
+          handleBuy();
+        } else if (mode === 'sell') {
+          handleSell();
+        }
+        setShowTradeConfirm(false);
+      } else if (mode === 'browse') {
         setMessage('Press [B] to Buy or [S] to Sell');
-      } else if (mode === 'buy') {
-        handleBuy();
-      } else if (mode === 'sell') {
-        handleSell();
+      } else if (mode === 'buy' || mode === 'sell') {
+        // Show confirmation instead of immediate execution
+        setShowTradeConfirm(true);
       }
     },
     onB: () => {
@@ -165,7 +177,10 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       }
     },
     onEscape: () => {
-      if (mode !== 'browse') {
+      if (showTradeConfirm) {
+        // Cancel trade confirmation
+        setShowTradeConfirm(false);
+      } else if (mode !== 'browse') {
         setMode('browse');
         setQuantity(1);
         setMessage(null);
@@ -190,6 +205,51 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
     );
   }
   
+  // Show trade confirmation dialog
+  if (showTradeConfirm && currentCommodity && mode !== 'browse') {
+    const total = mode === 'buy' ? buyTotal : sellTotal;
+    const action = mode === 'buy' ? 'Buy' : 'Sell';
+    const color = mode === 'buy' ? 'red' : 'green';
+    
+    return (
+      <Box flexDirection="column" alignItems="center" justifyContent="center" padding={2}>
+        <Box 
+          borderStyle="double" 
+          borderColor={color}
+          paddingX={4}
+          paddingY={2}
+          flexDirection="column"
+          alignItems="center"
+        >
+          <Text color={color} bold>
+            {action === 'Buy' ? '🛒 CONFIRM PURCHASE' : '💰 CONFIRM SALE'}
+          </Text>
+          
+          <Box paddingY={1} />
+          
+          <Text>
+            {action} {quantity} {currentCommodity.label}
+          </Text>
+          <Text color="muted">
+            @ {mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice} cr/unit
+          </Text>
+          
+          <Box paddingY={1} />
+          
+          <Text color={color} bold>
+            Total: {total.toLocaleString()} credits
+          </Text>
+          
+          <Box paddingY={1} />
+          
+          <Text color="muted" dimColor>
+            [Enter] Confirm  [Esc] Cancel
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
+
   if (showQuitConfirm) {
     return (
       <ConfirmDialog
@@ -318,7 +378,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         <Text color="muted" dimColor>
           {mode === 'browse' 
             ? '[↑↓] Select  [B] Buy  [S] Sell  [Esc] Back  [Q] Quit'
-            : '[↑↓←→] Adjust Qty  [Enter] Confirm  [Esc] Cancel'
+            : '[↑] +  [↓] -  Qty  [Enter] Review  [Esc] Cancel'
           }
         </Text>
       </Box>
