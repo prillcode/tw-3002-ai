@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+
+# environment
+.env
+.env.*
+!.env.example
+
+# editor
+.vscode/
+.idea/
+
+# os
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
+
+# testing
+coverage/
+
+# Turso/local dev
+*.db
+*.sqlite
