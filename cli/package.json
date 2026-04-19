@@ -1,0 +1,23 @@
+{
+  "name": "tw3002",
+  "version": "0.1.0",
+  "module": "src/index.tsx",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.tsx",
+    "build": "bun build src/index.tsx --outfile=tw3002 --compile",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.14"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "ink": "^7.0.1",
+    "react": "^19.2.5",
+    "react-devtools-core": "^7.0.1"
+  }
+}
