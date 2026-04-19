@@ -63,6 +63,7 @@ const App = () => {
           <SectorScreen
             onMarket={() => navigateTo('market')}
             onBack={() => goBack()}
+            shipName={shipName || 'Unnamed Vessel'}
           />
         );
       case 'market':

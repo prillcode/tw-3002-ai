@@ -8,13 +8,16 @@ export interface SectorScreenProps {
   
   /** Go back to previous screen. */
   onBack: () => void;
+  
+  /** Ship name to display. */
+  shipName: string;
 }
 
 /**
  * Sector view screen - main game navigation hub.
  * Shows current sector and allows movement to connected sectors.
  */
-export const SectorScreen: React.FC<SectorScreenProps> = ({ onMarket, onBack }) => {
+export const SectorScreen: React.FC<SectorScreenProps> = ({ onMarket, onBack, shipName }) => {
   // Keyboard shortcuts
   useKeyHandler({
     onM: onMarket,
@@ -42,10 +45,10 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({ onMarket, onBack }) 
         </Text>
       </Box>
       
-      {/* Ship status placeholder */}
+      {/* Ship status */}
       <Box borderStyle="single" padding={1} marginTop={1}>
         <Text variant="success">
-          Ship: The Lucky Trader | Credits: 5,000 | Hull: 100%
+          Ship: {shipName} | Credits: 5,000 | Hull: 100%
         </Text>
       </Box>
     </Box>

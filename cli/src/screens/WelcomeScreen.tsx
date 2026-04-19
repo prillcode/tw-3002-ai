@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Box, Text, Menu, AnsiTitle, PressAnyKey, ShipNameInput } from '../components';
+import { Box, Text, Menu, ShipNameInput } from '../components';
 
-type WelcomeState = 'title' | 'menu' | 'shipInput';
+type WelcomeState = 'menu' | 'shipInput';
 
 export interface WelcomeScreenProps {
   /** Called when New Game flow completes with ship name. */
@@ -32,7 +32,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onSettings,
   onQuit 
 }) => {
-  const [welcomeState, setWelcomeState] = useState<WelcomeState>('title');
+  const [welcomeState, setWelcomeState] = useState<WelcomeState>('menu');
   const [pendingShipName, setPendingShipName] = useState<string>('');
 
   const menuItems = [
@@ -69,27 +69,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   // Render based on current state
-  if (welcomeState === 'title') {
-    return (
-      <Box 
-        flexDirection="column" 
-        alignItems="center" 
-        justifyContent="center"
-        padding={2}
-      >
-        <AnsiTitle />
-        
-        <Box paddingY={2} />
-        
-        <Text color="magenta" dimColor>
-          A Trade Wars 2002 Revival with LLM-Driven NPCs
-        </Text>
-        
-        <PressAnyKey onPress={() => setWelcomeState('menu')} />
-      </Box>
-    );
-  }
-
   if (welcomeState === 'shipInput') {
     return (
       <ShipNameInput 
