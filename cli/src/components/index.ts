@@ -7,3 +7,7 @@ export { AppLayout, type AppLayoutProps } from './AppLayout';
 export { AnsiTitle } from './AnsiTitle';
 export { PressAnyKey, type PressAnyKeyProps } from './PressAnyKey';
 export { ShipNameInput, type ShipNameInputProps } from './ShipNameInput';
+export { ShipStatus, type ShipStatusProps } from './ShipStatus';
+export { SectorInfo, type SectorInfoProps } from './SectorInfo';
+export { SectorList, type SectorListProps } from './SectorList';
+export { SectorMap, type SectorMapProps } from './SectorMap';
