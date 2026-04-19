@@ -10,9 +10,14 @@ A spiritual successor to Trade Wars 2002 — the classic BBS-era space trading a
 - Cloudflare Workers + D1 for free-tier hosting at `galaxy3002`
 - Docker option for local/home network play
 
+## Documentation
+
+- **[Product Requirements Document](./docs/TW3002-PRD.md)** — Authoritative spec with all architecture decisions
+- **[Original Feasibility Study](./docs/tw-3002-ai-feasibility.md)** — Initial concept exploration
+
 ## Status
 
-Early planning. Feasibility doc: `tw-3002-ai-feasibility.md`
+Early planning. Architecture finalized, ready for Phase 1 implementation.
 
 ## Tech Stack
 
