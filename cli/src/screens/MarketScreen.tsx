@@ -229,9 +229,9 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       </Box>
       
       {/* Main content - 2 column layout */}
-      <Box flexDirection="row" gap={4} marginBottom={1}>
-        {/* Left: Commodities */}
-        <Box flexDirection="column" width={38}>
+      <Box flexDirection="row" gap={3} marginBottom={1}>
+        {/* Left: Commodities - fixed width */}
+        <Box flexDirection="column" width={40}>
           <CommoditySelector
             commodities={marketData.map(m => ({
               type: m.commodity,
@@ -246,14 +246,15 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           />
         </Box>
         
-        {/* Right: Transaction panel */}
-        <Box flexDirection="column" width={35}>
+        {/* Right: Transaction panel - wider for order display */}
+        <Box flexDirection="column" width={38}>
           {mode !== 'browse' && currentCommodity && (
             <Box 
               borderStyle="round" 
               borderColor={mode === 'buy' ? 'green' : 'red'}
               paddingX={2}
               paddingY={1}
+              flexDirection="column"
             >
               <Text bold color={mode === 'buy' ? 'green' : 'red'}>
                 {mode === 'buy' ? '🛒 PURCHASE ORDER' : '💰 SALE ORDER'}

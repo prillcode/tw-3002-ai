@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog } from '../components';
+import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog, WarpTransition } from '../components';
 import { useKeyHandler } from '../hooks';
 import { getSector, getNeighbors } from '../data/mockGalaxy';
 
@@ -64,10 +64,14 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   // Track selection for navigation
   const [selectedIndex, setSelectedIndex] = useState(0);
   
+  // Track warp transition
+  const [isWarping, setIsWarping] = useState(false);
+  const [warpTarget, setWarpTarget] = useState<{id: number, name: string} | null>(null);
+  
   // Track quit confirmation dialog
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
 
-  // Handle jump to selected sector
+  // Handle jump to selected sector - triggers warp transition
   const handleJump = () => {
     if (neighbors.length === 0) return;
     
@@ -79,8 +83,17 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
       return; // Can't jump without turns
     }
     
+    // Start warp transition
+    setWarpTarget({ id: targetSector.id, name: targetSector.name });
+    setIsWarping(true);
+  };
+  
+  // Complete the jump after warp animation
+  const completeJump = () => {
+    if (!warpTarget) return;
+    
     // Update sector
-    onUpdateSector(targetSector.id);
+    onUpdateSector(warpTarget.id);
     
     // Decrement turns (fuel consumption)
     onUpdateShip({
@@ -88,7 +101,9 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
       turns: Math.max(0, shipState.turns - 1)
     });
     
-    // Reset selection
+    // Reset state
+    setIsWarping(false);
+    setWarpTarget(null);
     setSelectedIndex(0);
   };
 
@@ -111,6 +126,18 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
     },
     onEscape: onBack,
   });
+
+  // Show warp transition
+  if (isWarping && warpTarget) {
+    return (
+      <WarpTransition
+        targetSector={warpTarget.id}
+        sectorName={warpTarget.name}
+        onComplete={completeJump}
+        duration={2000}
+      />
+    );
+  }
 
   // Show quit confirmation dialog
   if (showQuitConfirm) {
