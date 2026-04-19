@@ -27,6 +27,9 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({ onBack }) => {
   // Keyboard shortcuts
   useKeyHandler({
     onEscape: onBack,
+    onQ: () => {
+      process.exit(0);
+    },
   });
 
   return (

@@ -89,6 +89,9 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
         onMarket();
       }
     },
+    onQ: () => {
+      process.exit(0);
+    },
     onEscape: onBack,
   });
 
