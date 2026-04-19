@@ -7,8 +7,8 @@ export type CommodityType = 'ore' | 'organics' | 'equipment';
 export interface Commodity {
   type: CommodityType;
   label: string;
-  buyPrice: number;   // Price to buy FROM port
-  sellPrice: number;  // Price to sell TO port
+  buyPrice: number;
+  sellPrice: number;
   portStock: number;
   cargoAmount: number;
 }
@@ -21,43 +21,33 @@ export interface CommoditySelectorProps {
 
 /**
  * List of tradeable commodities with prices and selection.
- * Highlights selected commodity and shows trading-relevant info.
  */
 export const CommoditySelector: React.FC<CommoditySelectorProps> = ({
   commodities,
   selectedIndex,
   mode
 }) => {
-  const getPriceColor = (price: number, type: 'buy' | 'sell' | 'browse') => {
-    // Simple threshold-based coloring
-    if (type === 'buy' || type === 'browse') {
-      // Lower is better for buying
-      if (price < 100) return 'green';
-      if (price > 200) return 'red';
-      return 'white';
-    } else {
-      // Higher is better for selling
-      if (price > 100) return 'green';
-      if (price < 50) return 'red';
-      return 'white';
-    }
+  const getPriceColor = (price: number) => {
+    if (price < 80) return 'green';
+    if (price > 180) return 'red';
+    return 'white';
   };
 
   return (
     <Box flexDirection="column">
       {/* Header */}
-      <Box flexDirection="row" marginBottom={1}>
-        <Box width={14}>
-          <Text color="cyan" bold>Commodity</Text>
+      <Box flexDirection="row" marginBottom={1} gap={1}>
+        <Box width={16}>
+          <Text color="cyan" bold>Item</Text>
         </Box>
         <Box width={12}>
           <Text color="cyan" bold>
-            {mode === 'sell' ? '  Sell→Port' : '  Buy←Port'}
+            {mode === 'sell' ? '   Sell@' : '    Buy@'}
           </Text>
         </Box>
-        <Box width={12}>
+        <Box width={10}>
           <Text color="cyan" bold>
-            {mode === 'buy' ? '   Port Stock' : '    You Have'}
+            {mode === 'buy' ? '     Stock' : '      Have'}
           </Text>
         </Box>
       </Box>
@@ -65,49 +55,52 @@ export const CommoditySelector: React.FC<CommoditySelectorProps> = ({
       {/* Commodities */}
       {commodities.map((commodity, index) => {
         const isSelected = index === selectedIndex;
+        const isBuy = mode === 'buy' || mode === 'browse';
         
         return (
           <Box 
             key={commodity.type}
             flexDirection="row"
+            gap={1}
+            marginY={0}
+            paddingX={isSelected ? 1 : 0}
+            paddingY={0}
             borderStyle={isSelected ? 'round' : undefined}
             borderColor={isSelected ? 'cyan' : undefined}
-            paddingX={isSelected ? 1 : 0}
-            marginY={0}
           >
-            <Box width={14}>
+            {/* Selection arrow + Name */}
+            <Box width={16}>
               <Text 
                 color={isSelected ? 'cyan' : 'white'} 
                 bold={isSelected}
               >
-                {isSelected ? '→ ' : '  '}
+                {isSelected ? '▶ ' : '  '}
                 {commodity.label}
               </Text>
             </Box>
             
+            {/* Price */}
             <Box width={12}>
               <Text 
-                color={getPriceColor(
-                  mode === 'buy' ? commodity.buyPrice : commodity.sellPrice,
-                  mode
-                )}
+                color={getPriceColor(isBuy ? commodity.buyPrice : commodity.sellPrice)}
                 bold={isSelected}
               >
-                {mode === 'buy' 
+                {isBuy 
                   ? `  ${commodity.buyPrice} cr`
                   : `  ${commodity.sellPrice} cr`
                 }
               </Text>
             </Box>
             
-            <Box width={12}>
+            {/* Stock/Cargo */}
+            <Box width={10}>
               <Text 
                 color="muted"
                 bold={isSelected}
               >
                 {mode === 'buy'
-                  ? `   ${commodity.portStock} u`
-                  : `    ${commodity.cargoAmount} u`
+                  ? `    ${commodity.portStock} u`
+                  : `     ${commodity.cargoAmount} u`
                 }
               </Text>
             </Box>

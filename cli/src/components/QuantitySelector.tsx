@@ -12,10 +12,6 @@ export interface QuantitySelectorProps {
   mode: 'buy' | 'sell';
 }
 
-/**
- * Quantity adjustment and transaction summary display.
- * Shows current quantity, limits, and cost/profit.
- */
 export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   quantity,
   min,
@@ -26,58 +22,61 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   mode
 }) => {
   const canAfford = remainingCredits === undefined || remainingCredits >= 0;
-  const canFit = quantity <= max;
+  const withinLimits = quantity >= min && quantity <= max;
   
   return (
-    <Box flexDirection="column" alignItems="center">
-      <Box flexDirection="row" alignItems="center" gap={2}>
-        <Text color="muted">Quantity:</Text>
-        
+    <Box flexDirection="column">
+      {/* Quantity adjuster */}
+      <Box flexDirection="row" alignItems="center" gap={1}>
+        <Text color="muted">Qty:</Text>
         <Box 
           borderStyle="round" 
-          borderColor={canFit ? 'cyan' : 'red'}
+          borderColor={withinLimits ? 'cyan' : 'red'}
           paddingX={2}
           paddingY={0}
         >
-          <Text color="white" bold>
-            {quantity}
-          </Text>
+          <Text color="white" bold>{quantity}</Text>
         </Box>
-        
-        <Text color="muted">units</Text>
+        <Text color="muted">/ {max} max</Text>
       </Box>
       
       <Box paddingY={0} />
       
-      <Text color="muted" dimColor>
-        [← → or ↑↓] Adjust  [Min: {min}] [Max: {max}]
-      </Text>
-      
-      <Box paddingY={1} />
+      {/* Price breakdown */}
+      <Box flexDirection="row" gap={1}>
+        <Text color="muted">Unit:</Text>
+        <Text>{unitPrice} cr</Text>
+      </Box>
       
       <Box flexDirection="row" gap={1}>
-        <Text color="muted">{mode === 'buy' ? 'Total Cost:' : 'Total Value:'}</Text>
+        <Text color="muted">Total:</Text>
         <Text color={mode === 'buy' ? 'red' : 'green'} bold>
-          {total.toLocaleString()} credits
+          {total.toLocaleString()} cr
         </Text>
       </Box>
       
+      {/* Remaining credits (buy mode only) */}
       {remainingCredits !== undefined && (
-        <Box marginTop={0}>
-          <Text color={canAfford ? 'muted' : 'red'} dimColor={canAfford}>
-            {canAfford 
-              ? `After: ${remainingCredits.toLocaleString()} credits`
-              : 'Insufficient credits!'
-            }
+        <Box flexDirection="row" gap={1}>
+          <Text color="muted">After:</Text>
+          <Text color={canAfford ? 'white' : 'red'}>
+            {remainingCredits.toLocaleString()} cr
           </Text>
         </Box>
       )}
       
-      {!canFit && (
+      {/* Error messages */}
+      {!withinLimits && (
         <Box marginTop={0}>
           <Text color="red">
-            Not enough {mode === 'buy' ? 'cargo space' : 'cargo to sell'}!
+            Quantity must be between {min} and {max}
           </Text>
+        </Box>
+      )}
+      
+      {!canAfford && (
+        <Box marginTop={0}>
+          <Text color="red">Not enough credits!</Text>
         </Box>
       )}
     </Box>

@@ -15,29 +15,14 @@ export interface ShipState {
 }
 
 export interface MarketScreenProps {
-  /** Go back to sector screen. */
   onBack: () => void;
-  
-  /** Current sector ID for port lookup. */
   currentSectorId: number;
-  
-  /** Ship state for trading. */
   shipState: ShipState;
-  
-  /** Update ship state after trade. */
   onUpdateShip: (newState: ShipState) => void;
 }
 
 type TradeMode = 'browse' | 'buy' | 'sell';
 
-/**
- * Market trading screen with buy/sell functionality.
- * 
- * Modes:
- * - browse: View prices, select commodity
- * - buy: Set quantity, confirm purchase
- * - sell: Set quantity, confirm sale
- */
 export const MarketScreen: React.FC<MarketScreenProps> = ({ 
   onBack,
   currentSectorId,
@@ -46,11 +31,8 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
 }) => {
   const sector = getSector(currentSectorId);
   const port = sector?.port;
-  
-  // Get market data for this port
   const marketData = port ? getMarketData(port) : [];
   
-  // Track state
   const [mode, setMode] = useState<TradeMode>('browse');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -62,7 +44,6 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   const cargoTotal = shipState.cargo.ore + shipState.cargo.organics + shipState.cargo.equipment;
   const cargoFree = shipState.maxCargo - cargoTotal;
   
-  // Calculate limits
   const buyMax = Math.min(
     cargoFree,
     Math.floor(shipState.credits / (currentCommodity?.buyPrice || 1)),
@@ -70,17 +51,13 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   );
   const sellMax = currentCargo;
   
-  // Calculate totals
   const buyTotal = (currentCommodity?.buyPrice || 0) * quantity;
   const sellTotal = (currentCommodity?.sellPrice || 0) * quantity;
   
-  // Handle buy
   const handleBuy = () => {
     if (!currentCommodity || quantity <= 0) return;
-    
     const total = currentCommodity.buyPrice * quantity;
     
-    // Validations
     if (quantity > cargoFree) {
       setMessage('Not enough cargo space!');
       return;
@@ -89,12 +66,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       setMessage('Insufficient credits!');
       return;
     }
-    if (quantity > currentCommodity.portStock) {
-      setMessage('Port does not have enough stock!');
-      return;
-    }
     
-    // Execute trade
     const newCargo = { ...shipState.cargo };
     newCargo[currentCommodity.commodity] += quantity;
     
@@ -109,19 +81,15 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
     setQuantity(1);
   };
   
-  // Handle sell
   const handleSell = () => {
     if (!currentCommodity || quantity <= 0) return;
-    
     const total = currentCommodity.sellPrice * quantity;
     
-    // Validation
     if (quantity > currentCargo) {
       setMessage(`You don't have that much ${currentCommodity.label}!`);
       return;
     }
     
-    // Execute trade
     const newCargo = { ...shipState.cargo };
     newCargo[currentCommodity.commodity] -= quantity;
     
@@ -136,7 +104,6 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
     setQuantity(1);
   };
   
-  // Keyboard handling
   useKeyHandler({
     onUp: () => {
       if (mode === 'browse') {
@@ -156,19 +123,18 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       }
     },
     onLeft: () => {
-      if (mode === 'buy' || mode === 'sell') {
+      if (mode !== 'browse') {
         setQuantity(prev => Math.max(1, prev - 1));
       }
     },
     onRight: () => {
-      if (mode === 'buy' || mode === 'sell') {
+      if (mode !== 'browse') {
         const max = mode === 'buy' ? buyMax : sellMax;
         setQuantity(prev => Math.min(max, prev + 1));
       }
     },
     onReturn: () => {
       if (mode === 'browse') {
-        // Enter doesn't do anything in browse, need to hit B or S
         setMessage('Press [B] to Buy or [S] to Sell');
       } else if (mode === 'buy') {
         handleBuy();
@@ -183,7 +149,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           setQuantity(1);
           setMessage(null);
         } else {
-          setMessage('Cannot buy: no cargo space or funds');
+          setMessage('Cannot buy: check cargo space, credits, or port stock');
         }
       }
     },
@@ -207,36 +173,23 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         onBack();
       }
     },
-    onQ: () => {
-      setShowQuitConfirm(true);
-    },
+    onQ: () => setShowQuitConfirm(true),
   });
   
-  // No port = no market
   if (!port || marketData.length === 0) {
     return (
       <Box flexDirection="column" padding={2} alignItems="center">
         <Box borderStyle="round" borderColor="red" padding={2}>
-          <Text color="red" bold>
-            NO PORT IN THIS SECTOR
-          </Text>
+          <Text color="red" bold>NO PORT IN THIS SECTOR</Text>
           <Box paddingY={1} />
-          <Text color="muted">
-            There is no trading post here.
-          </Text>
-          <Text color="muted">
-            Navigate to a sector with a port to trade.
-          </Text>
+          <Text color="muted">Navigate to a sector with a port to trade.</Text>
         </Box>
         <Box paddingY={2} />
-        <Text color="muted" dimColor>
-          [Esc] Return to Sector
-        </Text>
+        <Text color="muted" dimColor>[Esc] Return to Sector</Text>
       </Box>
     );
   }
   
-  // Quit confirmation
   if (showQuitConfirm) {
     return (
       <ConfirmDialog
@@ -250,27 +203,35 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   return (
     <Box flexDirection="column" padding={1}>
       {/* Header */}
-      <Box borderStyle="round" padding={1} marginBottom={1}>
+      <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
         <Box flexDirection="row" justifyContent="space-between">
           <Text color="cyan" bold>
-            {`CLASS ${port.class} PORT — ${port.type.toUpperCase()} ${port.buying ? 'BUYER' : 'SELLER'}`}
+            CLASS {port.class} PORT — {port.type.toUpperCase()} {port.buying ? 'BUYER' : 'SELLER'}
           </Text>
           <Text color="yellow">
-            Credits: {shipState.credits.toLocaleString()}
+            {shipState.credits.toLocaleString()} cr
           </Text>
         </Box>
       </Box>
       
-      {/* Main content */}
-      <Box flexDirection="row" justifyContent="space-between" marginBottom={1}>
-        {/* Left: Commodity selector */}
-        <Box flexDirection="column" width={40}>
-          <Box marginBottom={1}>
-            <Text color="cyan" bold>
-              {mode === 'buy' ? '🛒 BUYING MODE' : mode === 'sell' ? '💰 SELLING MODE' : '📊 MARKET PRICES'}
-            </Text>
-          </Box>
-          
+      {/* Mode indicator */}
+      <Box marginBottom={1}>
+        <Text 
+          color={mode === 'buy' ? 'green' : mode === 'sell' ? 'red' : 'cyan'} 
+          bold
+        >
+          {mode === 'buy' 
+            ? '🛒 BUYING: Select quantity to purchase'
+            : mode === 'sell' 
+              ? '💰 SELLING: Select quantity to sell'
+              : '📊 BROWSE: Select commodity, then press [B]uy or [S]ell'}
+        </Text>
+      </Box>
+      
+      {/* Main content - 2 column layout */}
+      <Box flexDirection="row" gap={2} marginBottom={1}>
+        {/* Left: Commodities */}
+        <Box flexDirection="column" width={45}>
           <CommoditySelector
             commodities={marketData.map(m => ({
               type: m.commodity,
@@ -286,22 +247,22 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         </Box>
         
         {/* Right: Transaction panel */}
-        <Box flexDirection="column" width={35}>
+        <Box flexDirection="column" width={30}>
           {mode !== 'browse' && currentCommodity && (
             <Box 
               borderStyle="round" 
-              borderColor={mode === 'buy' ? 'red' : 'green'}
+              borderColor={mode === 'buy' ? 'green' : 'red'}
               padding={1}
-              marginBottom={1}
             >
-              <Text color={mode === 'buy' ? 'red' : 'green'} bold>
-                {mode === 'buy' ? '🛒 PURCHASE ORDER' : '💰 SALE ORDER'}
+              <Text bold color={mode === 'buy' ? 'green' : 'red'}>
+                {mode === 'buy' ? 'PURCHASE ORDER' : 'SALE ORDER'}
               </Text>
               
               <Box paddingY={1} />
               
-              <Text>
-                {currentCommodity.label} @ {mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice} cr/unit
+              <Text>{currentCommodity.label}</Text>
+              <Text color="muted">
+                @ {mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice} cr/unit
               </Text>
               
               <Box paddingY={1} />
@@ -320,16 +281,11 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           
           {mode === 'browse' && (
             <Box borderStyle="single" borderColor="muted" padding={1}>
-              <Text color="muted" dimColor>
-                Select a commodity and press:
-              </Text>
+              <Text color="muted" dimColor>Quick Keys:</Text>
               <Box paddingY={0} />
-              <Text color="green">
-                [B] Buy from Port
-              </Text>
-              <Text color="red">
-                [S] Sell to Port
-              </Text>
+              <Text color="green">[B] Buy mode</Text>
+              <Text color="red">[S] Sell mode</Text>
+              <Text color="cyan">[↑↓] Select item</Text>
             </Box>
           )}
         </Box>
@@ -340,7 +296,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         <CargoDisplay cargo={shipState.cargo} maxCargo={shipState.maxCargo} />
       </Box>
       
-      {/* Message / status bar */}
+      {/* Message */}
       {message && (
         <Box 
           borderStyle="round" 
@@ -360,7 +316,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         <Text color="muted" dimColor>
           {mode === 'browse' 
             ? '[↑↓] Select  [B] Buy  [S] Sell  [Esc] Back  [Q] Quit'
-            : '[↑↓] Adjust Qty  [Enter] Confirm  [Esc] Cancel'
+            : '[↑↓←→] Adjust Qty  [Enter] Confirm  [Esc] Cancel'
           }
         </Text>
       </Box>
