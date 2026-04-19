@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus } from '../components';
+import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog } from '../components';
 import { useKeyHandler } from '../hooks';
-import { getSector, getNeighbors, type Sector } from '../data/mockGalaxy';
+import { getSector, getNeighbors } from '../data/mockGalaxy';
 
 export interface SectorScreenProps {
   /** Navigate to market screen. */
@@ -39,6 +39,9 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   
   // Track selection for navigation
   const [selectedIndex, setSelectedIndex] = useState(0);
+  
+  // Track quit confirmation dialog
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   
   // Mock ship status (will be real state in later phases)
   const [shipStatus, setShipStatus] = useState({
@@ -90,13 +93,25 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
       }
     },
     onQ: () => {
-      process.exit(0);
+      setShowQuitConfirm(true);
     },
     onEscape: onBack,
   });
 
   // Get sector for display (for jump preview)
   const selectedSector = neighbors[selectedIndex];
+
+  // Show quit confirmation dialog
+  if (showQuitConfirm) {
+    return (
+      <ConfirmDialog
+        message={`Quit the game and return to shell?`}
+        onConfirm={() => process.exit(0)}
+        onCancel={() => setShowQuitConfirm(false)}
+        defaultToConfirm={false}
+      />
+    );
+  }
 
   return (
     <Box flexDirection="column" padding={1}>

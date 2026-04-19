@@ -1,5 +1,5 @@
-import React from 'react';
-import { Box, Text } from '../components';
+import React, { useState } from 'react';
+import { Box, Text, ConfirmDialog } from '../components';
 import { useKeyHandler } from '../hooks';
 
 export interface MarketScreenProps {
@@ -24,13 +24,28 @@ const W = {
  * Shows commodity prices and allows buying/selling.
  */
 export const MarketScreen: React.FC<MarketScreenProps> = ({ onBack }) => {
+  // Track quit confirmation dialog
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+
   // Keyboard shortcuts
   useKeyHandler({
     onEscape: onBack,
     onQ: () => {
-      process.exit(0);
+      setShowQuitConfirm(true);
     },
   });
+
+  // Show quit confirmation dialog
+  if (showQuitConfirm) {
+    return (
+      <ConfirmDialog
+        message="Quit the game and return to shell?"
+        onConfirm={() => process.exit(0)}
+        onCancel={() => setShowQuitConfirm(false)}
+        defaultToConfirm={false}
+      />
+    );
+  }
 
   return (
     <Box flexDirection="column" padding={1}>

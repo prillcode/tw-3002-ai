@@ -11,3 +11,4 @@ export { ShipStatus, type ShipStatusProps } from './ShipStatus';
 export { SectorInfo, type SectorInfoProps } from './SectorInfo';
 export { SectorList, type SectorListProps } from './SectorList';
 export { SectorMap, type SectorMapProps } from './SectorMap';
+export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
