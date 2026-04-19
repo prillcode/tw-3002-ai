@@ -10,11 +10,11 @@ export interface WelcomeScreenProps {
   /** Called when Continue is selected (if saves exist). */
   onContinue?: () => void;
   
-  /** Called when Settings is selected. */
-  onSettings?: () => void;
-  
   /** Called when Quit is selected. */
   onQuit: () => void;
+  
+  /** Whether a save game exists to continue. */
+  saveExists: boolean;
 }
 
 /**
@@ -29,16 +29,14 @@ export interface WelcomeScreenProps {
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
   onNewGame, 
   onContinue,
-  onSettings,
-  onQuit 
+  onQuit,
+  saveExists
 }) => {
   const [welcomeState, setWelcomeState] = useState<WelcomeState>('title');
-  const [pendingShipName, setPendingShipName] = useState<string>('');
 
   const menuItems = [
     { id: 'new', label: 'New Game' },
     ...(onContinue ? [{ id: 'continue', label: 'Continue' }] : []),
-    ...(onSettings ? [{ id: 'settings', label: 'Settings' }] : []),
     { id: 'quit', label: 'Quit' }
   ];
 
@@ -50,9 +48,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       case 'continue':
         onContinue?.();
         break;
-      case 'settings':
-        onSettings?.();
-        break;
       case 'quit':
         onQuit();
         break;
@@ -60,7 +55,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   };
 
   const handleShipSubmit = (name: string) => {
-    setPendingShipName(name);
     onNewGame(name);
   };
 
@@ -80,6 +74,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <AnsiTitle />
         
         <Box paddingY={2} />
+        
+        <Text color="magenta" dimColor>
+          A Trade Wars 2002 Revival with LLM-Driven NPCs
+        </Text>
+        
+        {saveExists && (
+          <Box marginTop={1}>
+            <Text color="green" dimColor>
+              ✓ Save game detected
+            </Text>
+          </Box>
+        )}
         
         <PressAnyKey onPress={() => setWelcomeState('menu')} />
       </Box>
@@ -115,7 +121,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </Box>
       
       <Text color="muted" dimColor>
-        Main Menu
+        {saveExists ? 'Resume your journey or start anew' : 'Main Menu'}
       </Text>
       
       <Box paddingY={2} />

@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { render } from 'ink';
 import { useScreen } from './hooks';
-import { AppLayout } from './components';
+import { AppLayout, ConfirmDialog } from './components';
 import { WelcomeScreen, SectorScreen, MarketScreen } from './screens';
+import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState } from './db';
 
-/**
- * Main application component.
- * Manages screen routing, ship state, and sector state.
- */
 const App = () => {
   const { currentScreen, navigateTo, goBack } = useScreen({ initial: 'welcome' });
+  const db = useMemo(() => initDatabase(), []);
+  
+  // Track if save exists for showing Continue option
+  const [saveExists, setSaveExists] = useState(false);
+  
+  // Game state (persisted to SQLite)
   const [shipName, setShipName] = useState<string>('');
   const [currentSectorId, setCurrentSectorId] = useState<number>(42);
-  
-  // Ship state (persisted across screens)
   const [shipState, setShipState] = useState({
-    name: '',
     credits: 5000,
     cargo: {
       ore: 0,
@@ -27,16 +27,95 @@ const App = () => {
     turns: 100,
     maxTurns: 100
   });
+  
+  // Track new game confirmation
+  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const [pendingShipName, setPendingShipName] = useState<string>('');
 
-  // Handle ship naming (from welcome flow)
-  const handleNewGame = (name: string) => {
+  // Check for existing save on mount
+  useEffect(() => {
+    setSaveExists(hasSave(db));
+  }, [db]);
+  
+  // Auto-save whenever state changes
+  useEffect(() => {
+    if (shipName) { // Only save after ship is named
+      const gameState: GameState = {
+        shipName,
+        credits: shipState.credits,
+        currentSector: currentSectorId,
+        cargo: shipState.cargo,
+        hull: shipState.hull,
+        turns: shipState.turns,
+        maxTurns: shipState.maxTurns
+      };
+      saveGame(db, gameState);
+      setSaveExists(true);
+    }
+  }, [shipName, currentSectorId, shipState, db]);
+
+  // Handle new game (with confirmation if save exists)
+  const handleNewGameRequest = (name: string) => {
+    if (saveExists) {
+      setPendingShipName(name);
+      setShowNewGameConfirm(true);
+    } else {
+      startNewGame(name);
+    }
+  };
+  
+  // Actually start new game
+  const startNewGame = (name: string) => {
+    clearSave(db);
     setShipName(name);
-    setShipState(prev => ({ ...prev, name }));
     setCurrentSectorId(42);
+    setShipState({
+      credits: 5000,
+      cargo: { ore: 0, organics: 0, equipment: 0 },
+      maxCargo: 100,
+      hull: 100,
+      turns: 100,
+      maxTurns: 100
+    });
+    setSaveExists(false);
     navigateTo('sector');
   };
+  
+  // Handle continue from save
+  const handleContinue = () => {
+    const save = loadGame(db);
+    if (save) {
+      setShipName(save.shipName);
+      setCurrentSectorId(save.currentSector);
+      setShipState({
+        credits: save.credits,
+        cargo: save.cargo,
+        maxCargo: 100,
+        hull: save.hull,
+        turns: save.turns,
+        maxTurns: save.maxTurns
+      });
+      navigateTo('sector');
+    }
+  };
 
-  // Determine status bar items based on current screen
+  // Handle quit with final save
+  const handleQuit = () => {
+    if (shipName) {
+      saveGame(db, {
+        shipName,
+        credits: shipState.credits,
+        currentSector: currentSectorId,
+        cargo: shipState.cargo,
+        hull: shipState.hull,
+        turns: shipState.turns,
+        maxTurns: shipState.maxTurns
+      });
+    }
+    process.exit(0);
+  };
+
+  // Determine status bar items
   const getStatusItems = () => {
     switch (currentScreen) {
       case 'welcome':
@@ -65,14 +144,31 @@ const App = () => {
     }
   };
 
+  // Show new game confirmation
+  if (showNewGameConfirm) {
+    return (
+      <ConfirmDialog
+        message="Starting a new game will overwrite your current save. Continue?"
+        onConfirm={() => {
+          startNewGame(pendingShipName);
+          setShowNewGameConfirm(false);
+        }}
+        onCancel={() => setShowNewGameConfirm(false)}
+        defaultToConfirm={false}
+      />
+    );
+  }
+
   // Render current screen
   const renderScreen = () => {
     switch (currentScreen) {
       case 'welcome':
         return (
           <WelcomeScreen
-            onNewGame={handleNewGame}
-            onQuit={() => process.exit(0)}
+            onNewGame={handleNewGameRequest}
+            onContinue={saveExists ? handleContinue : undefined}
+            onQuit={handleQuit}
+            saveExists={saveExists}
           />
         );
       case 'sector':
@@ -83,8 +179,19 @@ const App = () => {
             shipName={shipName || 'Unnamed Vessel'}
             currentSectorId={currentSectorId}
             onUpdateSector={setCurrentSectorId}
-            shipState={shipState}
-            onUpdateShip={setShipState}
+            shipState={{
+              ...shipState,
+              name: shipName
+            }}
+            onUpdateShip={(newState) => {
+              setShipState(prev => ({
+                ...prev,
+                credits: newState.credits,
+                cargo: newState.cargo,
+                hull: newState.hull,
+                turns: newState.turns
+              }));
+            }}
           />
         );
       case 'market':
@@ -110,8 +217,10 @@ const App = () => {
       default:
         return (
           <WelcomeScreen
-            onNewGame={handleNewGame}
-            onQuit={() => process.exit(0)}
+            onNewGame={handleNewGameRequest}
+            onContinue={saveExists ? handleContinue : undefined}
+            onQuit={handleQuit}
+            saveExists={saveExists}
           />
         );
     }
