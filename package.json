@@ -1,0 +1,6 @@
+{
+  "name": "tw-3002-ai",
+  "private": true,
+  "workspaces": ["packages/*", "cli"],
+  "type": "module"
+}
