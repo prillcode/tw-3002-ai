@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { render } from 'ink';
 import { useScreen } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen } from './screens';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen } from './screens';
 import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
-import { createGalaxy, type Galaxy } from '@tw3002/engine';
+import { createGalaxy, getShipClass, computeEffectiveStats, type Galaxy } from '@tw3002/engine';
 
-type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'sector' | 'market';
+type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock';
 type SelectMode = 'new' | 'continue' | null;
 
 /**
@@ -44,23 +44,31 @@ const App = () => {
   // Galaxy state
   const [galaxy, setGalaxy] = useState<Galaxy | null>(null);
   
-  // Game state (per slot)
+  // Ship state
   const [shipName, setShipName] = useState<string>('');
+  const [shipClassId, setShipClassId] = useState<string>('merchant');
+  const [upgrades, setUpgrades] = useState<Record<string, number>>({});
   const [currentSectorId, setCurrentSectorId] = useState<number>(0);
   const [shipState, setShipState] = useState({
     credits: 5000,
     cargo: { ore: 0, organics: 0, equipment: 0 },
-    maxCargo: 100,
+    maxCargo: 120,
     hull: 100,
-    turns: 100,
-    maxTurns: 100
+    turns: 80,
+    maxTurns: 80
   });
   
   // Confirmation dialogs
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
-  // Auto-save whenever state changes (galaxy + player state)
+  // Compute effective stats from class + upgrades
+  const effectiveStats = useMemo(
+    () => computeEffectiveStats(shipClassId, upgrades),
+    [shipClassId, upgrades]
+  );
+
+  // Auto-save whenever state changes
   useEffect(() => {
     if (shipName && selectedSlot && galaxy) {
       const gameState: GameState = {
@@ -71,11 +79,13 @@ const App = () => {
         hull: shipState.hull,
         turns: shipState.turns,
         maxTurns: shipState.maxTurns,
+        shipClassId,
+        upgradesJson: JSON.stringify(upgrades),
         galaxyJson: galaxyToJson(galaxy),
       };
       saveGame(db, selectedSlot, gameState);
     }
-  }, [shipName, currentSectorId, shipState, selectedSlot, galaxy, db]);
+  }, [shipName, currentSectorId, shipState, selectedSlot, galaxy, db, shipClassId, upgrades]);
 
   // Handle New Game request
   const handleNewGame = () => {
@@ -95,8 +105,6 @@ const App = () => {
     
     if (selectMode === 'new') {
       if (isEmpty) {
-        // Empty slot — go to galaxy size selection
-        setSelectedSlot(slotId);
         setAppMode('galaxySize');
       } else {
         setPendingSlot(slotId);
@@ -107,26 +115,41 @@ const App = () => {
     }
   };
   
-  // Start fresh game in slot — generate a new galaxy
+  // Start fresh game — generate galaxy, then pick ship class
   const startNewGame = (slotId: number, sectorCount: number = 100) => {
     clearSave(db, slotId);
     const newGalaxy = createGalaxy({ seed: Date.now(), sectorCount });
     setGalaxy(newGalaxy);
     setShipName('');
-    // Start at sector 0 (FedSpace Alpha)
     setCurrentSectorId(0);
-    setShipState({
-      credits: 5000,
-      cargo: { ore: 0, organics: 0, equipment: 0 },
-      maxCargo: 100,
-      hull: 100,
-      turns: 100,
-      maxTurns: 100
-    });
+    setUpgrades({});
+    // Don't set shipState yet — wait for class selection
     setAppMode('shipName');
   };
   
-  // Confirm overwrite — go to galaxy size selection
+  // After ship name, pick class
+  const handleShipNameSubmit = (name: string) => {
+    setShipName(name);
+    setAppMode('shipClass');
+  };
+
+  // After class selection, set starting stats and enter game
+  const handleClassSelect = (classId: string) => {
+    const shipClass = getShipClass(classId);
+    const stats = shipClass?.baseStats ?? getShipClass('merchant')!.baseStats;
+    setShipClassId(classId);
+    setShipState({
+      credits: 5000,
+      cargo: { ore: 0, organics: 0, equipment: 0 },
+      maxCargo: stats.maxCargo,
+      hull: stats.maxHull,
+      turns: stats.maxTurns,
+      maxTurns: stats.maxTurns,
+    });
+    setAppMode('sector');
+  };
+
+  // Confirm overwrite
   const confirmOverwrite = () => {
     if (pendingSlot) {
       setSelectedSlot(pendingSlot);
@@ -142,32 +165,33 @@ const App = () => {
     if (save) {
       setShipName(save.shipName);
       setCurrentSectorId(save.currentSector);
+      setShipClassId(save.shipClassId ?? 'merchant');
+      setUpgrades(save.upgradesJson ? JSON.parse(save.upgradesJson) : {});
+      
+      // Compute effective stats for maxCargo
+      const stats = computeEffectiveStats(
+        save.shipClassId ?? 'merchant',
+        save.upgradesJson ? JSON.parse(save.upgradesJson) : {}
+      );
+      
       setShipState({
         credits: save.credits,
         cargo: save.cargo,
-        maxCargo: 100,
+        maxCargo: stats.maxCargo,
         hull: save.hull,
         turns: save.turns,
-        maxTurns: save.maxTurns
+        maxTurns: save.maxTurns,
       });
       setSelectedSlot(slotId);
       
-      // Restore galaxy from saved JSON
       if (save.galaxyJson) {
         setGalaxy(galaxyFromJson(save.galaxyJson));
       } else {
-        // Legacy save without galaxy — generate one
         setGalaxy(createGalaxy({ seed: 42 }));
       }
       
       setAppMode('sector');
     }
-  };
-  
-  // Handle ship name submission
-  const handleShipNameSubmit = (name: string) => {
-    setShipName(name);
-    setAppMode('sector');
   };
   
   // Handle quit
@@ -181,6 +205,8 @@ const App = () => {
         hull: shipState.hull,
         turns: shipState.turns,
         maxTurns: shipState.maxTurns,
+        shipClassId,
+        upgradesJson: JSON.stringify(upgrades),
         galaxyJson: galaxyToJson(galaxy),
       });
     }
@@ -196,9 +222,13 @@ const App = () => {
       setAppMode('slotSelect');
     } else if (appMode === 'shipName') {
       setAppMode('galaxySize');
+    } else if (appMode === 'shipClass') {
+      setAppMode('shipName');
     } else if (appMode === 'sector') {
       setAppMode('welcome');
     } else if (appMode === 'market') {
+      setAppMode('sector');
+    } else if (appMode === 'stardock') {
       setAppMode('sector');
     }
   };
@@ -246,12 +276,21 @@ const App = () => {
             skipToShipName
           />
         );
+
+      case 'shipClass':
+        return (
+          <ShipClassSelectScreen
+            onSelect={handleClassSelect}
+            onBack={handleBack}
+          />
+        );
         
       case 'sector':
         if (!galaxy) return null;
         return (
           <SectorScreen
             onMarket={() => setAppMode('market')}
+            onStarDock={() => setAppMode('stardock')}
             onBack={handleBack}
             shipName={shipName || 'Unnamed Vessel'}
             currentSectorId={currentSectorId}
@@ -292,6 +331,41 @@ const App = () => {
             galaxy={galaxy}
           />
         );
+
+      case 'stardock':
+        if (!galaxy) return null;
+        return (
+          <StarDockScreen
+            galaxy={galaxy}
+            ship={{
+              name: shipName,
+              classId: shipClassId,
+              credits: shipState.credits,
+              currentSector: currentSectorId,
+              cargo: shipState.cargo,
+              hull: shipState.hull,
+              turns: shipState.turns,
+              maxTurns: shipState.maxTurns,
+              upgrades,
+            }}
+            onUpdateShip={(newShip) => {
+              setShipClassId(newShip.classId);
+              setUpgrades(newShip.upgrades);
+              setShipState(prev => ({
+                ...prev,
+                credits: newShip.credits,
+              }));
+              // Recompute maxCargo from new upgrades
+              const newStats = computeEffectiveStats(newShip.classId, newShip.upgrades);
+              setShipState(prev => ({
+                ...prev,
+                credits: newShip.credits,
+                maxCargo: newStats.maxCargo,
+              }));
+            }}
+            onBack={() => setAppMode('sector')}
+          />
+        );
         
       default:
         return null;
@@ -308,12 +382,8 @@ const App = () => {
           { key: 'Q', action: 'Quit' }
         ];
       case 'slotSelect':
-        return [
-          { key: '↑↓', action: 'Select' },
-          { key: 'Enter', action: 'Choose' },
-          { key: 'Esc', action: 'Back' }
-        ];
       case 'galaxySize':
+      case 'shipClass':
         return [
           { key: '↑↓', action: 'Select' },
           { key: 'Enter', action: 'Choose' },
@@ -329,6 +399,7 @@ const App = () => {
         return [
           { key: '↑↓←→', action: 'Move' },
           { key: 'M', action: 'Market' },
+          ...(galaxy?.stardocks.includes(currentSectorId) ? [{ key: 'D', action: 'StarDock' }] : []),
           { key: 'Esc', action: 'Menu' },
           { key: 'Q', action: 'Quit' }
         ];
@@ -338,6 +409,12 @@ const App = () => {
           { key: 'B', action: 'Buy' },
           { key: 'S', action: 'Sell' },
           { key: 'Esc', action: 'Back' }
+        ];
+      case 'stardock':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'Enter', action: 'Buy' },
+          { key: 'Esc', action: 'Leave' }
         ];
       default:
         return [{ key: 'Q', action: 'Quit' }];

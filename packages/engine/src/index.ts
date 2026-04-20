@@ -39,3 +39,22 @@ export { createGalaxy, getNeighborIds, DEFAULT_CONFIG, MAX_SECTOR_COUNT } from '
 
 // ─── Economy ───────────────────────────────────────────────
 export { getPrices, executeTrade, tickEconomy } from './economy/pricing.js';
+
+// ─── Ships & Upgrades ──────────────────────────────────────
+export type {
+  ShipStats,
+  ShipClass,
+  Upgrade,
+  PlayerShip,
+} from './ships/upgrades.js';
+
+export {
+  SHIP_CLASSES,
+  UPGRADE_CATALOG,
+  getShipClasses,
+  getShipClass,
+  getAvailableUpgrades,
+  getOwnedUpgrades,
+  purchaseUpgrade,
+  computeEffectiveStats,
+} from './ships/upgrades.js';

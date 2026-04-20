@@ -34,6 +34,9 @@ export interface KeyHandlers {
   /** S key pressed (sell). */
   onS?: () => void;
   
+  /** D key pressed (dock/stardock). */
+  onD?: () => void;
+  
   /** Any other key pressed. */
   onInput?: (input: string, key: Key) => void;
 }
@@ -88,6 +91,8 @@ export const useKeyHandler = (options: UseKeyHandlerOptions) => {
       handlers.onB();
     } else if (input === 's' && handlers.onS) {
       handlers.onS();
+    } else if (input === 'd' && handlers.onD) {
+      handlers.onD();
     } else if (handlers.onInput) {
       handlers.onInput(input, key);
     }

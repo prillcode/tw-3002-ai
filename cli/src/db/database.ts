@@ -69,6 +69,8 @@ export const initDatabase = (): Database => {
         hull INTEGER DEFAULT 100,
         turns INTEGER DEFAULT 100,
         max_turns INTEGER DEFAULT 100,
+        ship_class_id TEXT DEFAULT 'merchant',
+        upgrades_data TEXT DEFAULT '{}',
         galaxy_data TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -76,11 +78,21 @@ export const initDatabase = (): Database => {
     `);
   }
   
-  // Migration: add galaxy_data column if missing (from pre-engine schema)
+  // Migration: add galaxy_data column if missing
   const currentColumns = db.query("PRAGMA table_info(saves)").all() as any[];
   const hasGalaxyData = currentColumns.some(col => col.name === 'galaxy_data');
   if (!hasGalaxyData) {
     db.run(`ALTER TABLE saves ADD COLUMN galaxy_data TEXT`);
+  }
+  
+  // Migration: add ship_class_id and upgrades_data columns
+  const hasShipClassId = currentColumns.some(col => col.name === 'ship_class_id');
+  if (!hasShipClassId) {
+    db.run(`ALTER TABLE saves ADD COLUMN ship_class_id TEXT DEFAULT 'merchant'`);
+  }
+  const hasUpgradesData = currentColumns.some(col => col.name === 'upgrades_data');
+  if (!hasUpgradesData) {
+    db.run(`ALTER TABLE saves ADD COLUMN upgrades_data TEXT DEFAULT '{}'`);
   }
   
   return db;

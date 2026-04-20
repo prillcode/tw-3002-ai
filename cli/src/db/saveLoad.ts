@@ -12,7 +12,11 @@ export interface GameState {
   hull: number;
   turns: number;
   maxTurns: number;
-  /** Serialized Galaxy JSON (new in engine migration). Null for legacy saves. */
+  /** Ship class ID. Defaults to 'merchant' for legacy saves. */
+  shipClassId?: string;
+  /** Upgrade levels as JSON. Defaults to {} for legacy saves. */
+  upgradesJson?: string;
+  /** Serialized Galaxy JSON. Null for legacy saves. */
   galaxyJson?: string;
 }
 
@@ -43,8 +47,8 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
     `INSERT INTO saves (
       slot_id, ship_name, credits, current_sector,
       cargo_ore, cargo_organics, cargo_equipment,
-      hull, turns, max_turns, galaxy_data, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      hull, turns, max_turns, ship_class_id, upgrades_data, galaxy_data, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(slot_id) DO UPDATE SET
       ship_name = excluded.ship_name,
       credits = excluded.credits,
@@ -55,6 +59,8 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
       hull = excluded.hull,
       turns = excluded.turns,
       max_turns = excluded.max_turns,
+      ship_class_id = excluded.ship_class_id,
+      upgrades_data = excluded.upgrades_data,
       galaxy_data = excluded.galaxy_data,
       updated_at = excluded.updated_at`,
     [
@@ -68,6 +74,8 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
       state.hull,
       state.turns,
       state.maxTurns,
+      state.shipClassId ?? 'merchant',
+      state.upgradesJson ?? '{}',
       state.galaxyJson ?? null
     ]
   );
@@ -97,6 +105,8 @@ export const loadGame = (db: Database, slotId: number): GameState | null => {
     hull: row.hull,
     turns: row.turns,
     maxTurns: row.max_turns,
+    shipClassId: row.ship_class_id ?? 'merchant',
+    upgradesJson: row.upgrades_data ?? '{}',
     galaxyJson: row.galaxy_data ?? undefined
   };
 };

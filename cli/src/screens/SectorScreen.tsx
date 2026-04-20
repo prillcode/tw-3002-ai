@@ -22,6 +22,9 @@ export interface SectorScreenProps {
   /** Navigate to market screen. */
   onMarket: () => void;
   
+  /** Navigate to stardock screen. */
+  onStarDock: () => void;
+  
   /** Go back to previous screen. */
   onBack: () => void;
   
@@ -55,6 +58,7 @@ export interface SectorScreenProps {
  */
 export const SectorScreen: React.FC<SectorScreenProps> = ({ 
   onMarket, 
+  onStarDock,
   onBack,
   shipName,
   currentSectorId,
@@ -64,6 +68,7 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   galaxy,
 }) => {
   const currentSector = galaxy.sectors.get(currentSectorId)!;
+  const isStarDock = galaxy.stardocks.includes(currentSectorId);
   
   const neighborIds = useMemo(
     () => getNeighborIds(galaxy, currentSectorId),
@@ -133,6 +138,11 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
     onM: () => {
       if (currentSector.port) {
         onMarket();
+      }
+    },
+    onD: () => {
+      if (isStarDock) {
+        onStarDock();
       }
     },
     onQ: () => {
@@ -235,6 +245,15 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
         <Box marginTop={1} alignItems="center">
           <Text color="red" bold>
             ⚠ OUT OF TURNS — Cannot jump!
+          </Text>
+        </Box>
+      )}
+
+      {/* StarDock hint */}
+      {isStarDock && (
+        <Box marginTop={1} alignItems="center">
+          <Text color="magenta" bold>
+            ⚡ StarDock detected — [D] to dock and upgrade ship
           </Text>
         </Box>
       )}
