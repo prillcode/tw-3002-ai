@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box } from './Box';
 import { Text } from './Text';
-import type { Sector } from '../data/mockGalaxy';
+import type { Sector } from '@tw3002/engine';
 
 export interface SectorInfoProps {
   sector: Sector;
@@ -52,7 +52,7 @@ export const SectorInfo: React.FC<SectorInfoProps> = ({ sector }) => {
               {`Class ${sector.port.class} `}
             </Text>
             <Text color="white">
-              {`(${sector.port.type} ${sector.port.buying ? 'Buyer' : 'Seller'})`}
+              {`(${sector.port.name})`}
             </Text>
           </Box>
         ) : (
@@ -63,15 +63,9 @@ export const SectorInfo: React.FC<SectorInfoProps> = ({ sector }) => {
       </Box>
       
       <Box marginTop={0}>
-        {sector.npcs && sector.npcs > 0 ? (
-          <Text color="muted" dimColor>
-            {`${sector.npcs} ship${sector.npcs === 1 ? '' : 's'} detected`}
-          </Text>
-        ) : (
-          <Text color="muted" dimColor>
-            No ships detected
-          </Text>
-        )}
+        <Text color="muted" dimColor>
+          Region: {sector.region}
+        </Text>
       </Box>
     </Box>
   );

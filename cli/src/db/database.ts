@@ -38,6 +38,7 @@ export const initDatabase = (): Database => {
         hull INTEGER DEFAULT 100,
         turns INTEGER DEFAULT 100,
         max_turns INTEGER DEFAULT 100,
+        galaxy_data TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -61,17 +62,25 @@ export const initDatabase = (): Database => {
         slot_id INTEGER PRIMARY KEY CHECK (slot_id BETWEEN 1 AND 3),
         ship_name TEXT,
         credits INTEGER DEFAULT 5000,
-        current_sector INTEGER DEFAULT 42,
+        current_sector INTEGER DEFAULT 0,
         cargo_ore INTEGER DEFAULT 0,
         cargo_organics INTEGER DEFAULT 0,
         cargo_equipment INTEGER DEFAULT 0,
         hull INTEGER DEFAULT 100,
         turns INTEGER DEFAULT 100,
         max_turns INTEGER DEFAULT 100,
+        galaxy_data TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+  }
+  
+  // Migration: add galaxy_data column if missing (from pre-engine schema)
+  const currentColumns = db.query("PRAGMA table_info(saves)").all() as any[];
+  const hasGalaxyData = currentColumns.some(col => col.name === 'galaxy_data');
+  if (!hasGalaxyData) {
+    db.run(`ALTER TABLE saves ADD COLUMN galaxy_data TEXT`);
   }
   
   return db;

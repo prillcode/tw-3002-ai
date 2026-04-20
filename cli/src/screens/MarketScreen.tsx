@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, Text, CargoDisplay, CommoditySelector, QuantitySelector, ConfirmDialog } from '../components';
 import { useKeyHandler } from '../hooks';
-import { getSector, getMarketData, type CommodityType } from '../data/mockGalaxy';
+import { getPrices, executeTrade } from '@tw3002/engine';
+import type { Galaxy, Commodity, PriceQuote } from '@tw3002/engine';
 
 export interface ShipState {
   name: string;
@@ -19,6 +20,7 @@ export interface MarketScreenProps {
   currentSectorId: number;
   shipState: ShipState;
   onUpdateShip: (newState: ShipState) => void;
+  galaxy: Galaxy;
 }
 
 type TradeMode = 'browse' | 'buy' | 'sell';
@@ -27,11 +29,13 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   onBack,
   currentSectorId,
   shipState,
-  onUpdateShip
+  onUpdateShip,
+  galaxy,
 }) => {
-  const sector = getSector(currentSectorId);
+  const sector = galaxy.sectors.get(currentSectorId);
   const port = sector?.port;
-  const marketData = port ? getMarketData(port) : [];
+
+  const marketData = useMemo(() => port ? getPrices(port) : [], [port]);
   
   const [mode, setMode] = useState<TradeMode>('browse');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -40,67 +44,75 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showTradeConfirm, setShowTradeConfirm] = useState(false);
   
-  const currentCommodity = marketData[selectedIndex];
-  const currentCargo = shipState.cargo[currentCommodity?.commodity as CommodityType] || 0;
+  const currentQuote = marketData[selectedIndex];
+  const commodityLabel = (c: Commodity) => c.charAt(0).toUpperCase() + c.slice(1);
+  const currentCommodity = currentQuote?.commodity;
+  const currentCargo = currentCommodity ? (shipState.cargo[currentCommodity] ?? 0) : 0;
   const cargoTotal = shipState.cargo.ore + shipState.cargo.organics + shipState.cargo.equipment;
   const cargoFree = shipState.maxCargo - cargoTotal;
   
-  const buyMax = Math.min(
-    cargoFree,
-    Math.floor(shipState.credits / (currentCommodity?.buyPrice || 1)),
-    currentCommodity?.portStock || 0
-  );
+  const buyMax = currentQuote
+    ? Math.min(cargoFree, Math.floor(shipState.credits / (currentQuote.buyPrice || 1)), currentQuote.available)
+    : 0;
   const sellMax = currentCargo;
   
-  const buyTotal = (currentCommodity?.buyPrice || 0) * quantity;
-  const sellTotal = (currentCommodity?.sellPrice || 0) * quantity;
+  const buyTotal = (currentQuote?.buyPrice || 0) * quantity;
+  const sellTotal = (currentQuote?.sellPrice || 0) * quantity;
   
   const handleBuy = () => {
-    if (!currentCommodity || quantity <= 0) return;
-    const total = currentCommodity.buyPrice * quantity;
+    if (!currentQuote || !port || quantity <= 0) return;
     
-    if (quantity > cargoFree) {
-      setMessage('Not enough cargo space!');
+    const { result, newCredits, cargoDelta } = executeTrade(
+      port,
+      { commodity: currentQuote.commodity, direction: 'buy', quantity },
+      shipState.credits,
+      cargoFree,
+    );
+
+    if (!result.success) {
+      setMessage(result.reason ?? 'Trade failed');
       return;
     }
-    if (total > shipState.credits) {
-      setMessage('Insufficient credits!');
-      return;
-    }
-    
+
     const newCargo = { ...shipState.cargo };
-    newCargo[currentCommodity.commodity] += quantity;
-    
+    newCargo[currentQuote.commodity] += cargoDelta;
+
     onUpdateShip({
       ...shipState,
-      credits: shipState.credits - total,
-      cargo: newCargo
+      credits: newCredits,
+      cargo: newCargo,
     });
-    
-    setMessage(`Bought ${quantity} ${currentCommodity.label} for ${total} credits`);
+
+    setMessage(`Bought ${quantity} ${commodityLabel(currentQuote.commodity)} for ${result.totalPrice} credits`);
     setMode('browse');
     setQuantity(1);
   };
   
   const handleSell = () => {
-    if (!currentCommodity || quantity <= 0) return;
-    const total = currentCommodity.sellPrice * quantity;
-    
-    if (quantity > currentCargo) {
-      setMessage(`You don't have that much ${currentCommodity.label}!`);
+    if (!currentQuote || !port || quantity <= 0) return;
+
+    const { result, newCredits, cargoDelta } = executeTrade(
+      port,
+      { commodity: currentQuote.commodity, direction: 'sell', quantity },
+      shipState.credits,
+      cargoFree,
+    );
+
+    if (!result.success) {
+      setMessage(result.reason ?? 'Trade failed');
       return;
     }
-    
+
     const newCargo = { ...shipState.cargo };
-    newCargo[currentCommodity.commodity] -= quantity;
-    
+    newCargo[currentQuote.commodity] += cargoDelta; // negative for sell
+
     onUpdateShip({
       ...shipState,
-      credits: shipState.credits + total,
-      cargo: newCargo
+      credits: newCredits,
+      cargo: newCargo,
     });
-    
-    setMessage(`Sold ${quantity} ${currentCommodity.label} for ${total} credits`);
+
+    setMessage(`Sold ${quantity} ${commodityLabel(currentQuote.commodity)} for ${result.totalPrice} credits`);
     setMode('browse');
     setQuantity(1);
   };
@@ -111,7 +123,6 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev));
         setMessage(null);
       } else {
-        // In buy/sell mode: UP increases quantity
         const max = mode === 'buy' ? buyMax : sellMax;
         setQuantity(prev => Math.min(max, prev + 1));
       }
@@ -121,26 +132,22 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
         setSelectedIndex(prev => (prev < marketData.length - 1 ? prev + 1 : prev));
         setMessage(null);
       } else {
-        // In buy/sell mode: DOWN decreases quantity
         setQuantity(prev => Math.max(1, prev - 1));
       }
     },
     onLeft: () => {
       if (mode !== 'browse') {
-        // LEFT decreases quantity (alternative to DOWN)
         setQuantity(prev => Math.max(1, prev - 1));
       }
     },
     onRight: () => {
       if (mode !== 'browse') {
-        // RIGHT increases quantity (alternative to UP)
         const max = mode === 'buy' ? buyMax : sellMax;
         setQuantity(prev => Math.min(max, prev + 1));
       }
     },
     onReturn: () => {
       if (showTradeConfirm) {
-        // Execute the trade
         if (mode === 'buy') {
           handleBuy();
         } else if (mode === 'sell') {
@@ -150,7 +157,6 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       } else if (mode === 'browse') {
         setMessage('Press [B] to Buy or [S] to Sell');
       } else if (mode === 'buy' || mode === 'sell') {
-        // Show confirmation instead of immediate execution
         setShowTradeConfirm(true);
       }
     },
@@ -178,7 +184,6 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
     },
     onEscape: () => {
       if (showTradeConfirm) {
-        // Cancel trade confirmation
         setShowTradeConfirm(false);
       } else if (mode !== 'browse') {
         setMode('browse');
@@ -205,8 +210,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
     );
   }
   
-  // Show trade confirmation dialog
-  if (showTradeConfirm && currentCommodity && mode !== 'browse') {
+  if (showTradeConfirm && currentQuote && mode !== 'browse') {
     const total = mode === 'buy' ? buyTotal : sellTotal;
     const action = mode === 'buy' ? 'Buy' : 'Sell';
     const color = mode === 'buy' ? 'red' : 'green';
@@ -228,10 +232,10 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           <Box paddingY={1} />
           
           <Text>
-            {action} {quantity} {currentCommodity.label}
+            {action} {quantity} {commodityLabel(currentQuote.commodity)}
           </Text>
           <Text color="muted">
-            @ {mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice} cr/unit
+            @ {mode === 'buy' ? currentQuote.buyPrice : currentQuote.sellPrice} cr/unit
           </Text>
           
           <Box paddingY={1} />
@@ -266,7 +270,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
         <Box flexDirection="row" justifyContent="space-between">
           <Text color="cyan" bold>
-            CLASS {port.class} PORT — {port.type.toUpperCase()} {port.buying ? 'BUYER' : 'SELLER'}
+            CLASS {port.class} PORT — {port.name.toUpperCase()}
           </Text>
           <Text color="yellow">
             {shipState.credits.toLocaleString()} cr
@@ -295,10 +299,10 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           <CommoditySelector
             commodities={marketData.map(m => ({
               type: m.commodity,
-              label: m.label,
+              label: commodityLabel(m.commodity),
               buyPrice: m.buyPrice,
               sellPrice: m.sellPrice,
-              portStock: m.portStock,
+              portStock: m.available,
               cargoAmount: shipState.cargo[m.commodity]
             }))}
             selectedIndex={selectedIndex}
@@ -306,9 +310,9 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
           />
         </Box>
         
-        {/* Right: Transaction panel - wider for order display */}
+        {/* Right: Transaction panel */}
         <Box flexDirection="column" width={38}>
-          {mode !== 'browse' && currentCommodity && (
+          {mode !== 'browse' && currentQuote && (
             <Box 
               borderStyle="round" 
               borderColor={mode === 'buy' ? 'green' : 'red'}
@@ -322,9 +326,9 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
               
               <Box paddingY={1} />
               
-              <Text bold>{currentCommodity.label}</Text>
+              <Text bold>{commodityLabel(currentQuote.commodity)}</Text>
               <Text color="muted">
-                @ {mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice} cr/unit
+                @ {mode === 'buy' ? currentQuote.buyPrice : currentQuote.sellPrice} cr/unit
               </Text>
               
               <Box paddingY={1} />
@@ -333,7 +337,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
                 quantity={quantity}
                 min={1}
                 max={mode === 'buy' ? buyMax : sellMax}
-                unitPrice={mode === 'buy' ? currentCommodity.buyPrice : currentCommodity.sellPrice}
+                unitPrice={mode === 'buy' ? currentQuote.buyPrice : currentQuote.sellPrice}
                 total={mode === 'buy' ? buyTotal : sellTotal}
                 remainingCredits={mode === 'buy' ? shipState.credits - buyTotal : undefined}
                 mode={mode}

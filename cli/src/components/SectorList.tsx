@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box } from './Box';
 import { Text } from './Text';
-import type { Sector } from '../data/mockGalaxy';
+import type { Sector } from '@tw3002/engine';
 
 export interface SectorListProps {
   /** Connected sectors to display */

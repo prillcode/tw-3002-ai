@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog, WarpTransition } from '../components';
 import { useKeyHandler } from '../hooks';
-import { getSector, getNeighbors } from '../data/mockGalaxy';
+import { getNeighborIds } from '@tw3002/engine';
+import type { Galaxy, Sector } from '@tw3002/engine';
 
 export interface ShipState {
   name: string;
@@ -38,6 +39,9 @@ export interface SectorScreenProps {
   
   /** Update ship state. */
   onUpdateShip: (state: ShipState) => void;
+  
+  /** Galaxy instance. */
+  galaxy: Galaxy;
 }
 
 /**
@@ -56,10 +60,20 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   currentSectorId,
   onUpdateSector,
   shipState,
-  onUpdateShip
+  onUpdateShip,
+  galaxy,
 }) => {
-  const currentSector = getSector(currentSectorId)!;
-  const neighbors = getNeighbors(currentSectorId);
+  const currentSector = galaxy.sectors.get(currentSectorId)!;
+  
+  const neighborIds = useMemo(
+    () => getNeighborIds(galaxy, currentSectorId),
+    [galaxy, currentSectorId]
+  );
+  
+  const neighbors = useMemo(
+    () => neighborIds.map(id => galaxy.sectors.get(id)).filter((s): s is Sector => s !== undefined),
+    [neighborIds, galaxy.sectors]
+  );
   
   // Track selection for navigation
   const [selectedIndex, setSelectedIndex] = useState(0);

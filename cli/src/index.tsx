@@ -4,9 +4,31 @@ import { useScreen } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
 import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen } from './screens';
 import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
+import { createGalaxy, type Galaxy } from '@tw3002/engine';
 
 type AppMode = 'welcome' | 'slotSelect' | 'shipName' | 'sector' | 'market';
 type SelectMode = 'new' | 'continue' | null;
+
+/**
+ * Serialize a Galaxy to JSON (convert Map to array for storage).
+ */
+function galaxyToJson(galaxy: Galaxy): string {
+  return JSON.stringify({
+    ...galaxy,
+    sectors: Object.fromEntries(galaxy.sectors),
+  });
+}
+
+/**
+ * Deserialize a Galaxy from JSON (convert object back to Map).
+ */
+function galaxyFromJson(json: string): Galaxy {
+  const raw = JSON.parse(json);
+  return {
+    ...raw,
+    sectors: new Map(Object.entries(raw.sectors).map(([k, v]) => [Number(k), v])),
+  };
+}
 
 const App = () => {
   const { currentScreen, navigateTo, goBack } = useScreen({ initial: 'welcome' });
@@ -19,9 +41,12 @@ const App = () => {
   // Selected slot for gameplay
   const [selectedSlot, setSelectedSlot] = useState<number>(1);
   
+  // Galaxy state
+  const [galaxy, setGalaxy] = useState<Galaxy | null>(null);
+  
   // Game state (per slot)
   const [shipName, setShipName] = useState<string>('');
-  const [currentSectorId, setCurrentSectorId] = useState<number>(42);
+  const [currentSectorId, setCurrentSectorId] = useState<number>(0);
   const [shipState, setShipState] = useState({
     credits: 5000,
     cargo: { ore: 0, organics: 0, equipment: 0 },
@@ -35,9 +60,9 @@ const App = () => {
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
   const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
-  // Auto-save whenever state changes
+  // Auto-save whenever state changes (galaxy + player state)
   useEffect(() => {
-    if (shipName && selectedSlot) {
+    if (shipName && selectedSlot && galaxy) {
       const gameState: GameState = {
         shipName,
         credits: shipState.credits,
@@ -45,11 +70,12 @@ const App = () => {
         cargo: shipState.cargo,
         hull: shipState.hull,
         turns: shipState.turns,
-        maxTurns: shipState.maxTurns
+        maxTurns: shipState.maxTurns,
+        galaxyJson: galaxyToJson(galaxy),
       };
       saveGame(db, selectedSlot, gameState);
     }
-  }, [shipName, currentSectorId, shipState, selectedSlot, db]);
+  }, [shipName, currentSectorId, shipState, selectedSlot, galaxy, db]);
 
   // Handle New Game request
   const handleNewGame = () => {
@@ -69,24 +95,24 @@ const App = () => {
     
     if (selectMode === 'new') {
       if (isEmpty) {
-        // Empty slot - start fresh
         startNewGame(slotId);
       } else {
-        // Slot has save - confirm overwrite
         setPendingSlot(slotId);
         setShowNewGameConfirm(true);
       }
     } else if (selectMode === 'continue') {
-      // Continue - load existing save
       loadExistingGame(slotId);
     }
   };
   
-  // Start fresh game in slot
+  // Start fresh game in slot — generate a new galaxy
   const startNewGame = (slotId: number) => {
     clearSave(db, slotId);
+    const newGalaxy = createGalaxy({ seed: Date.now() });
+    setGalaxy(newGalaxy);
     setShipName('');
-    setCurrentSectorId(42);
+    // Start at sector 0 (FedSpace Alpha)
+    setCurrentSectorId(0);
     setShipState({
       credits: 5000,
       cargo: { ore: 0, organics: 0, equipment: 0 },
@@ -122,6 +148,15 @@ const App = () => {
         maxTurns: save.maxTurns
       });
       setSelectedSlot(slotId);
+      
+      // Restore galaxy from saved JSON
+      if (save.galaxyJson) {
+        setGalaxy(galaxyFromJson(save.galaxyJson));
+      } else {
+        // Legacy save without galaxy — generate one
+        setGalaxy(createGalaxy({ seed: 42 }));
+      }
+      
       setAppMode('sector');
     }
   };
@@ -134,7 +169,7 @@ const App = () => {
   
   // Handle quit
   const handleQuit = () => {
-    if (shipName && selectedSlot) {
+    if (shipName && selectedSlot && galaxy) {
       saveGame(db, selectedSlot, {
         shipName,
         credits: shipState.credits,
@@ -142,7 +177,8 @@ const App = () => {
         cargo: shipState.cargo,
         hull: shipState.hull,
         turns: shipState.turns,
-        maxTurns: shipState.maxTurns
+        maxTurns: shipState.maxTurns,
+        galaxyJson: galaxyToJson(galaxy),
       });
     }
     process.exit(0);
@@ -197,6 +233,7 @@ const App = () => {
         );
         
       case 'sector':
+        if (!galaxy) return null;
         return (
           <SectorScreen
             onMarket={() => setAppMode('market')}
@@ -214,10 +251,12 @@ const App = () => {
                 turns: newState.turns
               }));
             }}
+            galaxy={galaxy}
           />
         );
         
       case 'market':
+        if (!galaxy) return null;
         return (
           <MarketScreen
             onBack={() => setAppMode('sector')}
@@ -235,6 +274,7 @@ const App = () => {
                 cargo: newState.cargo
               }));
             }}
+            galaxy={galaxy}
           />
         );
         
