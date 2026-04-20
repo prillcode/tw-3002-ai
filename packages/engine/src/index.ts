@@ -35,7 +35,7 @@ export {
 export { SeededRandom } from './rng.js';
 
 // ─── Galaxy Generation ─────────────────────────────────────
-export { createGalaxy, getNeighborIds, DEFAULT_CONFIG } from './galaxy/generator.js';
+export { createGalaxy, getNeighborIds, DEFAULT_CONFIG, MAX_SECTOR_COUNT } from './galaxy/generator.js';
 
 // ─── Economy ───────────────────────────────────────────────
 export { getPrices, executeTrade, tickEconomy } from './economy/pricing.js';

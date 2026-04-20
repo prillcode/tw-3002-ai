@@ -3,3 +3,4 @@ export { WelcomeScreen, type WelcomeScreenProps } from './WelcomeScreen';
 export { SectorScreen, type SectorScreenProps } from './SectorScreen';
 export { MarketScreen, type MarketScreenProps } from './MarketScreen';
 export { SlotSelectScreen, type SlotSelectScreenProps } from './SlotSelectScreen';
+export { GalaxySizeScreen, type GalaxySizeScreenProps, GALAXY_SIZES } from './GalaxySizeScreen';

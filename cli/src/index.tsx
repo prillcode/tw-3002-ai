@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { render } from 'ink';
 import { useScreen } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen } from './screens';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen } from './screens';
 import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
 import { createGalaxy, type Galaxy } from '@tw3002/engine';
 
-type AppMode = 'welcome' | 'slotSelect' | 'shipName' | 'sector' | 'market';
+type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'sector' | 'market';
 type SelectMode = 'new' | 'continue' | null;
 
 /**
@@ -95,7 +95,9 @@ const App = () => {
     
     if (selectMode === 'new') {
       if (isEmpty) {
-        startNewGame(slotId);
+        // Empty slot — go to galaxy size selection
+        setSelectedSlot(slotId);
+        setAppMode('galaxySize');
       } else {
         setPendingSlot(slotId);
         setShowNewGameConfirm(true);
@@ -106,9 +108,9 @@ const App = () => {
   };
   
   // Start fresh game in slot — generate a new galaxy
-  const startNewGame = (slotId: number) => {
+  const startNewGame = (slotId: number, sectorCount: number = 100) => {
     clearSave(db, slotId);
-    const newGalaxy = createGalaxy({ seed: Date.now() });
+    const newGalaxy = createGalaxy({ seed: Date.now(), sectorCount });
     setGalaxy(newGalaxy);
     setShipName('');
     // Start at sector 0 (FedSpace Alpha)
@@ -124,12 +126,13 @@ const App = () => {
     setAppMode('shipName');
   };
   
-  // Confirm overwrite and start new
+  // Confirm overwrite — go to galaxy size selection
   const confirmOverwrite = () => {
     if (pendingSlot) {
-      startNewGame(pendingSlot);
+      setSelectedSlot(pendingSlot);
       setShowNewGameConfirm(false);
       setPendingSlot(null);
+      setAppMode('galaxySize');
     }
   };
   
@@ -189,8 +192,10 @@ const App = () => {
     if (appMode === 'slotSelect') {
       setAppMode('welcome');
       setSelectMode(null);
-    } else if (appMode === 'shipName') {
+    } else if (appMode === 'galaxySize') {
       setAppMode('slotSelect');
+    } else if (appMode === 'shipName') {
+      setAppMode('galaxySize');
     } else if (appMode === 'sector') {
       setAppMode('welcome');
     } else if (appMode === 'market') {
@@ -218,6 +223,16 @@ const App = () => {
             db={db}
             mode={selectMode}
             onSelectSlot={handleSelectSlot}
+            onBack={handleBack}
+          />
+        );
+        
+      case 'galaxySize':
+        return (
+          <GalaxySizeScreen
+            onSelect={(sectorCount) => {
+              startNewGame(selectedSlot, sectorCount);
+            }}
             onBack={handleBack}
           />
         );
@@ -293,6 +308,12 @@ const App = () => {
           { key: 'Q', action: 'Quit' }
         ];
       case 'slotSelect':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'Enter', action: 'Choose' },
+          { key: 'Esc', action: 'Back' }
+        ];
+      case 'galaxySize':
         return [
           { key: '↑↓', action: 'Select' },
           { key: 'Enter', action: 'Choose' },

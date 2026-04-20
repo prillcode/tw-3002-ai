@@ -15,6 +15,9 @@ export const DEFAULT_CONFIG: GalaxyConfig = {
   stardockCount: 1,
 };
 
+/** Maximum allowed sector count (MST algorithm is O(n²) above this) */
+export const MAX_SECTOR_COUNT = 1000;
+
 /** Commodity base prices */
 const BASE_PRICES: Record<Commodity, number> = {
   ore: 100,
@@ -52,6 +55,14 @@ const COMMODITIES: Commodity[] = ['ore', 'organics', 'equipment'];
 export function createGalaxy(config: Partial<GalaxyConfig> = {}): Galaxy {
   const fullConfig: GalaxyConfig = { ...DEFAULT_CONFIG, ...config };
   if (fullConfig.seed === 0) fullConfig.seed = Date.now();
+
+  // Cap sector count
+  if (fullConfig.sectorCount > MAX_SECTOR_COUNT) {
+    throw new Error(`Sector count ${fullConfig.sectorCount} exceeds maximum of ${MAX_SECTOR_COUNT}`);
+  }
+  if (fullConfig.sectorCount < 10) {
+    throw new Error('Sector count must be at least 10');
+  }
 
   const rng = new SeededRandom(fullConfig.seed);
   const names = createNameGenerator();
