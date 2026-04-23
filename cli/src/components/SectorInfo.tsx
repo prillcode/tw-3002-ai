@@ -5,12 +5,13 @@ import type { Sector } from '@tw3002/engine';
 
 export interface SectorInfoProps {
   sector: Sector;
+  isStarDock?: boolean;
 }
 
 /**
  * Sector information panel showing location, port, danger.
  */
-export const SectorInfo: React.FC<SectorInfoProps> = ({ sector }) => {
+export const SectorInfo: React.FC<SectorInfoProps> = ({ sector, isStarDock = false }) => {
   const getDangerColor = () => {
     switch (sector.danger) {
       case 'safe': return 'green';
@@ -61,6 +62,14 @@ export const SectorInfo: React.FC<SectorInfoProps> = ({ sector }) => {
           </Text>
         )}
       </Box>
+      
+      {isStarDock && (
+        <Box marginTop={1}>
+          <Text color="magenta" bold>
+            ⚡ StarDock — Ship Upgrades Available
+          </Text>
+        </Box>
+      )}
       
       <Box marginTop={0}>
         <Text color="muted" dimColor>

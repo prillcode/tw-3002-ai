@@ -8,6 +8,8 @@ export interface SectorListProps {
   sectors: Sector[];
   /** Currently selected index */
   selectedIndex: number;
+  /** Sector IDs that have a StarDock */
+  stardockIds?: number[];
 }
 
 /**
@@ -16,7 +18,8 @@ export interface SectorListProps {
  */
 export const SectorList: React.FC<SectorListProps> = ({
   sectors,
-  selectedIndex
+  selectedIndex,
+  stardockIds = []
 }) => {
   const getDangerIcon = (danger: string) => {
     switch (danger) {
@@ -79,9 +82,13 @@ export const SectorList: React.FC<SectorListProps> = ({
                   <Text color="yellow" dimColor={!isSelected}>
                     {`Port ${sector.port.class}`}
                   </Text>
+                ) : stardockIds.includes(sector.id) ? (
+                  <Text color="magenta" bold>
+                    {'★ Dock'}
+                  </Text>
                 ) : (
                   <Text color="muted" dimColor>
-                    No port
+                    {'        '}
                   </Text>
                 )}
               </Box>

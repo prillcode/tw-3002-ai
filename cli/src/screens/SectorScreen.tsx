@@ -181,7 +181,7 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   return (
     <Box flexDirection="column" padding={1}>
       {/* Sector Info Header */}
-      <SectorInfo sector={currentSector} />
+      <SectorInfo sector={currentSector} isStarDock={isStarDock} />
       
       <Box paddingY={1} />
       
@@ -191,6 +191,7 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
         <SectorList 
           sectors={neighbors}
           selectedIndex={selectedIndex}
+          stardockIds={galaxy.stardocks}
         />
         
         {/* Center: Visual Map */}
