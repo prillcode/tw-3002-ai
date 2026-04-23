@@ -267,11 +267,12 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   return (
     <Box flexDirection="column" padding={1}>
       {/* Header */}
-      <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1} width={80}>
-        <Box flexDirection="row" justifyContent="space-between">
+      <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
+        <Box flexDirection="row">
           <Text color="cyan" bold>
             CLASS {port.class} PORT — {port.name.toUpperCase()}
           </Text>
+          <Box flexGrow={1} />
           <Text color="yellow" bold>
             {shipState.credits.toLocaleString()} cr
           </Text>
