@@ -12,9 +12,13 @@ export interface ShipStatusProps {
   };
   maxCargo: number;
   hull: number;
+  maxHull?: number;
+  shield?: number;
+  maxShield?: number;
   turns: number;
   maxTurns: number;
   currentSector: number;
+  netWorth?: number;
 }
 
 /**
@@ -27,9 +31,13 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
   cargo,
   maxCargo,
   hull,
+  maxHull,
+  shield,
+  maxShield,
   turns,
   maxTurns,
-  currentSector
+  currentSector,
+  netWorth,
 }) => {
   // Calculate cargo total
   const cargoTotal = cargo.ore + cargo.organics + cargo.equipment;
@@ -41,10 +49,33 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
     return 'green';
   };
 
-  const getHullColor = () => {
-    if (hull < 25) return 'red';
-    if (hull < 75) return 'yellow';
+  const getRank = (worth: number) => {
+    if (worth < 10000) return 'Space Peasant';
+    if (worth < 50000) return 'Trader';
+    if (worth < 100000) return 'Merchant Prince';
+    return 'Galactic Tycoon';
+  };
+
+  const getRankColor = (worth: number) => {
+    if (worth < 10000) return 'muted';
+    if (worth < 50000) return 'yellow';
+    if (worth < 100000) return 'magenta';
     return 'green';
+  };
+
+  const getHullColor = () => {
+    const pct = maxHull ? (hull / maxHull) * 100 : hull;
+    if (pct < 25) return 'red';
+    if (pct < 75) return 'yellow';
+    return 'green';
+  };
+
+  const getShieldColor = () => {
+    if (!maxShield || maxShield === 0) return 'muted';
+    const pct = (shield ?? 0) / maxShield;
+    if (pct < 25) return 'red';
+    if (pct < 75) return 'yellow';
+    return 'cyan';
   };
 
   const getTurnsColor = () => {
@@ -65,8 +96,21 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
         {`⚡ ${shipName}`}
       </Text>
       
+      {netWorth !== undefined && (
+        <>
+          <Box paddingY={0} />
+          <Text color="cyan" dimColor>
+            Net Worth: {netWorth.toLocaleString()} cr
+            {'  '}
+            <Text color={getRankColor(netWorth)} bold>
+              {getRank(netWorth)}
+            </Text>
+          </Text>
+        </>
+      )}
+
       <Box paddingY={1} />
-      
+
       <Box flexDirection="row" gap={2}>
         <Box width={18}>
           <Text color="muted">Credits:</Text>
@@ -85,9 +129,18 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
         <Box width={12}>
           <Text color="muted">Hull:</Text>
           <Text color={getHullColor()} bold>
-            {hull}%
+            {maxHull ? `${hull}/${maxHull}` : `${hull}%`}
           </Text>
         </Box>
+
+        {maxShield !== undefined && maxShield > 0 && (
+          <Box width={12}>
+            <Text color="muted">Shield:</Text>
+            <Text color={getShieldColor()} bold>
+              {shield ?? 0}/{maxShield}
+            </Text>
+          </Box>
+        )}
         
         <Box width={12}>
           <Text color="muted">Turns:</Text>

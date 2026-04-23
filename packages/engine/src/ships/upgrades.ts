@@ -264,6 +264,7 @@ export interface PlayerShip {
   currentSector: number;
   cargo: Record<Commodity, number>;
   hull: number;
+  shield: number;
   turns: number;
   maxTurns: number;
   /** Map of upgradeId → 1 (owned). Absent = not bought. */

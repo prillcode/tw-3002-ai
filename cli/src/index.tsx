@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { render } from 'ink';
 import { useScreen } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen } from './screens';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen } from './screens';
 import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
-import { createGalaxy, getShipClass, computeEffectiveStats, type Galaxy } from '@tw3002/engine';
+import { createGalaxy, getShipClass, computeEffectiveStats, UPGRADE_CATALOG, generateNPCs, tickNPCs, GameStateContainer, loadConfig, addGrudge, updateReputation, addMarketObservation, type Galaxy, type Combatant, type CombatResult, type NPC, type NewsItem, type GameState as EngineGameState, type TickStats } from '@tw3002/engine';
 
-type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock';
+type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat';
 type SelectMode = 'new' | 'continue' | null;
 
 /**
@@ -54,9 +54,19 @@ const App = () => {
     cargo: { ore: 0, organics: 0, equipment: 0 },
     maxCargo: 120,
     hull: 100,
+    shield: 0,
+    maxShield: 0,
     turns: 80,
     maxTurns: 80
   });
+
+  // Combat state
+  const [combatEnemy, setCombatEnemy] = useState<Combatant | null>(null);
+
+  // NPC state
+  const [npcs, setNpcs] = useState<NPC[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [tickStats, setTickStats] = useState<TickStats | null>(null);
   
   // Confirmation dialogs
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
@@ -68,6 +78,16 @@ const App = () => {
     [shipClassId, upgrades]
   );
 
+  // Compute net worth: credits + cargo value + upgrade value
+  const netWorth = useMemo(() => {
+    const cargoValue = (shipState.cargo.ore * 100) + (shipState.cargo.organics * 50) + (shipState.cargo.equipment * 200);
+    const upgradeValue = Object.keys(upgrades).reduce((sum, id) => {
+      const upgrade = UPGRADE_CATALOG.find(u => u.id === id);
+      return sum + (upgrade?.cost ?? 0);
+    }, 0);
+    return shipState.credits + cargoValue + upgradeValue;
+  }, [shipState.credits, shipState.cargo, upgrades]);
+
   // Auto-save whenever state changes
   useEffect(() => {
     if (shipName && selectedSlot && galaxy) {
@@ -77,15 +97,17 @@ const App = () => {
         currentSector: currentSectorId,
         cargo: shipState.cargo,
         hull: shipState.hull,
+        shield: shipState.shield,
         turns: shipState.turns,
         maxTurns: shipState.maxTurns,
         shipClassId,
         upgradesJson: JSON.stringify(upgrades),
         galaxyJson: galaxyToJson(galaxy),
+        npcsJson: JSON.stringify(npcs),
       };
       saveGame(db, selectedSlot, gameState);
     }
-  }, [shipName, currentSectorId, shipState, selectedSlot, galaxy, db, shipClassId, upgrades]);
+  }, [shipName, currentSectorId, shipState, selectedSlot, galaxy, db, shipClassId, upgrades, npcs]);
 
   // Handle New Game request
   const handleNewGame = () => {
@@ -100,7 +122,7 @@ const App = () => {
   };
   
   // Handle slot selection
-  const handleSelectSlot = (slotId: number, isEmpty: boolean) => {
+  const handleSelectSlot = async (slotId: number, isEmpty: boolean) => {
     setSelectedSlot(slotId);
     
     if (selectMode === 'new') {
@@ -111,15 +133,22 @@ const App = () => {
         setShowNewGameConfirm(true);
       }
     } else if (selectMode === 'continue') {
-      loadExistingGame(slotId);
+      await loadExistingGame(slotId);
     }
   };
   
-  // Start fresh game — generate galaxy, then pick ship class
+  // Start fresh game — generate galaxy + NPCs, then pick ship class
   const startNewGame = (slotId: number, sectorCount: number = 100) => {
     clearSave(db, slotId);
     const newGalaxy = createGalaxy({ seed: Date.now(), sectorCount });
+    const newNpcs = generateNPCs(newGalaxy, 20, Date.now() + 1);
     setGalaxy(newGalaxy);
+    setNpcs(newNpcs);
+    setNews([{
+      timestamp: new Date().toISOString(),
+      headline: 'Welcome to a new galaxy, Commander!',
+      type: 'event',
+    }]);
     setShipName('');
     setCurrentSectorId(0);
     setUpgrades({});
@@ -134,7 +163,7 @@ const App = () => {
   };
 
   // After class selection, set starting stats and enter game
-  const handleClassSelect = (classId: string) => {
+  const handleClassSelect = async (classId: string) => {
     const shipClass = getShipClass(classId);
     const stats = shipClass?.baseStats ?? getShipClass('merchant')!.baseStats;
     setShipClassId(classId);
@@ -143,9 +172,53 @@ const App = () => {
       cargo: { ore: 0, organics: 0, equipment: 0 },
       maxCargo: stats.maxCargo,
       hull: stats.maxHull,
+      shield: stats.shieldPoints,
+      maxShield: stats.shieldPoints,
       turns: stats.maxTurns,
       maxTurns: stats.maxTurns,
     });
+
+    // Tick NPCs before entering sector (galaxy evolves while player was away)
+    if (galaxy && npcs.length > 0) {
+      const playerShip: EngineGameState['player'] = {
+        name: shipName,
+        classId,
+        credits: 5000,
+        currentSector: currentSectorId,
+        cargo: { ore: 0, organics: 0, equipment: 0 },
+        hull: stats.maxHull,
+        shield: stats.shieldPoints,
+        turns: stats.maxTurns,
+        maxTurns: stats.maxTurns,
+        upgrades: {},
+      };
+
+      const gameState: EngineGameState = {
+        galaxy,
+        player: playerShip,
+        currentSectorId,
+        turnsUsed: 0,
+        turnsRegenRate: 1,
+        lastPlayedAt: new Date().toISOString(),
+        combatLog: [],
+        tradeLog: [],
+        npcs,
+        news,
+      };
+
+      const container = new GameStateContainer(gameState);
+      const llmConfig = loadConfig();
+      try {
+        const result = await tickNPCs(container, llmConfig);
+        setGalaxy(result.container.galaxy);
+        setNpcs(result.container.npcs);
+        setNews(prev => [...prev, ...result.news]);
+        setTickStats(result.stats);
+      } catch {
+        // If tick fails, proceed without it
+      }
+    }
+
     setAppMode('sector');
   };
 
@@ -160,34 +233,83 @@ const App = () => {
   };
   
   // Load existing game from slot
-  const loadExistingGame = (slotId: number) => {
+  const loadExistingGame = async (slotId: number) => {
     const save = loadGame(db, slotId);
     if (save) {
-      setShipName(save.shipName);
-      setCurrentSectorId(save.currentSector);
-      setShipClassId(save.shipClassId ?? 'merchant');
-      setUpgrades(save.upgradesJson ? JSON.parse(save.upgradesJson) : {});
+      const loadedClassId = save.shipClassId ?? 'merchant';
+      const loadedUpgrades = save.upgradesJson ? JSON.parse(save.upgradesJson) : {};
       
       // Compute effective stats for maxCargo
-      const stats = computeEffectiveStats(
-        save.shipClassId ?? 'merchant',
-        save.upgradesJson ? JSON.parse(save.upgradesJson) : {}
-      );
+      const stats = computeEffectiveStats(loadedClassId, loadedUpgrades);
       
+      const loadedGalaxy = save.galaxyJson ? galaxyFromJson(save.galaxyJson) : createGalaxy({ seed: 42 });
+      let loadedNpcs: NPC[] = [];
+      if (save.npcsJson) {
+        try {
+          loadedNpcs = JSON.parse(save.npcsJson);
+        } catch {
+          loadedNpcs = [];
+        }
+      }
+
+      // Set all state at once
+      setShipName(save.shipName);
+      setCurrentSectorId(save.currentSector);
+      setShipClassId(loadedClassId);
+      setUpgrades(loadedUpgrades);
       setShipState({
         credits: save.credits,
         cargo: save.cargo,
         maxCargo: stats.maxCargo,
         hull: save.hull,
+        shield: save.shield ?? stats.shieldPoints,
+        maxShield: stats.shieldPoints,
         turns: save.turns,
         maxTurns: save.maxTurns,
       });
       setSelectedSlot(slotId);
-      
-      if (save.galaxyJson) {
-        setGalaxy(galaxyFromJson(save.galaxyJson));
-      } else {
-        setGalaxy(createGalaxy({ seed: 42 }));
+      setGalaxy(loadedGalaxy);
+      setNpcs(loadedNpcs);
+
+      // Tick NPCs — galaxy evolves while player was away
+      if (loadedNpcs.length > 0) {
+        const playerShip: EngineGameState['player'] = {
+          name: save.shipName,
+          classId: loadedClassId,
+          credits: save.credits,
+          currentSector: save.currentSector,
+          cargo: save.cargo,
+          hull: save.hull,
+          shield: save.shield ?? stats.shieldPoints,
+          turns: save.turns,
+          maxTurns: save.maxTurns,
+          upgrades: loadedUpgrades,
+        };
+
+        const gameState: EngineGameState = {
+          galaxy: loadedGalaxy,
+          player: playerShip,
+          currentSectorId: save.currentSector,
+          turnsUsed: 0,
+          turnsRegenRate: 1,
+          lastPlayedAt: new Date().toISOString(),
+          combatLog: [],
+          tradeLog: [],
+          npcs: loadedNpcs,
+          news: [],
+        };
+
+        const container = new GameStateContainer(gameState);
+        const llmConfig = loadConfig();
+        try {
+          const result = await tickNPCs(container, llmConfig);
+          setGalaxy(result.container.galaxy);
+          setNpcs(result.container.npcs);
+          setNews(prev => [...prev, ...result.news]);
+          setTickStats(result.stats);
+        } catch {
+          // If tick fails, proceed without it
+        }
       }
       
       setAppMode('sector');
@@ -203,6 +325,7 @@ const App = () => {
         currentSector: currentSectorId,
         cargo: shipState.cargo,
         hull: shipState.hull,
+        shield: shipState.shield,
         turns: shipState.turns,
         maxTurns: shipState.maxTurns,
         shipClassId,
@@ -211,6 +334,92 @@ const App = () => {
       });
     }
     process.exit(0);
+  };
+
+  // Handle combat encounter
+  const handleCombatStart = (enemy: Combatant) => {
+    setCombatEnemy(enemy);
+    setAppMode('combat');
+  };
+
+  // Check for NPC raiders in sector before random encounter
+  const handleJumpComplete = (sectorId: number) => {
+    const sector = galaxy?.sectors.get(sectorId);
+    if (!sector) return;
+
+    // Check for raider NPCs in this sector
+    const raiders = npcs.filter(n => n.currentSectorId === sectorId && n.persona.type === 'raider');
+    if (raiders.length > 0) {
+      // Pick a random raider to attack
+      const raider = raiders[Math.floor(Math.random() * raiders.length)];
+      if (raider && Math.random() < raider.persona.aggression * 0.8) {
+        const { npcToCombatant } = require('@tw3002/engine');
+        setCombatEnemy(npcToCombatant(raider));
+        setAppMode('combat');
+        return;
+      }
+    }
+
+    // Fallback to random encounter
+    const { rollEncounter } = require('@tw3002/engine');
+    const enemy = rollEncounter(sector, Date.now());
+    if (enemy) {
+      setCombatEnemy(enemy);
+      setAppMode('combat');
+    }
+  };
+
+  // Apply combat result
+  const handleCombatEnd = (result: CombatResult) => {
+    const stats = computeEffectiveStats(shipClassId, upgrades);
+
+    if (result.playerDestroyed) {
+      // Respawn in FedSpace
+      const fedCenter = galaxy?.fedSpace[0] ?? 0;
+      setCurrentSectorId(fedCenter);
+      setShipState(prev => ({
+        ...prev,
+        credits: Math.floor(prev.credits * 0.9),
+        hull: stats.maxHull,
+        shield: stats.shieldPoints,
+      }));
+    } else {
+      // Apply damage and credit changes
+      setShipState(prev => ({
+        ...prev,
+        credits: prev.credits + result.creditsGained - result.creditsLost,
+        hull: result.hullRemaining,
+        shield: result.shieldRemaining,
+      }));
+    }
+
+    // Update NPC memory if this was an NPC fight
+    if (combatEnemy?.npcId) {
+      setNpcs(prev => prev.map(npc => {
+        if (npc.id !== combatEnemy.npcId) return npc;
+
+        if (result.victory) {
+          // Player won → NPC holds a grudge
+          let updated = addGrudge(npc, 'player', shipName || 'Player', 'Defeated me in combat', 7);
+          updated = updateReputation(updated, 'player', shipName || 'Player', -15);
+          return updated;
+        }
+        if (result.fled) {
+          // Player fled → NPC feels confident
+          let updated = addGrudge(npc, 'player', shipName || 'Player', 'Ran from our fight', 3);
+          updated = updateReputation(updated, 'player', shipName || 'Player', -5);
+          return updated;
+        }
+        if (result.playerDestroyed) {
+          // NPC won → feels dominant, no grudge
+          return updateReputation(npc, 'player', shipName || 'Player', 10);
+        }
+        return npc;
+      }));
+    }
+
+    setCombatEnemy(null);
+    setAppMode('sector');
   };
   
   // Handle back navigation
@@ -291,17 +500,24 @@ const App = () => {
           <SectorScreen
             onMarket={() => setAppMode('market')}
             onStarDock={() => setAppMode('stardock')}
+            onCombat={handleCombatStart}
+            onJumpComplete={handleJumpComplete}
             onBack={handleBack}
             shipName={shipName || 'Unnamed Vessel'}
             currentSectorId={currentSectorId}
             onUpdateSector={setCurrentSectorId}
             shipState={{ ...shipState, name: shipName }}
+            netWorth={netWorth}
+            npcs={npcs.filter(n => n.currentSectorId === currentSectorId)}
+            news={news.slice(-5)}
             onUpdateShip={(newState) => {
               setShipState(prev => ({
                 ...prev,
                 credits: newState.credits,
                 cargo: newState.cargo,
                 hull: newState.hull,
+                shield: newState.shield ?? prev.shield,
+                maxShield: newState.maxShield ?? prev.maxShield,
                 turns: newState.turns
               }));
             }}
@@ -329,6 +545,8 @@ const App = () => {
               }));
             }}
             galaxy={galaxy}
+            npcs={npcs}
+            onUpdateNPCs={setNpcs}
           />
         );
 
@@ -344,6 +562,7 @@ const App = () => {
               currentSector: currentSectorId,
               cargo: shipState.cargo,
               hull: shipState.hull,
+              shield: shipState.shield,
               turns: shipState.turns,
               maxTurns: shipState.maxTurns,
               upgrades,
@@ -351,19 +570,42 @@ const App = () => {
             onUpdateShip={(newShip) => {
               setShipClassId(newShip.classId);
               setUpgrades(newShip.upgrades);
-              setShipState(prev => ({
-                ...prev,
-                credits: newShip.credits,
-              }));
-              // Recompute maxCargo from new upgrades
               const newStats = computeEffectiveStats(newShip.classId, newShip.upgrades);
+              const cargoTotal = newShip.cargo.ore + newShip.cargo.organics + newShip.cargo.equipment;
+              const clampedCargo = cargoTotal > newStats.maxCargo
+                ? { ...newShip.cargo, ore: Math.min(newShip.cargo.ore, newStats.maxCargo) }
+                : newShip.cargo;
               setShipState(prev => ({
                 ...prev,
                 credits: newShip.credits,
+                cargo: clampedCargo,
                 maxCargo: newStats.maxCargo,
+                maxShield: newStats.shieldPoints,
+                hull: newStats.maxHull, // repair hull at StarDock
+                shield: newStats.shieldPoints, // recharge shield at StarDock
               }));
             }}
             onBack={() => setAppMode('sector')}
+          />
+        );
+
+      case 'combat':
+        if (!combatEnemy) return null;
+        return (
+          <CombatScreen
+            player={{
+              name: shipName || 'Your Ship',
+              hull: shipState.hull,
+              maxHull: effectiveStats.maxHull,
+              shield: shipState.shield,
+              maxShield: shipState.maxShield,
+              weaponDamage: 5 + effectiveStats.combatBonus,
+              dodgeChance: effectiveStats.dodgeChance,
+              credits: shipState.credits,
+            }}
+            enemy={combatEnemy}
+            onCombatEnd={handleCombatEnd}
+            onQuit={handleQuit}
           />
         );
         
@@ -415,6 +657,12 @@ const App = () => {
           { key: '↑↓', action: 'Select' },
           { key: 'Enter', action: 'Buy' },
           { key: 'Esc', action: 'Leave' }
+        ];
+      case 'combat':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'Enter', action: 'Confirm' },
+          { key: 'Q', action: 'Quit' }
         ];
       default:
         return [{ key: 'Q', action: 'Quit' }];

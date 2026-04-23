@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Box, Text, CargoDisplay, CommoditySelector, QuantitySelector, ConfirmDialog } from '../components';
 import { useKeyHandler } from '../hooks';
-import { getPrices, executeTrade } from '@tw3002/engine';
-import type { Galaxy, Commodity, PriceQuote } from '@tw3002/engine';
+import { getPrices, executeTrade, addMarketObservation, updateReputation } from '@tw3002/engine';
+import type { Galaxy, Commodity, PriceQuote, NPC } from '@tw3002/engine';
 
 export interface ShipState {
   name: string;
@@ -21,6 +21,8 @@ export interface MarketScreenProps {
   shipState: ShipState;
   onUpdateShip: (newState: ShipState) => void;
   galaxy: Galaxy;
+  npcs?: NPC[];
+  onUpdateNPCs?: (npcs: NPC[]) => void;
 }
 
 type TradeMode = 'browse' | 'buy' | 'sell';
@@ -31,6 +33,8 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   shipState,
   onUpdateShip,
   galaxy,
+  npcs,
+  onUpdateNPCs,
 }) => {
   const sector = galaxy.sectors.get(currentSectorId);
   const port = sector?.port;
@@ -59,6 +63,23 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
   const buyTotal = (currentQuote?.buyPrice || 0) * quantity;
   const sellTotal = (currentQuote?.sellPrice || 0) * quantity;
   
+  const updateNPCsOnTrade = (commodity: Commodity, price: number, direction: 'buy' | 'sell') => {
+    if (!npcs || !onUpdateNPCs) return;
+    const traders = npcs.filter(n => n.currentSectorId === currentSectorId && n.persona.type === 'trader');
+    if (traders.length === 0) return;
+
+    const updated = npcs.map(npc => {
+      if (!traders.includes(npc)) return npc;
+      let n = addMarketObservation(npc, currentSectorId, commodity, price);
+      // Good deal for player selling = reputation boost
+      if (direction === 'sell' && price > 100) {
+        n = updateReputation(n, 'player', shipState.name, +3);
+      }
+      return n;
+    });
+    onUpdateNPCs(updated);
+  };
+
   const handleBuy = () => {
     if (!currentQuote || !port || quantity <= 0) return;
     
@@ -82,6 +103,8 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       credits: newCredits,
       cargo: newCargo,
     });
+
+    updateNPCsOnTrade(currentQuote.commodity, currentQuote.buyPrice, 'buy');
 
     setMessage(`Bought ${quantity} ${commodityLabel(currentQuote.commodity)} for ${result.totalPrice} credits`);
     setMode('browse');
@@ -111,6 +134,8 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       credits: newCredits,
       cargo: newCargo,
     });
+
+    updateNPCsOnTrade(currentQuote.commodity, currentQuote.sellPrice, 'sell');
 
     setMessage(`Sold ${quantity} ${commodityLabel(currentQuote.commodity)} for ${result.totalPrice} credits`);
     setMode('browse');

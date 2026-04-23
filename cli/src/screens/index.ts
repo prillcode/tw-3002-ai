@@ -6,3 +6,4 @@ export { SlotSelectScreen, type SlotSelectScreenProps } from './SlotSelectScreen
 export { GalaxySizeScreen, type GalaxySizeScreenProps, GALAXY_SIZES } from './GalaxySizeScreen';
 export { StarDockScreen, type StarDockScreenProps } from './StarDockScreen';
 export { ShipClassSelectScreen, type ShipClassSelectProps } from './ShipClassSelectScreen';
+export { CombatScreen, type CombatScreenProps } from './CombatScreen';

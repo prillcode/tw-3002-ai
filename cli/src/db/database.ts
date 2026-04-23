@@ -94,7 +94,25 @@ export const initDatabase = (): Database => {
   if (!hasUpgradesData) {
     db.run(`ALTER TABLE saves ADD COLUMN upgrades_data TEXT DEFAULT '{}'`);
   }
-  
+
+  // Migration: add shield column
+  const hasShield = currentColumns.some(col => col.name === 'shield');
+  if (!hasShield) {
+    db.run(`ALTER TABLE saves ADD COLUMN shield INTEGER DEFAULT 0`);
+  }
+
+  // Migration: add game_json column for unified serialization
+  const hasGameJson = currentColumns.some(col => col.name === 'game_json');
+  if (!hasGameJson) {
+    db.run(`ALTER TABLE saves ADD COLUMN game_json TEXT`);
+  }
+
+  // Migration: add npcs_data column for NPC serialization
+  const hasNpcsData = currentColumns.some(col => col.name === 'npcs_data');
+  if (!hasNpcsData) {
+    db.run(`ALTER TABLE saves ADD COLUMN npcs_data TEXT`);
+  }
+
   return db;
 };
 

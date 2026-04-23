@@ -4,8 +4,8 @@
  * This package contains ALL game mechanics:
  * - Galaxy generation (sectors, ports, connections)
  * - Economy engine (pricing, supply/demand)
- * - Combat system (future)
- * - Ship systems (future)
+ * - Combat system (encounters, resolution)
+ * - Ship systems (classes, upgrades)
  *
  * It does NOT contain any UI or I/O code.
  */
@@ -58,3 +58,88 @@ export {
   purchaseUpgrade,
   computeEffectiveStats,
 } from './ships/upgrades.js';
+
+// ─── Combat ────────────────────────────────────────────────
+export type {
+  Combatant,
+  CombatAction,
+  CombatRound,
+  CombatResult,
+  CombatState,
+} from './combat/types.js';
+
+export {
+  initiateCombat,
+  resolveRound,
+  computeResult,
+  computeFleeChance,
+  computeBribeAmount,
+} from './combat/resolver.js';
+
+export {
+  rollEncounter,
+  getEncounterChance,
+  generateEnemy,
+} from './combat/encounters.js';
+
+// ─── NPCs ──────────────────────────────────────────────────
+export type {
+  NPC,
+  NPCType,
+  NPCPersona,
+  NPCAction,
+  NPCMemory,
+  NPCActionRecord,
+  NewsItem,
+} from './npcs/types.js';
+
+export { generateNPCs } from './npcs/generator.js';
+
+export {
+  decideAction,
+  decideRuleBased,
+  executeNPCAction,
+  npcToCombatant,
+} from './npcs/brain.js';
+
+export { tickNPCs } from './npcs/tick.js';
+export type { TickStats } from './npcs/tick.js';
+
+export {
+  addGrudge,
+  removeGrudge,
+  addAlliance,
+  breakAlliance,
+  addMarketObservation,
+  updateReputation,
+  getReputation,
+  decayMemory,
+} from './npcs/memory.js';
+export type { Reputation } from './npcs/memory.js';
+
+// ─── LLM ───────────────────────────────────────────────────
+export type {
+  LLMProvider,
+  LLMConfig,
+  ChatMessage,
+  ChatOptions,
+  ChatResponse,
+  TokenUsage,
+} from './llm/provider.js';
+
+export { createProvider } from './llm/factory.js';
+export { loadConfig, saveConfig } from './llm/config.js';
+export { isOllamaAvailable } from './llm/ollama.js';
+export { globalCache } from './llm/cache.js';
+export type { DecisionCache, CacheEntry } from './llm/cache.js';
+
+// ─── State Management ──────────────────────────────────────
+export type { GameState, Result, CombatRecord, TradeRecord } from './state/types.js';
+export { GameStateContainer } from './state/GameStateContainer.js';
+export { createNewGameState } from './state/factory.js';
+export {
+  canMoveTo,
+  canTrade,
+  canPurchaseUpgrade,
+  validateState,
+} from './state/validators.js';
