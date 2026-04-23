@@ -20,14 +20,16 @@ bun run build
 ## How to Play
 
 1. **Launch** — `bun run dev` or `./tw3002`
-2. **New Game** — Choose a galaxy slot (A, B, or C)
+2. **New Game** — Choose a galaxy slot (A, B, or C) and size (100–1,000 sectors)
 3. **Name Your Ship** — Pick a callsign
 4. **Choose Class** — Merchant (cargo), Scout (turns), or Interceptor (combat)
 5. **Navigate** — Use ↑↓ to select sectors, Enter to jump
 6. **Trade** — Press **M** at ports to buy low, sell high
-7. **Fight** — Dangerous sectors may have pirates! Attack, flee, or bribe
+7. **Fight** — Dangerous sectors may have pirates or NPC raiders! Attack, flee, or bribe
 8. **Upgrade** — Find a **StarDock** (press **D**) to buy ship improvements
 9. **Save** — Your progress auto-saves; resume anytime via **Continue**
+
+> **NPCs evolve while you're away.** Every time you log in, nearby NPCs take their turns — trading, fighting, and moving. Check the news ticker to see what happened.
 
 ## Controls
 
@@ -42,13 +44,16 @@ bun run build
 
 ## Features
 
-- 🌌 **Procedurally generated galaxies** — 100–1000 sectors per game
-- 💰 **Supply/demand economy** — Prices shift as you trade
-- ⚔️ **Turn-based combat** — Fight, flee, or bribe pirates
+- 🌌 **Procedurally generated galaxies** — 100–1,000 sectors per game
+- 💰 **Supply/demand economy** — Prices shift as NPCs and players trade
+- ⚔️ **Turn-based combat** — Fight, flee, or bribe pirates and NPC raiders
+- 🧠 **20+ persistent NPCs per galaxy** — Traders, raiders, patrols with memory and reputation
 - 🚀 **3 ship classes + 15 upgrades** — Customize your vessel
 - 💾 **3-slot save system** — Run multiple independent galaxies
 - 🎨 **BBS-era terminal aesthetic** — Box-drawing UI, authentic feel
 - 📊 **Net worth tracking** — Climb from Space Peasant to Galactic Tycoon
+- 🤖 **Optional LLM-driven NPCs** — Via Ollama (local, free) or OpenRouter (cloud, cheap)
+- 📰 **Galaxy news ticker** — Track NPC movements, fights, and market events
 
 ## Keyboard Reference
 
@@ -68,9 +73,7 @@ bun run build
 - Esc — Back to sector
 
 ### Combat
-- A — Attack
-- F — Flee (shows success chance)
-- B — Bribe (shows cost)
+- ↑↓ — Select action (Attack / Flee / Bribe)
 - Enter — Confirm selected action
 
 ### StarDock
@@ -88,8 +91,8 @@ bun run build
 
 ## Known Limitations
 
-- No NPCs yet (enemy pirates are procedurally generated, not persistent)
-- No turn regeneration (plan: 1 turn per real hour in a future update)
+- NPCs only evolve on login (frozen during a play session)
+- No turn regeneration yet (plan: 1 turn per real hour in a future update)
 - No multiplayer (cloud mode planned for TW-04)
 - No missions or storyline
 
