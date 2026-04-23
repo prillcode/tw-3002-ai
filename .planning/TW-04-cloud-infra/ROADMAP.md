@@ -1,8 +1,26 @@
 # TW-04 Roadmap: Cloud Infrastructure & Distribution
 
-**Estimated Total:** 46-65 hours (6-8 focused sessions)
+**Estimated Total:** 50-70 hours (7-9 focused sessions)
 
-## Phase 1: Cloudflare Setup (2-3 hours)
+## Phase 1: Versioned SQLite Migrations (3-4 hours)
+**Goal:** Replace ad-hoc `ALTER TABLE` checks in `database.ts` with a robust, testable migration system for the local SQLite database (`~/.tw3002/saves.db`).
+
+> **Note:** This is **SQLite-only.** Cloudflare D1 will use its native `wrangler d1 migrations` system (Phase 3). The two systems serve different purposes and do not share code.
+
+**Deliverables:**
+- [ ] `db/migrations/` directory with numbered `.sql` migration files
+- [ ] `schema_migrations` tracking table in SQLite
+- [ ] Migration runner: applies only pending migrations, in order, on `initDatabase()`
+- [ ] Re-export existing ad-hoc migrations (id→slot_id, galaxy_data, shield, game_json, npcs_data) as versioned files
+- [ ] Tests: verify each migration applies cleanly to a blank DB and to an old-schema DB
+- [ ] `db/migrate.ts` standalone CLI script for manual runs / debugging
+- [ ] Documentation: how to write a new migration (add file, bump version, done)
+
+**Success:** Old saves auto-migrate on launch. Adding a new column is one file + one line in the runner.
+
+---
+
+## Phase 2: Cloudflare Setup (2-3 hours)
 **Goal:** Account and project scaffolding
 
 **Deliverables:**
@@ -18,22 +36,25 @@
 
 ---
 
-## Phase 2: D1 Schema & Migration (4-6 hours)
-**Goal:** SQLite → D1 compatible schema
+## Phase 3: D1 Schema & Migrations (4-6 hours)
+**Goal:** Deploy the game schema to Cloudflare D1 using D1's native migration tooling.
+
+> **Note:** D1 uses `wrangler d1 migrations` — a separate system from the Phase 1 SQLite runner. Schema should be **logically equivalent** to local SQLite but may differ in details (e.g., D1 foreign key behavior).
 
 **Deliverables:**
-- [ ] `db/migrations/` with D1-compatible SQL
-- [ ] `drizzle-orm` or raw SQL client
-- [ ] Migration system (apply/rollback)
-- [ ] Schema parity with local SQLite (TW-01)
+- [ ] `migrations/` folder with D1-compatible `.sql` files
+- [ ] `wrangler d1 migrations apply` workflow
+- [ ] `drizzle-orm` or raw SQL client for D1
+- [ ] Schema parity with local SQLite (TW-01 through TW-03)
 - [ ] Indexes for query performance
 - [ ] Seeding: test galaxy data
+- [ ] Path for local save → D1 import (future: account linking)
 
-**Success:** Can migrate TW-01 local SQLite to D1 without data loss.
+**Success:** D1 database matches local schema. Can apply future schema changes via wrangler.
 
 ---
 
-## Phase 3: Workers API (8-12 hours)
+## Phase 4: Workers API (8-12 hours)
 **Goal:** REST API for game operations
 
 **Deliverables:**
@@ -50,7 +71,7 @@
 
 ---
 
-## Phase 4: Email Authentication (6-8 hours)
+## Phase 5: Email Authentication (6-8 hours)
 **Goal:** Magic link login system
 
 **Deliverables:**
@@ -66,7 +87,7 @@
 
 ---
 
-## Phase 5: Admin Panel (6-8 hours)
+## Phase 6: Admin Panel (6-8 hours)
 **Goal:** Web interface for galaxy management
 
 **Deliverables:**
@@ -83,7 +104,7 @@
 
 ---
 
-## Phase 6: Web Client (7-10 hours)
+## Phase 7: Web Client (7-10 hours)
 **Goal:** Browser-based fallback
 
 **Deliverables:**
@@ -99,7 +120,7 @@
 
 ---
 
-## Phase 7: CLI Distribution (5-7 hours)
+## Phase 8: CLI Distribution (5-7 hours)
 **Goal:** Easy installation
 
 **Deliverables:**
@@ -115,7 +136,7 @@
 
 ---
 
-## Phase 8: Docker & Home Hosting (4-5 hours)
+## Phase 9: Docker & Home Hosting (4-5 hours)
 **Goal:** Private galaxy option
 
 **Deliverables:**
@@ -130,7 +151,7 @@
 
 ---
 
-## Phase 9: CI/CD & Monitoring (4-6 hours)
+## Phase 10: CI/CD & Monitoring (4-6 hours)
 **Goal:** Automated deployment, cost safety
 
 **Deliverables:**
@@ -146,14 +167,15 @@
 ---
 
 ## Phase Completion Order
-1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
 
-Phases 1-6 are core infrastructure. Phases 7-9 are distribution and operations.
+Phase 1 (SQLite migrations) fixes the local CLI. Phase 3 (D1 schema) uses D1's native tooling and is independent. Phases 4-6 are core cloud infrastructure. Phases 7-10 are distribution and operations.
 
 ---
 
 ## Definition of Done
-- All 9 phases complete
+- All 10 phases complete
+- Schema migrations versioned and tested
 - Public galaxy hosted at galaxy3002.pages.dev
 - Players can: install CLI, register email, join shared galaxy
 - Admin can: manage resets, monitor costs
@@ -166,6 +188,7 @@ Phases 1-6 are core infrastructure. Phases 7-9 are distribution and operations.
 ## Launch Readiness Checklist
 - [ ] 100+ sector galaxy running
 - [ ] 20+ NPCs active, costs under control
+- [ ] Schema migrations handle old saves gracefully
 - [ ] 10+ beta testers playing for a week
 - [ ] No critical bugs, no data loss
 - [ ] Documentation complete
