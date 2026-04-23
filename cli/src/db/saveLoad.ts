@@ -53,7 +53,7 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
       slot_id, ship_name, credits, current_sector,
       cargo_ore, cargo_organics, cargo_equipment,
       hull, shield, turns, max_turns, ship_class_id, upgrades_data, galaxy_data, npcs_data, game_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(slot_id) DO UPDATE SET
       ship_name = excluded.ship_name,
       credits = excluded.credits,
