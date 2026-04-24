@@ -13,6 +13,7 @@ import { handleGetNews, handleAddNews, handleLeaderboard } from './routes/news.j
 
 export interface Env {
   DB: D1Database;
+  ADMIN_SECRET?: string;
 }
 
 export default {

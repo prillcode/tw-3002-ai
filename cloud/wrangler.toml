@@ -9,8 +9,12 @@ database_id = "cf9e7fc7-22f8-4743-94bb-f3f014ba1b35"
 
 [vars]
 ENVIRONMENT = "development"
-NPC_MODEL = "openai/gpt-4o-mini"
+# OpenRouter model for NPC brain decisions.
+# Update this to use newer models as they become available.
+# See https://openrouter.ai/models for current options.
+NPC_MODEL = "openai/gpt-5.4-nano"
 
 # Secrets (set via `wrangler secret put` — NOT in this file)
 # OPENROUTER_API_KEY
 # DISCORD_WEBHOOK_URL
+# ADMIN_SECRET
