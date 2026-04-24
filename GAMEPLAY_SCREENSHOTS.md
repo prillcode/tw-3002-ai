@@ -1,55 +1,53 @@
-**Home**
-![[tw3002_home_welcome.png]]
+# TW 3002 AI — Gameplay Screenshots
 
-**Galaxy Selection**
+## Home
 
-![[tw3002_main_galaxy.png]]
+![Home Screen](assets/images/tw3002_home_welcome.png)
 
-**Sector Screen**
+## Galaxy Selection
 
-![[tw3002_sector_main.png]]
+![Galaxy Selection](assets/images/tw3002_main_galaxy.png)
 
-**Warp Screen** (Sector jump)
+## Sector Screen
 
-![[tw3002_sector_warp_transit.png]]
+![Sector Screen](assets/images/tw3002_sector_main.png)
 
-**Port Screen** (buy/sell)
+## Warp Screen (Sector jump)
 
-Port main
+![Warp Screen](assets/images/tw3002_sector_warp_transit.png)
 
-![[tw3002_port_main.png]]
+## Port Screen (buy/sell)
 
-Port Transaction
-![[tw3002_port_transaction.png]]
+### Port Main
 
-Confirm Purchase
+![Port Main](assets/images/tw3002_port_main.png)
 
-![[tw3002_port_transaction_confirm.png]]
+### Port Transaction
 
+![Port Transaction](assets/images/tw3002_port_transaction.png)
 
-**Navigation Log**
+### Confirm Purchase
 
-![[Pasted image 20260424005155.png]]
+![Confirm Purchase](assets/images/tw3002_port_transaction_confirm.png)
 
+## Navigation Log
 
-**Fight/Battle**
+![Navigation Log](assets/images/tw3002_navigation_log.png)
 
-Battle Round
+## Fight / Battle
 
-![[tw3002_sector_battle_1.png]]
+### Battle Round
 
-Escaped (Flee)
+![Battle Round](assets/images/tw3002_sector_battle_1.png)
 
-![[tw3002_sector_battle_escaped.png]]
+### Escaped (Flee)
 
-Ship Destroyed
+![Escaped](assets/images/tw3002_sector_battle_escaped.png)
 
-![[tw3002_ship_destroyed.png]]
+### Ship Destroyed
 
----
-**Help Page**
-
-![[Pasted image 20260424004954.png]]
+![Ship Destroyed](assets/images/tw3002_ship_destroyed.png)
 
 ---
+
 `Copyright TW3002-AI | All Rights Reserved`
