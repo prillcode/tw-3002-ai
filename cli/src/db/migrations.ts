@@ -58,6 +58,11 @@ export const MIGRATIONS: Migration[] = [
     name: 'add_npcs_data',
     sql: `ALTER TABLE saves ADD COLUMN npcs_data TEXT`,
   },
+  {
+    version: 7,
+    name: 'add_last_action_at',
+    sql: `ALTER TABLE saves ADD COLUMN last_action_at TEXT`,
+  },
 ];
 
 const BASELINE_SQL = `
@@ -82,7 +87,7 @@ const BASELINE_SQL = `
     galaxy_data TEXT,
     npcs_data TEXT,
     game_json TEXT,
-    last_action_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_action_at TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -94,7 +99,7 @@ const BASELINE_SQL = `
   ALTER TABLE saves ADD COLUMN shield INTEGER DEFAULT 0;
   ALTER TABLE saves ADD COLUMN game_json TEXT;
   ALTER TABLE saves ADD COLUMN npcs_data TEXT;
-  ALTER TABLE saves ADD COLUMN last_action_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+  ALTER TABLE saves ADD COLUMN last_action_at TEXT;
 `;
 
 /**
