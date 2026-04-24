@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { render } from 'ink';
 
-const VERSION = '0.5.5';
+const VERSION = '0.6.0';
 
 if (process.argv.includes('--version') || process.argv.includes('-v')) {
   console.log(`tw3002 ${VERSION}`);
@@ -9,12 +9,12 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
 }
 import { useScreen, useExitHandler } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen, HelpScreen, SettingsScreen, NavigationScreen } from './screens';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen, HelpScreen, SettingsScreen, NavigationScreen, CloudLoginScreen } from './screens';
 import { LoadingScreen } from './components';
 import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
-import { createGalaxy, getShipClass, computeEffectiveStats, UPGRADE_CATALOG, generateNPCs, tickNPCs, GameStateContainer, loadConfig, testLLMConnection, addGrudge, updateReputation, addMarketObservation, type Galaxy, type Combatant, type CombatResult, type NPC, type NewsItem, type GameState as EngineGameState, type TickStats, type ConfigLoadResult, type LLMHealthResult } from '@tw3002/engine';
+import { createGalaxy, getShipClass, computeEffectiveStats, UPGRADE_CATALOG, generateNPCs, tickNPCs, GameStateContainer, loadConfig, testLLMConnection, addGrudge, updateReputation, addMarketObservation, regenerateTurns, formatIdleTime, type Galaxy, type Combatant, type CombatResult, type NPC, type NewsItem, type GameState as EngineGameState, type TickStats, type ConfigLoadResult, type LLMHealthResult } from '@tw3002/engine';
 
-type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat' | 'help' | 'settings' | 'navigation';
+type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat' | 'help' | 'settings' | 'navigation' | 'cloudLogin';
 type SelectMode = 'new' | 'continue' | null;
 
 /**
@@ -79,6 +79,10 @@ const App = () => {
   const [npcs, setNpcs] = useState<NPC[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [tickStats, setTickStats] = useState<TickStats | null>(null);
+
+  // Cloud mode state
+  const [cloudAuth, setCloudAuth] = useState<{ token: string; email: string } | null>(null);
+  const [cloudGalaxyId, setCloudGalaxyId] = useState<number | null>(null);
 
   // LLM health check on startup
   const [llmHealth, setLlmHealth] = useState<LLMHealthResult | null>(null);
@@ -424,6 +428,13 @@ const App = () => {
         }
       }
 
+      // Regenerate turns based on idle time
+      const lastAction = save.lastActionAt ?? null;
+      const regen = regenerateTurns(save.turns, save.maxTurns, lastAction);
+      const regenMessage = regen.regenerated > 0
+        ? `⏳ While away ${formatIdleTime(lastAction)}: +${regen.regenerated} turns regenerated`
+        : null;
+
       // Set all state at once
       setShipName(save.shipName);
       setCurrentSectorId(save.currentSector);
@@ -438,9 +449,12 @@ const App = () => {
         hull: save.hull,
         shield: save.shield ?? stats.shieldPoints,
         maxShield: stats.shieldPoints,
-        turns: save.turns,
+        turns: regen.turns,
         maxTurns: save.maxTurns,
       });
+      if (regenMessage) {
+        setNews(prev => [{ headline: regenMessage, type: 'event', timestamp: new Date().toISOString() }, ...prev]);
+      }
       setSelectedSlot(slotId);
       setGalaxy(loadedGalaxy);
       setNpcs(loadedNpcs);
@@ -505,6 +519,7 @@ const App = () => {
         shipClassId,
         upgradesJson: JSON.stringify(upgrades),
         galaxyJson: galaxyToJson(galaxy),
+        lastActionAt: new Date().toISOString(),
       });
     }
     process.exit(0);
@@ -647,6 +662,7 @@ const App = () => {
             onContinue={handleContinue}
             onQuit={handleQuit}
             onSettings={handleSettings}
+            onCloudLogin={() => setAppMode('cloudLogin')}
             db={db}
             llmHealth={llmHealth}
           />
@@ -865,6 +881,17 @@ const App = () => {
           />
         );
 
+      case 'cloudLogin':
+        return (
+          <CloudLoginScreen
+            onLogin={(auth) => {
+              setCloudAuth(auth);
+              setAppMode('welcome');
+            }}
+            onBack={handleBack}
+          />
+        );
+
       default:
         return null;
     }
@@ -939,6 +966,11 @@ const App = () => {
       case 'navigation':
         return [
           { key: 'N', action: 'Close' },
+          { key: 'Esc', action: 'Back' }
+        ];
+      case 'cloudLogin':
+        return [
+          { key: 'Enter', action: 'Connect' },
           { key: 'Esc', action: 'Back' }
         ];
       default:

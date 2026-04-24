@@ -10,3 +10,4 @@ export { CombatScreen, type CombatScreenProps } from './CombatScreen';
 export { HelpScreen, type HelpScreenProps, type HelpContext } from './HelpScreen';
 export { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
 export { NavigationScreen, type NavigationScreenProps } from './NavigationScreen';
+export { CloudLoginScreen, type CloudLoginScreenProps } from './CloudLoginScreen';

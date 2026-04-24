@@ -134,6 +134,10 @@ export { isOllamaAvailable } from './llm/ollama.js';
 export { globalCache } from './llm/cache.js';
 export type { DecisionCache, CacheEntry } from './llm/cache.js';
 
+// ─── Turn Regeneration ─────────────────────────────────────
+export { regenerateTurns, formatIdleTime, TURNS_PER_HOUR } from './turns.js';
+export type { TurnRegenResult } from './turns.js';
+
 // ─── State Management ──────────────────────────────────────
 export type { GameState, Result, CombatRecord, TradeRecord } from './state/types.js';
 export { GameStateContainer } from './state/GameStateContainer.js';

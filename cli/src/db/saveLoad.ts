@@ -22,6 +22,8 @@ export interface GameState {
   galaxyJson?: string;
   /** Serialized NPCs JSON. Null for legacy saves. */
   npcsJson?: string;
+  /** ISO timestamp of last player action. Used for turn regeneration. */
+  lastActionAt?: string | null;
 }
 
 export interface SlotInfo {
@@ -52,8 +54,8 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
     `INSERT INTO saves (
       slot_id, ship_name, credits, current_sector,
       cargo_ore, cargo_organics, cargo_equipment,
-      hull, shield, turns, max_turns, ship_class_id, upgrades_data, galaxy_data, npcs_data, game_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      hull, shield, turns, max_turns, ship_class_id, upgrades_data, galaxy_data, npcs_data, game_json, last_action_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(slot_id) DO UPDATE SET
       ship_name = excluded.ship_name,
       credits = excluded.credits,
@@ -70,6 +72,7 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
       galaxy_data = excluded.galaxy_data,
       npcs_data = excluded.npcs_data,
       game_json = excluded.game_json,
+      last_action_at = excluded.last_action_at,
       updated_at = excluded.updated_at`,
     [
       slotId,
@@ -87,7 +90,8 @@ export const saveGame = (db: Database, slotId: number, state: GameState): void =
       state.upgradesJson ?? '{}',
       state.galaxyJson ?? null,
       state.npcsJson ?? null,
-      null // game_json — set separately below
+      null, // game_json — set separately below
+      state.lastActionAt ?? new Date().toISOString()
     ]
   );
 };
@@ -114,6 +118,7 @@ export const loadGame = (db: Database, slotId: number): GameState | null => {
       equipment: row.cargo_equipment
     },
     hull: row.hull,
+    lastActionAt: row.last_action_at ?? null,
     shield: row.shield ?? 0,
     turns: row.turns,
     maxTurns: row.max_turns,

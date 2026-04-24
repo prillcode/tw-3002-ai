@@ -82,6 +82,7 @@ const BASELINE_SQL = `
     galaxy_data TEXT,
     npcs_data TEXT,
     game_json TEXT,
+    last_action_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -93,6 +94,7 @@ const BASELINE_SQL = `
   ALTER TABLE saves ADD COLUMN shield INTEGER DEFAULT 0;
   ALTER TABLE saves ADD COLUMN game_json TEXT;
   ALTER TABLE saves ADD COLUMN npcs_data TEXT;
+  ALTER TABLE saves ADD COLUMN last_action_at DATETIME DEFAULT CURRENT_TIMESTAMP;
 `;
 
 /**

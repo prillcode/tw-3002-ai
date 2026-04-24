@@ -19,6 +19,9 @@ export interface WelcomeScreenProps {
   /** Called when Settings is selected. */
   onSettings?: () => void;
 
+  /** Called when Play Online is selected. */
+  onCloudLogin?: () => void;
+
   /** Database instance for checking saves. */
   db: Database;
 
@@ -37,6 +40,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onContinue,
   onQuit,
   onSettings,
+  onCloudLogin,
   db,
   skipToShipName = false,
   llmHealth,
@@ -55,6 +59,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const menuItems = [
     { id: 'new', label: 'New Game' },
     ...(onContinue && saveExists ? [{ id: 'continue', label: 'Continue' }] : []),
+    ...(onCloudLogin ? [{ id: 'cloud', label: '🌌 Play Online' }] : []),
     ...(onSettings ? [{ id: 'settings', label: 'Settings' }] : []),
     { id: 'quit', label: 'Quit' }
   ];
@@ -66,6 +71,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         break;
       case 'continue':
         onContinue?.();
+        break;
+      case 'cloud':
+        onCloudLogin?.();
         break;
       case 'settings':
         onSettings?.();
