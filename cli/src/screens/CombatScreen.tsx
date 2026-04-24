@@ -8,6 +8,7 @@ export interface CombatScreenProps {
   enemy: Combatant;
   onCombatEnd: (result: CombatResult) => void;
   onQuit: () => void;
+  onHelp?: () => void;
 }
 
 type CombatPhase = 'intro' | 'action' | 'round' | 'result' | 'destroyed';
@@ -17,6 +18,7 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
   enemy: initialEnemy,
   onCombatEnd,
   onQuit,
+  onHelp,
 }) => {
   const [phase, setPhase] = useState<CombatPhase>('intro');
   const [combatState, setCombatState] = useState(() => {
@@ -107,6 +109,7 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
       }
     },
     onQ: () => setShowQuitConfirm(true),
+    onH: () => onHelp?.(),
     isActive: phase !== 'round',
   });
 

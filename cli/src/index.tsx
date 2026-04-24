@@ -1,12 +1,20 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { render } from 'ink';
-import { useScreen } from './hooks';
-import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen } from './screens';
-import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
-import { createGalaxy, getShipClass, computeEffectiveStats, UPGRADE_CATALOG, generateNPCs, tickNPCs, GameStateContainer, loadConfig, addGrudge, updateReputation, addMarketObservation, type Galaxy, type Combatant, type CombatResult, type NPC, type NewsItem, type GameState as EngineGameState, type TickStats } from '@tw3002/engine';
 
-type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat';
+const VERSION = '0.5.1';
+
+if (process.argv.includes('--version') || process.argv.includes('-v')) {
+  console.log(`tw3002 ${VERSION}`);
+  process.exit(0);
+}
+import { useScreen, useExitHandler } from './hooks';
+import { AppLayout, ConfirmDialog } from './components';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen, HelpScreen, SettingsScreen, NavigationScreen } from './screens';
+import { LoadingScreen } from './components';
+import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
+import { createGalaxy, getShipClass, computeEffectiveStats, UPGRADE_CATALOG, generateNPCs, tickNPCs, GameStateContainer, loadConfig, testLLMConnection, addGrudge, updateReputation, addMarketObservation, type Galaxy, type Combatant, type CombatResult, type NPC, type NewsItem, type GameState as EngineGameState, type TickStats, type ConfigLoadResult, type LLMHealthResult } from '@tw3002/engine';
+
+type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat' | 'help' | 'settings' | 'navigation';
 type SelectMode = 'new' | 'continue' | null;
 
 /**
@@ -36,6 +44,7 @@ const App = () => {
   
   // Track current mode/flow
   const [appMode, setAppMode] = useState<AppMode>('welcome');
+  const [prevMode, setPrevMode] = useState<AppMode>('welcome');
   const [selectMode, setSelectMode] = useState<SelectMode>(null);
   
   // Selected slot for gameplay
@@ -49,6 +58,9 @@ const App = () => {
   const [shipClassId, setShipClassId] = useState<string>('merchant');
   const [upgrades, setUpgrades] = useState<Record<string, number>>({});
   const [currentSectorId, setCurrentSectorId] = useState<number>(0);
+  const [visitedSectorIds, setVisitedSectorIds] = useState<number[]>([]);
+  const [startingSectorId, setStartingSectorId] = useState<number>(0);
+  const [navPaused, setNavPaused] = useState(false);
   const [shipState, setShipState] = useState({
     credits: 5000,
     cargo: { ore: 0, organics: 0, equipment: 0 },
@@ -68,6 +80,13 @@ const App = () => {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [tickStats, setTickStats] = useState<TickStats | null>(null);
 
+  // LLM health check on startup
+  const [llmHealth, setLlmHealth] = useState<LLMHealthResult | null>(null);
+  useEffect(() => {
+    const { config } = loadConfig();
+    testLLMConnection(config).then(setLlmHealth);
+  }, []);
+
   // Idle detection and periodic NPC ticks
   const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
   const [isIdle, setIsIdle] = useState(false);
@@ -80,52 +99,101 @@ const App = () => {
     if (isIdle) setIsIdle(false);
   };
 
+  // Graceful exit handler: save before Ctrl+C
+  useExitHandler({
+    enabled: appMode === 'sector',
+    onExit: () => {
+      if (shipName && selectedSlot && galaxy) {
+        const gameState: GameState = {
+          shipName,
+          credits: shipState.credits,
+          currentSector: currentSectorId,
+          cargo: shipState.cargo,
+          hull: shipState.hull,
+          shield: shipState.shield,
+          turns: shipState.turns,
+          maxTurns: shipState.maxTurns,
+          shipClassId,
+          upgradesJson: JSON.stringify(upgrades),
+          galaxyJson: galaxyToJson(galaxy),
+          npcsJson: JSON.stringify(npcs),
+        };
+        saveGame(db, selectedSlot, gameState);
+      }
+    },
+  });
+
   // Compute effective stats from class + upgrades
   const effectiveStats = useMemo(
     () => computeEffectiveStats(shipClassId, upgrades),
     [shipClassId, upgrades]
   );
 
+  // Refs for mutable state (prevents interval reset on every state change)
+  const shipStateRef = useRef(shipState);
+  const currentSectorIdRef = useRef(currentSectorId);
+  const npcsRef = useRef(npcs);
+  const newsRef = useRef(news);
+  const lastActivityAtRef = useRef(lastActivityAt);
+  const isIdleRef = useRef(isIdle);
+  const shipNameRef = useRef(shipName);
+  const shipClassIdRef = useRef(shipClassId);
+  const upgradesRef = useRef(upgrades);
+  const effectiveStatsRef = useRef(effectiveStats);
+
+  useEffect(() => { shipStateRef.current = shipState; }, [shipState]);
+  useEffect(() => { currentSectorIdRef.current = currentSectorId; }, [currentSectorId]);
+  useEffect(() => { npcsRef.current = npcs; }, [npcs]);
+  useEffect(() => { newsRef.current = news; }, [news]);
+  useEffect(() => { lastActivityAtRef.current = lastActivityAt; }, [lastActivityAt]);
+  useEffect(() => { isIdleRef.current = isIdle; }, [isIdle]);
+  useEffect(() => { shipNameRef.current = shipName; }, [shipName]);
+  useEffect(() => { shipClassIdRef.current = shipClassId; }, [shipClassId]);
+  useEffect(() => { upgradesRef.current = upgrades; }, [upgrades]);
+  useEffect(() => { effectiveStatsRef.current = effectiveStats; }, [effectiveStats]);
+
   // Periodic NPC tick timer (only when in sector mode and not idle)
   useEffect(() => {
-    if (appMode !== 'sector' || !galaxy || npcs.length === 0) return;
+    if (appMode !== 'sector' || !galaxy) return;
 
     const timer = setInterval(async () => {
-      const idleTime = Date.now() - lastActivityAt;
+      const idleTime = Date.now() - lastActivityAtRef.current;
       if (idleTime > IDLE_TIMEOUT_MS) {
         setIsIdle(true);
         return; // Don't tick while idle — saves cost
       }
 
       // Run a mini tick: only NPCs in current sector + neighbors
+      const s = shipStateRef.current;
+      const es = effectiveStatsRef.current;
       const playerShip: EngineGameState['player'] = {
-        name: shipName,
-        classId: shipClassId,
-        credits: shipState.credits,
-        currentSector: currentSectorId,
-        cargo: shipState.cargo,
-        hull: shipState.hull,
-        shield: shipState.shield ?? effectiveStats.shieldPoints,
-        turns: shipState.turns,
-        maxTurns: shipState.maxTurns,
-        upgrades,
+        name: shipNameRef.current,
+        classId: shipClassIdRef.current,
+        credits: s.credits,
+        currentSector: currentSectorIdRef.current,
+        cargo: s.cargo,
+        hull: s.hull,
+        shield: s.shield ?? es.shieldPoints,
+        turns: s.turns,
+        maxTurns: s.maxTurns,
+        upgrades: upgradesRef.current,
       };
 
       const gameState: EngineGameState = {
         galaxy,
         player: playerShip,
-        currentSectorId,
+        currentSectorId: currentSectorIdRef.current,
         turnsUsed: 0,
         turnsRegenRate: 1,
         lastPlayedAt: new Date().toISOString(),
         combatLog: [],
         tradeLog: [],
-        npcs,
-        news,
+        npcs: npcsRef.current,
+        news: newsRef.current,
       };
 
       const container = new GameStateContainer(gameState);
-      const llmConfig = loadConfig();
+      const { config: llmConfig } = loadConfig();
       try {
         const result = await tickNPCs(container, llmConfig);
         setGalaxy(result.container.galaxy);
@@ -141,7 +209,7 @@ const App = () => {
     }, TICK_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [appMode, galaxy, npcs, currentSectorId, shipState, shipName, shipClassId, upgrades, news, lastActivityAt, isIdle, effectiveStats]);
+  }, [appMode, galaxy]);
 
   // Idle auto-save
   useEffect(() => {
@@ -307,7 +375,7 @@ const App = () => {
       };
 
       const container = new GameStateContainer(gameState);
-      const llmConfig = loadConfig();
+      const { config: llmConfig } = loadConfig();
       try {
         const result = await tickNPCs(container, llmConfig);
         setGalaxy(result.container.galaxy);
@@ -318,6 +386,10 @@ const App = () => {
         // If tick fails, proceed without it
       }
     }
+
+    // Initialize navigation tracking for this session
+    setStartingSectorId(currentSectorId);
+    setVisitedSectorIds([currentSectorId]);
 
     setAppMode('sector');
   };
@@ -355,6 +427,8 @@ const App = () => {
       // Set all state at once
       setShipName(save.shipName);
       setCurrentSectorId(save.currentSector);
+      setStartingSectorId(save.currentSector);
+      setVisitedSectorIds([save.currentSector]);
       setShipClassId(loadedClassId);
       setUpgrades(loadedUpgrades);
       setShipState({
@@ -400,7 +474,7 @@ const App = () => {
         };
 
         const container = new GameStateContainer(gameState);
-        const llmConfig = loadConfig();
+        const { config: llmConfig } = loadConfig();
         try {
           const result = await tickNPCs(container, llmConfig);
           setGalaxy(result.container.galaxy);
@@ -483,6 +557,10 @@ const App = () => {
         hull: stats.maxHull,
         shield: stats.shieldPoints,
       }));
+      // Reset navigation: blast marker, new start at FedSpace, pause until leave
+      setVisitedSectorIds(prev => [...prev, -1]);
+      setStartingSectorId(fedCenter);
+      setNavPaused(true);
     } else {
       // Apply damage and credit changes
       setShipState(prev => ({
@@ -539,7 +617,24 @@ const App = () => {
       setAppMode('sector');
     } else if (appMode === 'stardock') {
       setAppMode('sector');
+    } else if (appMode === 'help' || appMode === 'settings' || appMode === 'navigation') {
+      setAppMode(prevMode);
     }
+  };
+
+  const handleHelp = () => {
+    setPrevMode(appMode);
+    setAppMode('help');
+  };
+
+  const handleSettings = () => {
+    setPrevMode(appMode);
+    setAppMode('settings');
+  };
+
+  const handleNavigate = () => {
+    setPrevMode(appMode);
+    setAppMode('navigation');
   };
 
   // Render based on current mode
@@ -551,7 +646,9 @@ const App = () => {
             onNewGame={handleNewGame}
             onContinue={handleContinue}
             onQuit={handleQuit}
+            onSettings={handleSettings}
             db={db}
+            llmHealth={llmHealth}
           />
         );
         
@@ -583,6 +680,7 @@ const App = () => {
             onQuit={handleQuit}
             db={db}
             skipToShipName
+            llmHealth={llmHealth}
           />
         );
 
@@ -603,9 +701,27 @@ const App = () => {
             onCombat={(enemy) => { bumpActivity(); handleCombatStart(enemy); }}
             onJumpComplete={(sectorId) => { bumpActivity(); handleJumpComplete(sectorId); }}
             onBack={() => { bumpActivity(); handleBack(); }}
+            onHelp={handleHelp}
+            onNavigate={handleNavigate}
             shipName={shipName || 'Unnamed Vessel'}
             currentSectorId={currentSectorId}
-            onUpdateSector={(id) => { bumpActivity(); setCurrentSectorId(id); }}
+            onUpdateSector={(id) => {
+              bumpActivity();
+              setCurrentSectorId(id);
+              setVisitedSectorIds(prev => {
+                if (navPaused) {
+                  const fedSet = new Set(galaxy?.fedSpace ?? []);
+                  if (!fedSet.has(id)) {
+                    // Leaving FedSpace — resume tracking, mark FedCenter as visited
+                    setNavPaused(false);
+                    return [...prev, startingSectorId, id];
+                  }
+                  // Still in FedSpace — don't track
+                  return prev;
+                }
+                return [...prev, id];
+              });
+            }}
             shipState={{ ...shipState, name: shipName }}
             netWorth={netWorth}
             npcs={npcs.filter(n => n.currentSectorId === currentSectorId)}
@@ -633,6 +749,7 @@ const App = () => {
         return (
           <MarketScreen
             onBack={() => setAppMode('sector')}
+            onHelp={handleHelp}
             currentSectorId={currentSectorId}
             shipState={{
               name: shipName,
@@ -689,6 +806,7 @@ const App = () => {
               }));
             }}
             onBack={() => setAppMode('sector')}
+            onHelp={handleHelp}
           />
         );
 
@@ -709,9 +827,44 @@ const App = () => {
             enemy={combatEnemy}
             onCombatEnd={handleCombatEnd}
             onQuit={handleQuit}
+            onHelp={handleHelp}
           />
         );
-        
+
+      case 'help':
+        return (
+          <HelpScreen
+            context={
+              prevMode === 'sector' ? 'sector' :
+              prevMode === 'market' ? 'market' :
+              prevMode === 'combat' ? 'combat' :
+              prevMode === 'stardock' ? 'stardock' :
+              'general'
+            }
+            onBack={handleBack}
+          />
+        );
+
+      case 'settings':
+        return (
+          <SettingsScreen
+            db={db}
+            onBack={handleBack}
+          />
+        );
+
+      case 'navigation':
+        if (!galaxy) return null;
+        return (
+          <NavigationScreen
+            galaxy={galaxy}
+            visitedIds={visitedSectorIds}
+            currentSectorId={currentSectorId}
+            startingSectorId={startingSectorId}
+            onBack={handleBack}
+          />
+        );
+
       default:
         return null;
     }
@@ -745,6 +898,8 @@ const App = () => {
           { key: '↑↓←→', action: 'Move' },
           { key: 'M', action: 'Market' },
           ...(galaxy?.stardocks.includes(currentSectorId) ? [{ key: 'D', action: 'StarDock' }] : []),
+          { key: 'N', action: 'Nav' },
+          { key: 'H', action: 'Help' },
           { key: 'Esc', action: 'Menu' },
           { key: 'Q', action: 'Quit' }
         ];
@@ -753,19 +908,38 @@ const App = () => {
           { key: '↑↓', action: 'Select' },
           { key: 'B', action: 'Buy' },
           { key: 'S', action: 'Sell' },
+          { key: 'H', action: 'Help' },
           { key: 'Esc', action: 'Back' }
         ];
       case 'stardock':
         return [
           { key: '↑↓', action: 'Select' },
           { key: 'Enter', action: 'Buy' },
+          { key: 'H', action: 'Help' },
           { key: 'Esc', action: 'Leave' }
         ];
       case 'combat':
         return [
           { key: '↑↓', action: 'Select' },
           { key: 'Enter', action: 'Confirm' },
+          { key: 'H', action: 'Help' },
           { key: 'Q', action: 'Quit' }
+        ];
+      case 'help':
+        return [
+          { key: 'H', action: 'Close' },
+          { key: 'Esc', action: 'Back' }
+        ];
+      case 'settings':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'Enter', action: 'Choose' },
+          { key: 'Esc', action: 'Back' }
+        ];
+      case 'navigation':
+        return [
+          { key: 'N', action: 'Close' },
+          { key: 'Esc', action: 'Back' }
         ];
       default:
         return [{ key: 'Q', action: 'Quit' }];

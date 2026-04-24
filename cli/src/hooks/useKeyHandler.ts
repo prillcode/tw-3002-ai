@@ -36,7 +36,10 @@ export interface KeyHandlers {
   
   /** D key pressed (dock/stardock). */
   onD?: () => void;
-  
+
+  /** N key pressed (navigation). */
+  onN?: () => void;
+
   /** Any other key pressed. */
   onInput?: (input: string, key: Key) => void;
 }
@@ -83,7 +86,7 @@ export const useKeyHandler = (options: UseKeyHandlerOptions) => {
       handlers.onEscape();
     } else if (input === 'q' && handlers.onQ) {
       handlers.onQ();
-    } else if (input === 'h' && handlers.onH) {
+    } else if ((input === 'h' || input === 'H' || input === '?') && handlers.onH) {
       handlers.onH();
     } else if (input === 'm' && handlers.onM) {
       handlers.onM();
@@ -93,6 +96,8 @@ export const useKeyHandler = (options: UseKeyHandlerOptions) => {
       handlers.onS();
     } else if (input === 'd' && handlers.onD) {
       handlers.onD();
+    } else if (input === 'n' && handlers.onN) {
+      handlers.onN();
     } else if (handlers.onInput) {
       handlers.onInput(input, key);
     }
