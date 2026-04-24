@@ -5,11 +5,12 @@ compatibility_date = "2025-04-23"
 [[d1_databases]]
 binding = "DB"
 database_name = "tw3002-galaxy"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "cf9e7fc7-22f8-4743-94bb-f3f014ba1b35"
 
 [vars]
 ENVIRONMENT = "development"
+NPC_MODEL = "openai/gpt-4o-mini"
 
-# Secrets (set via `wrangler secret put`)
-# OPENROUTER_API_KEY = ""
-# DISCORD_WEBHOOK_URL = ""
+# Secrets (set via `wrangler secret put` — NOT in this file)
+# OPENROUTER_API_KEY
+# DISCORD_WEBHOOK_URL

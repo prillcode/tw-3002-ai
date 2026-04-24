@@ -67,16 +67,116 @@ const App = () => {
   const [npcs, setNpcs] = useState<NPC[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [tickStats, setTickStats] = useState<TickStats | null>(null);
-  
-  // Confirmation dialogs
-  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
-  const [pendingSlot, setPendingSlot] = useState<number | null>(null);
+
+  // Idle detection and periodic NPC ticks
+  const [lastActivityAt, setLastActivityAt] = useState<number>(Date.now());
+  const [isIdle, setIsIdle] = useState(false);
+  const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+  const TICK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Track activity on any user interaction
+  const bumpActivity = () => {
+    setLastActivityAt(Date.now());
+    if (isIdle) setIsIdle(false);
+  };
 
   // Compute effective stats from class + upgrades
   const effectiveStats = useMemo(
     () => computeEffectiveStats(shipClassId, upgrades),
     [shipClassId, upgrades]
   );
+
+  // Periodic NPC tick timer (only when in sector mode and not idle)
+  useEffect(() => {
+    if (appMode !== 'sector' || !galaxy || npcs.length === 0) return;
+
+    const timer = setInterval(async () => {
+      const idleTime = Date.now() - lastActivityAt;
+      if (idleTime > IDLE_TIMEOUT_MS) {
+        setIsIdle(true);
+        return; // Don't tick while idle — saves cost
+      }
+
+      // Run a mini tick: only NPCs in current sector + neighbors
+      const playerShip: EngineGameState['player'] = {
+        name: shipName,
+        classId: shipClassId,
+        credits: shipState.credits,
+        currentSector: currentSectorId,
+        cargo: shipState.cargo,
+        hull: shipState.hull,
+        shield: shipState.shield ?? effectiveStats.shieldPoints,
+        turns: shipState.turns,
+        maxTurns: shipState.maxTurns,
+        upgrades,
+      };
+
+      const gameState: EngineGameState = {
+        galaxy,
+        player: playerShip,
+        currentSectorId,
+        turnsUsed: 0,
+        turnsRegenRate: 1,
+        lastPlayedAt: new Date().toISOString(),
+        combatLog: [],
+        tradeLog: [],
+        npcs,
+        news,
+      };
+
+      const container = new GameStateContainer(gameState);
+      const llmConfig = loadConfig();
+      try {
+        const result = await tickNPCs(container, llmConfig);
+        setGalaxy(result.container.galaxy);
+        setNpcs(result.container.npcs);
+        if (result.news.length > 0) {
+          setNews(prev => [...prev, ...result.news]);
+        }
+        // Show brief stats (replace previous tickStats)
+        setTickStats(result.stats);
+      } catch {
+        // Silently fail — don't interrupt gameplay
+      }
+    }, TICK_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [appMode, galaxy, npcs, currentSectorId, shipState, shipName, shipClassId, upgrades, news, lastActivityAt, isIdle, effectiveStats]);
+
+  // Idle auto-save
+  useEffect(() => {
+    if (appMode !== 'sector') return;
+    const timer = setInterval(() => {
+      const idleTime = Date.now() - lastActivityAt;
+      if (idleTime > IDLE_TIMEOUT_MS && !isIdle) {
+        setIsIdle(true);
+        // Auto-save
+        if (shipName && selectedSlot && galaxy) {
+          const gameState: GameState = {
+            shipName,
+            credits: shipState.credits,
+            currentSector: currentSectorId,
+            cargo: shipState.cargo,
+            hull: shipState.hull,
+            shield: shipState.shield,
+            turns: shipState.turns,
+            maxTurns: shipState.maxTurns,
+            shipClassId,
+            upgradesJson: JSON.stringify(upgrades),
+            galaxyJson: galaxyToJson(galaxy),
+            npcsJson: JSON.stringify(npcs),
+          };
+          saveGame(db, selectedSlot, gameState);
+        }
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(timer);
+  }, [appMode, lastActivityAt, isIdle, shipName, selectedSlot, galaxy, shipState, currentSectorId, shipClassId, upgrades, npcs, db]);
+
+  // Confirmation dialogs
+  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
   // Compute net worth: credits + cargo value + upgrade value
   const netWorth = useMemo(() => {
@@ -498,19 +598,22 @@ const App = () => {
         if (!galaxy) return null;
         return (
           <SectorScreen
-            onMarket={() => setAppMode('market')}
-            onStarDock={() => setAppMode('stardock')}
-            onCombat={handleCombatStart}
-            onJumpComplete={handleJumpComplete}
-            onBack={handleBack}
+            onMarket={() => { bumpActivity(); setAppMode('market'); }}
+            onStarDock={() => { bumpActivity(); setAppMode('stardock'); }}
+            onCombat={(enemy) => { bumpActivity(); handleCombatStart(enemy); }}
+            onJumpComplete={(sectorId) => { bumpActivity(); handleJumpComplete(sectorId); }}
+            onBack={() => { bumpActivity(); handleBack(); }}
             shipName={shipName || 'Unnamed Vessel'}
             currentSectorId={currentSectorId}
-            onUpdateSector={setCurrentSectorId}
+            onUpdateSector={(id) => { bumpActivity(); setCurrentSectorId(id); }}
             shipState={{ ...shipState, name: shipName }}
             netWorth={netWorth}
             npcs={npcs.filter(n => n.currentSectorId === currentSectorId)}
             news={news.slice(-5)}
+            tickStats={tickStats}
+            isIdle={isIdle}
             onUpdateShip={(newState) => {
+              bumpActivity();
               setShipState(prev => ({
                 ...prev,
                 credits: newState.credits,

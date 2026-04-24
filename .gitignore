@@ -28,3 +28,4 @@ coverage/
 # Turso/local dev
 *.db
 *.sqlite
+cloud/.wrangler/

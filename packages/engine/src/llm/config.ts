@@ -18,18 +18,31 @@ const CONFIG_PATH = `${process.env.HOME}/.tw3002/config.json`;
 export function loadConfig(): LLMConfig {
   try {
     const fs = require('fs');
-    if (!fs.existsSync(CONFIG_PATH)) return DEFAULT_CONFIG;
+    if (!fs.existsSync(CONFIG_PATH)) {
+      console.log('[LLM] No config found at', CONFIG_PATH, '- using rule-based NPCs');
+      return DEFAULT_CONFIG;
+    }
 
-    const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-    const npcBrain = raw.npcBrain ?? raw;
+    const text = fs.readFileSync(CONFIG_PATH, 'utf-8');
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch (parseErr) {
+      console.warn('[LLM] Config file exists but is not valid JSON:', CONFIG_PATH);
+      console.warn('[LLM] Parse error:', (parseErr as Error).message);
+      console.warn('[LLM] Falling back to rule-based NPCs. Fix your config and restart.');
+      return DEFAULT_CONFIG;
+    }
+
+    const npcBrain = (raw as Record<string, unknown>).npcBrain ?? raw;
 
     const config: LLMConfig = {
-      provider: validateProvider(npcBrain.provider) ? npcBrain.provider : 'disabled',
-      model: npcBrain.model ?? DEFAULT_CONFIG.model,
-      apiKey: npcBrain.apiKey,
-      endpoint: npcBrain.endpoint,
-      temperature: typeof npcBrain.temperature === 'number' ? npcBrain.temperature : DEFAULT_CONFIG.temperature,
-      maxTokens: typeof npcBrain.maxTokens === 'number' ? npcBrain.maxTokens : DEFAULT_CONFIG.maxTokens,
+      provider: validateProvider((npcBrain as Record<string, unknown>).provider) ? (npcBrain as Record<string, unknown>).provider as LLMConfig['provider'] : 'disabled',
+      model: ((npcBrain as Record<string, unknown>).model as string) ?? DEFAULT_CONFIG.model,
+      apiKey: (npcBrain as Record<string, unknown>).apiKey as string | undefined,
+      endpoint: (npcBrain as Record<string, unknown>).endpoint as string | undefined,
+      temperature: typeof (npcBrain as Record<string, unknown>).temperature === 'number' ? (npcBrain as Record<string, unknown>).temperature as number : DEFAULT_CONFIG.temperature,
+      maxTokens: typeof (npcBrain as Record<string, unknown>).maxTokens === 'number' ? (npcBrain as Record<string, unknown>).maxTokens as number : DEFAULT_CONFIG.maxTokens,
     };
 
     // Validation
@@ -38,8 +51,10 @@ export function loadConfig(): LLMConfig {
       return { ...DEFAULT_CONFIG };
     }
 
+    console.log(`[LLM] Using provider: ${config.provider}${config.model ? ` (${config.model})` : ''}`);
     return config;
-  } catch {
+  } catch (err) {
+    console.warn('[LLM] Unexpected error loading config:', (err as Error).message);
     return DEFAULT_CONFIG;
   }
 }

@@ -64,6 +64,12 @@ export interface SectorScreenProps {
 
   /** Recent news headlines. */
   news?: NewsItem[];
+
+  /** Tick stats from last NPC evolution (shown once on login). */
+  tickStats?: { npcsProcessed: number; actionsTaken: number; llmCalls: number; llmCost: number; durationMs: number } | null;
+
+  /** Whether player is idle (no input for 15+ min). */
+  isIdle?: boolean;
 }
 
 /**
@@ -89,6 +95,8 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   netWorth,
   npcs,
   news,
+  tickStats,
+  isIdle,
   galaxy,
 }) => {
   const currentSector = galaxy.sectors.get(currentSectorId)!;
@@ -291,11 +299,33 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
         </Box>
       )}
 
+      {/* Idle warning */}
+      {isIdle && (
+        <Box marginTop={1} alignItems="center">
+          <Text color="red" bold>
+            💤 IDLE — Galaxy frozen. Press any key to resume.
+          </Text>
+        </Box>
+      )}
+
       {/* StarDock hint */}
       {isStarDock && (
         <Box marginTop={1} alignItems="center">
           <Text color="magenta" bold>
             ⚡ StarDock detected — [D] to dock and upgrade ship
+          </Text>
+        </Box>
+      )}
+
+      {/* Tick stats (shown once after login) */}
+      {tickStats && tickStats.npcsProcessed > 0 && (
+        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={2} paddingY={1} flexDirection="column">
+          <Text color="cyan" bold>🌌 Galaxy evolved while you were away:</Text>
+          <Text color="muted">
+            {tickStats.npcsProcessed} NPCs took actions ({tickStats.actionsTaken} moves/trades/fights)
+            {tickStats.llmCalls > 0 && (
+              <Text color="muted"> · {tickStats.llmCalls} LLM calls · ${tickStats.llmCost.toFixed(4)}</Text>
+            )}
           </Text>
         </Box>
       )}
