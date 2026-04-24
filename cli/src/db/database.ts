@@ -1,8 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'fs';
+import { homedir } from 'os';
 import { runMigrations } from './migrations.js';
 
-const DB_DIR = `${process.env.HOME}/.tw3002`;
+const DB_DIR = `${homedir()}/.tw3002`;
 export const DB_PATH = `${DB_DIR}/saves.db`;
 
 /**

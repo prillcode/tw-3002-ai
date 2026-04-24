@@ -36,8 +36,23 @@ jobs:
           name: tw3002-macos
           path: cli/tw3002-macos
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: cd cli && bun run build
+      - run: Rename-Item -Path cli/tw3002.exe -NewName tw3002-windows.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tw3002-windows
+          path: cli/tw3002-windows.exe
+
   release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -46,10 +61,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: tw3002-macos
+      - uses: actions/download-artifact@v4
+        with:
+          name: tw3002-windows
       - uses: softprops/action-gh-release@v1
         with:
           files: |
             tw3002-linux
             tw3002-macos
+            tw3002-windows.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

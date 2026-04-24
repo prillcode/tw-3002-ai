@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { homedir } from 'os';
 import { Box, Text, Menu, ConfirmDialog } from '../components';
 import type { Database } from '../db';
 
@@ -11,7 +12,7 @@ type SettingsState = 'menu' | 'confirmDelete';
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ db, onBack }) => {
   const [state, setState] = useState<SettingsState>('menu');
-  const savePath = `${process.env.HOME}/.tw3002/saves.db`;
+  const savePath = `${homedir()}/.tw3002/saves.db`;
 
   const handleSelect = (id: string) => {
     switch (id) {
