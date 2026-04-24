@@ -9,16 +9,17 @@
 1. [Getting Started](#getting-started)
 2. [Your First Game](#your-first-game)
 3. [The Sector Screen](#the-sector-screen)
-4. [Navigation & Turns](#navigation--turns)
-5. [Trading](#trading)
-6. [Combat](#combat)
-7. [StarDock & Upgrades](#stardock--upgrades)
-8. [NPCs & Reputation](#npcs--reputation)
-9. [Galaxy News](#galaxy-news)
-10. [Strategy Tips](#strategy-tips)
-11. [Keyboard Reference](#keyboard-reference)
-12. [Local CLI Gameplay](#local-cli-gameplay)
-13. [Multiplayer Cloud Gameplay](#multiplayer-cloud-gameplay) *(coming soon)*
+4. [Navigation Log](#navigation-log)
+5. [Navigation & Turns](#navigation--turns)
+6. [Trading](#trading)
+7. [Combat](#combat)
+8. [StarDock & Upgrades](#stardock--upgrades)
+9. [NPCs & Reputation](#npcs--reputation)
+10. [Galaxy News](#galaxy-news)
+11. [Strategy Tips](#strategy-tips)
+12. [Keyboard Reference](#keyboard-reference)
+13. [Local CLI Gameplay](#local-cli-gameplay)
+14. [Multiplayer Cloud Gameplay](#multiplayer-cloud-gameplay) *(coming soon)*
 
 ---
 
@@ -45,7 +46,7 @@ bun run build
 
 - **OS:** Linux, macOS, or WSL on Windows
 - **Runtime:** None (compiled binary)
-- **Display:** Terminal with 80×24 minimum
+- **Display:** Terminal with 80×24 minimum (100+ cols recommended)
 - **Optional:** An LLM provider if you want smarter NPCs — Ollama (local, free) or OpenRouter (cloud, API key). See [LLM Modes](#llm-modes-optional).
 
 ---
@@ -60,12 +61,15 @@ When you launch the game, you'll see the **Welcome Screen**:
 ║   Terminal Space Trading & Combat            ║
 ╚══════════════════════════════════════════════╝
 
-  [↑↓] Navigate  [Enter] Select  [Q] Quit
+  "The spice must flow."  — LLM quote on startup
 
   > New Game
     Continue
+    Settings
     Quit
 ```
+
+On startup, the game tests your configured LLM connection (if any). Invalid or missing API keys display a warning but won't block play — the game falls back to rule-based NPCs automatically.
 
 ### 1. Choose New Game
 
@@ -99,34 +103,43 @@ Type a name and press **Enter**.
 
 ## The Sector Screen
 
-This is where you'll spend 90% of your time. The screen has four regions:
+This is where you'll spend 90% of your time.
+
+**On wide terminals (≥100 cols):** Ship status on the left, warp lanes in the middle, sector map on the right.
+
+**On narrow terminals (<100 cols):** Ship status and warp lanes stacked above, sector map full-width below.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ SECTOR 0 — Sol Prime (safe)  [FedSpace]                     │
-│ Port: Terra Station (Class 1)                               │
-├─────────────────────────────────────────────────────────────┤
-│ Warp Lanes        │  [Map]        │  Ship: Starfox          │
-│ → Sector 1        │     *         │  Credits: 5,000         │
-│ → Sector 2        │    /|\        │  Cargo: 0/120           │
-│ → Sector 3        │   / | \       │  Hull: 100/100          │
-│                   │  1  2  3      │  Shield: 0/0            │
-│                   │               │  Turns: 80/80           │
-│                   │               │  Net Worth: 5,000       │
-├─────────────────────────────────────────────────────────────┤
-│ Selected: Sector 1 — Proxima (safe) — [Enter] to Jump       │
-├─────────────────────────────────────────────────────────────┤
-│ 📦 Kira the Trader — trader                                 │
-│ 📰 Galaxy News:                                             │
-│   • Welcome to a new galaxy, Commander!                     │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────┬──────────────────┬─────────────────────┐
+│ Warp Lanes       │ Ship Status      │   Sector Map        │
+│ → Sector 1       │ Credits: 5,000   │        *            │
+│ → Sector 2       │ Cargo: 0/120     │      /|\            │
+│ → Sector 3       │ Hull: 100/100    │     / | \           │
+│   ...            │ Shield: 0/0      │    1  2  3          │
+└──────────────────┴──────────────────┴─────────────────────┘
 ```
+
+The warp lane list shows up to **5 visible neighbors** (scroll if more exist). NPCs and news are capped to keep the layout stable — no more screen jumping when you move between sectors.
 
 ### Reading the Map
 
 - `*` = your current sector
 - Numbers = connected sectors you can jump to
 - `[FedSpace]` = safe zone (no random pirates)
+
+---
+
+## Navigation Log
+
+Press **N** on the Sector Screen to open your flight history. The log shows:
+
+- **Breadcrumb trail** — your last 8 sector jumps
+- **All visited sectors** — with danger icons and port markers
+- **Blast separators** — 💥 markers where your ship was destroyed
+- **Start point** — 🏠 marks your current spawn/origin sector
+- **Current location** — ★ marks where you are now
+
+Navigation tracking pauses while you're in FedSpace after a respawn. Once you warp to a non-FedSpace sector, tracking resumes automatically with FedSpace as your new start point.
 
 ---
 
@@ -247,6 +260,7 @@ Don't panic. You respawn at the nearest **FedSpace** sector with:
 - Full hull and shield
 - **90% of your credits** (10% penalty)
 - All cargo lost
+- **Navigation log gets a 💥 blast marker** — your old path is preserved but separated. Navigation pauses until you leave FedSpace again.
 
 > **Hard truth:** Death is expensive. Flee when you're outmatched.
 
@@ -403,6 +417,8 @@ News helps you track:
 | **Enter** | Jump to selected sector |
 | **M** | Open Market (if port present) |
 | **D** | Dock at StarDock (if present) |
+| **N** | Open Navigation Log |
+| **H** | Toggle Help screen |
 | **Esc** | Return to main menu |
 | **Q** | Quit game |
 
@@ -416,6 +432,7 @@ News helps you track:
 | **← / →** | Adjust quantity |
 | **T** | Max quantity |
 | **Enter** | Confirm trade |
+| **H** | Toggle Help screen |
 | **Esc** | Back to sector |
 
 ### Combat Screen
@@ -424,6 +441,7 @@ News helps you track:
 |-----|--------|
 | **↑ / ↓** | Select action |
 | **Enter** | Confirm |
+| **H** | Toggle Help screen |
 
 ### StarDock Screen
 
@@ -431,7 +449,20 @@ News helps you track:
 |-----|--------|
 | **↑ / ↓** | Select upgrade |
 | **Enter** | Purchase |
+| **H** | Toggle Help screen |
 | **Esc** | Leave StarDock |
+
+### Help Screen
+
+| Key | Action |
+|-----|--------|
+| **H** or **Esc** | Close help |
+
+### Navigation Log
+
+| Key | Action |
+|-----|--------|
+| **N** or **Esc** | Return to sector |
 
 ---
 
@@ -466,13 +497,15 @@ Example:
 ```json
 {
   "npcBrain": {
-    "provider": "disabled",
+    "provider": "ollama",
     "model": "llama3.2:3b",
     "temperature": 0.7,
     "maxTokens": 256
   }
 }
 ```
+
+> **Note:** Invalid API keys or unreachable endpoints show a warning on startup but won't block play. The game silently falls back to rule-based NPCs.
 
 ### LLM Modes (Optional)
 
@@ -533,7 +566,7 @@ By default, NPCs use **rule-based** decision making (fast, free, offline). You c
        "apiKey": "sk-or-v1-...",
        "model": "openai/gpt-4o-mini",
        "temperature": 0.7,
-       "maxTokens": 256
+      "maxTokens": 256
      }
    }
    ```
@@ -592,6 +625,13 @@ Launch → Welcome → Slot Select → Galaxy Size → Ship Name
 - NPC ticks happen **once per login**, not continuously
 - Galaxy size is fixed at generation time
 - No player-to-player trading or combat
+- Press **Ctrl+C** to quit — the game auto-saves before exiting
+
+---
+
+## Screenshots
+
+See [GAMEPLAY_SCREENSHOTS.md](GAMEPLAY_SCREENSHOTS.md) for annotated screenshots of every screen.
 
 ---
 
