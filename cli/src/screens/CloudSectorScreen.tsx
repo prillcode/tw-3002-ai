@@ -179,6 +179,9 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
         classId: s.class_id,
         currentSector: s.current_sector,
       });
+      if (s.regenerated > 0) {
+        setMessage(`⏳ +${s.regenerated} turns regenerated while away`);
+      }
       return s;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';

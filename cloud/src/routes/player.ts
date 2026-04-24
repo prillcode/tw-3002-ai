@@ -34,11 +34,31 @@ export async function handleGetShip(
   const ship = await db
     .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, gId)
-    .first();
+    .first<{
+      turns: number;
+      max_turns: number;
+      last_action_at: string | null;
+      [key: string]: any;
+    }>();
 
   if (!ship) return jsonError('No ship found in this galaxy', 404);
 
-  return json({ ship });
+  // Regenerate turns based on idle time
+  const TURNS_PER_HOUR = 1;
+  const now = new Date();
+  const lastAction = ship.last_action_at ? new Date(ship.last_action_at) : now;
+  const hoursIdle = Math.max(0, Math.floor((now.getTime() - lastAction.getTime()) / (1000 * 60 * 60)));
+  const regenerated = hoursIdle * TURNS_PER_HOUR;
+  const newTurns = Math.min(ship.max_turns, ship.turns + regenerated);
+
+  if (regenerated > 0) {
+    await db
+      .prepare('UPDATE player_ships SET turns = ?, last_action_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+      .bind(newTurns, auth.playerId, gId)
+      .run();
+  }
+
+  return json({ ship: { ...ship, turns: newTurns, regenerated } });
 }
 
 /**
