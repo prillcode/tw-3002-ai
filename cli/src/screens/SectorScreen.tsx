@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog, WarpTransition } from '../components';
 import { useKeyHandler } from '../hooks';
 import { getNeighborIds } from '@tw3002/engine';
@@ -38,6 +38,12 @@ export interface SectorScreenProps {
   /** Go back to previous screen. */
   onBack: () => void;
 
+  /** Open help screen. */
+  onHelp?: () => void;
+
+  /** Open navigation log. */
+  onNavigate?: () => void;
+
   /** Ship name to display. */
   shipName: string;
 
@@ -66,7 +72,7 @@ export interface SectorScreenProps {
   news?: NewsItem[];
 
   /** Tick stats from last NPC evolution (shown once on login). */
-  tickStats?: { npcsProcessed: number; actionsTaken: number; llmCalls: number; llmCost: number; durationMs: number } | null;
+  tickStats?: { npcsProcessed: number; actionsTaken: number; llmCalls: number; llmCacheHits: number; llmCost: number; durationMs: number } | null;
 
   /** Whether player is idle (no input for 15+ min). */
   isIdle?: boolean;
@@ -81,12 +87,18 @@ export interface SectorScreenProps {
  * - Ship status panel (always visible)
  * - Keyboard navigation (↑↓ to select, Enter to jump)
  */
+const MAX_VISIBLE_NEIGHBORS = 5;
+const MAX_DISPLAY_NPCS = 3;
+const MAX_DISPLAY_NEWS = 2;
+
 export const SectorScreen: React.FC<SectorScreenProps> = ({
   onMarket,
   onStarDock,
   onCombat,
   onJumpComplete,
   onBack,
+  onHelp,
+  onNavigate,
   shipName,
   currentSectorId,
   onUpdateSector,
@@ -114,13 +126,25 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   
   // Track selection for navigation
   const [selectedIndex, setSelectedIndex] = useState(0);
-  
+
+  // Scroll offset for neighbor list (keep visible area stable)
+  const [scrollOffset, setScrollOffset] = useState(0);
+
   // Track warp transition
   const [isWarping, setIsWarping] = useState(false);
   const [warpTarget, setWarpTarget] = useState<{id: number, name: string} | null>(null);
-  
+
   // Track quit confirmation dialog
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+
+  // Terminal width for responsive layout
+  const [termWidth, setTermWidth] = useState(process.stdout.columns ?? 120);
+  useEffect(() => {
+    const handler = () => setTermWidth(process.stdout.columns ?? 120);
+    process.stdout.on('resize', handler);
+    return () => { process.stdout.off('resize', handler); };
+  }, []);
+  const wideLayout = termWidth >= 100; // ShipStatus(30) + SectorList(30) + SectorMap(~40)
 
   // Handle jump to selected sector - triggers warp transition
   const handleJump = () => {
@@ -167,10 +191,20 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   // Keyboard handling
   useKeyHandler({
     onUp: () => {
-      setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev));
+      setSelectedIndex(prev => {
+        const next = prev > 0 ? prev - 1 : prev;
+        setScrollOffset(so => Math.min(so, next));
+        return next;
+      });
     },
     onDown: () => {
-      setSelectedIndex(prev => (prev < neighbors.length - 1 ? prev + 1 : prev));
+      setSelectedIndex(prev => {
+        const next = prev < neighbors.length - 1 ? prev + 1 : prev;
+        if (next >= scrollOffset + MAX_VISIBLE_NEIGHBORS) {
+          setScrollOffset(next - MAX_VISIBLE_NEIGHBORS + 1);
+        }
+        return next;
+      });
     },
     onReturn: handleJump,
     onM: () => {
@@ -187,6 +221,12 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
       setShowQuitConfirm(true);
     },
     onEscape: onBack,
+    onH: () => {
+      onHelp?.();
+    },
+    onN: () => {
+      onNavigate?.();
+    },
   });
 
   // Show warp transition
@@ -216,56 +256,128 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
   // Get sector for display (for jump preview)
   const selectedSector = neighbors[selectedIndex];
 
+  // Visible neighbor slice (stable height)
+  const visibleNeighbors = neighbors.slice(scrollOffset, scrollOffset + MAX_VISIBLE_NEIGHBORS);
+  const showScrollUp = scrollOffset > 0;
+  const showScrollDown = scrollOffset + MAX_VISIBLE_NEIGHBORS < neighbors.length;
+
+  // Build a single-line status message (compact, always same height)
+  const statusMessages: string[] = [];
+  if (shipState.turns === 0) statusMessages.push('OUT OF TURNS');
+  else if (shipState.turns <= 20) statusMessages.push(`LOW TURNS: ${shipState.turns}`);
+  if (isIdle) statusMessages.push('IDLE');
+  if (isStarDock) statusMessages.push('STARDOCK');
+
+  const displayNpcs = (npcs ?? []).slice(0, MAX_DISPLAY_NPCS);
+  const extraNpcCount = (npcs ?? []).length - MAX_DISPLAY_NPCS;
+  const displayNews = (news ?? []).slice(-MAX_DISPLAY_NEWS);
+
   return (
     <Box flexDirection="column" padding={1}>
       {/* Sector Info Header */}
       <SectorInfo sector={currentSector} isStarDock={isStarDock} />
-      
+
       <Box paddingY={1} />
-      
-      {/* Main content area: Map | List | Status */}
-      <Box flexDirection="row" justifyContent="space-between">
-        {/* Left: Sector List */}
-        <SectorList 
-          sectors={neighbors}
-          selectedIndex={selectedIndex}
-          stardockIds={galaxy.stardocks}
-        />
-        
-        {/* Center: Visual Map */}
-        <Box marginX={1}>
-          <SectorMap
-            currentSector={currentSector}
-            neighbors={neighbors}
-            selectedIndex={selectedIndex}
-          />
+
+      {/* Main content area: ShipStatus | SectorList | SectorMap */}
+      {wideLayout ? (
+        <Box flexDirection="row" justifyContent="space-between" gap={1}>
+          {/* Left: Ship Status (fixed width, same as SectorList) */}
+          <Box flexDirection="column" minWidth={30}>
+            <ShipStatus
+              shipName={shipName}
+              credits={shipState.credits}
+              cargo={shipState.cargo}
+              maxCargo={shipState.maxCargo}
+              hull={shipState.hull}
+              maxHull={shipState.maxHull ?? shipState.hull}
+              shield={shipState.shield}
+              maxShield={shipState.maxShield}
+              turns={shipState.turns}
+              maxTurns={shipState.maxTurns}
+              currentSector={currentSectorId}
+              netWorth={netWorth}
+            />
+          </Box>
+
+          {/* Middle: Sector List (fixed width) */}
+          <Box flexDirection="column" minWidth={30}>
+            {showScrollUp && (
+              <Text color="muted" dimColor> ▲ {scrollOffset} more</Text>
+            )}
+            <SectorList
+              sectors={visibleNeighbors}
+              selectedIndex={selectedIndex - scrollOffset}
+              stardockIds={galaxy.stardocks}
+            />
+            {showScrollDown && (
+              <Text color="muted" dimColor> ▼ {neighbors.length - scrollOffset - MAX_VISIBLE_NEIGHBORS} more</Text>
+            )}
+          </Box>
+
+          {/* Right: Sector Map (fills remaining width) */}
+          <Box flexDirection="column" flexGrow={1}>
+            <SectorMap
+              currentSector={currentSector}
+              neighbors={neighbors}
+              selectedIndex={selectedIndex}
+            />
+          </Box>
         </Box>
-        
-        {/* Right: Ship Status */}
-        <ShipStatus
-          shipName={shipName}
-          credits={shipState.credits}
-          cargo={shipState.cargo}
-          maxCargo={shipState.maxCargo}
-          hull={shipState.hull}
-          maxHull={shipState.maxHull ?? shipState.hull}
-          shield={shipState.shield}
-          maxShield={shipState.maxShield}
-          turns={shipState.turns}
-          maxTurns={shipState.maxTurns}
-          currentSector={currentSectorId}
-          netWorth={netWorth}
-        />
-      </Box>
-      
+      ) : (
+        <Box flexDirection="column">
+          {/* Top row: ShipStatus | SectorList */}
+          <Box flexDirection="row" justifyContent="space-between" gap={1}>
+            <Box flexDirection="column" minWidth={30}>
+              <ShipStatus
+                shipName={shipName}
+                credits={shipState.credits}
+                cargo={shipState.cargo}
+                maxCargo={shipState.maxCargo}
+                hull={shipState.hull}
+                maxHull={shipState.maxHull ?? shipState.hull}
+                shield={shipState.shield}
+                maxShield={shipState.maxShield}
+                turns={shipState.turns}
+                maxTurns={shipState.maxTurns}
+                currentSector={currentSectorId}
+                netWorth={netWorth}
+              />
+            </Box>
+            <Box flexDirection="column" minWidth={30}>
+              {showScrollUp && (
+                <Text color="muted" dimColor> ▲ {scrollOffset} more</Text>
+              )}
+              <SectorList
+                sectors={visibleNeighbors}
+                selectedIndex={selectedIndex - scrollOffset}
+                stardockIds={galaxy.stardocks}
+              />
+              {showScrollDown && (
+                <Text color="muted" dimColor> ▼ {neighbors.length - scrollOffset - MAX_VISIBLE_NEIGHBORS} more</Text>
+              )}
+            </Box>
+          </Box>
+
+          {/* Below: Sector Map (full width) */}
+          <Box marginTop={1} flexGrow={1}>
+            <SectorMap
+              currentSector={currentSector}
+              neighbors={neighbors}
+              selectedIndex={selectedIndex}
+            />
+          </Box>
+        </Box>
+      )}
+
       <Box paddingY={1} />
-      
+
       {/* Jump preview / status message */}
-      <Box 
-        borderStyle="single" 
+      <Box
+        borderStyle="single"
         borderColor={selectedSector ? 'green' : 'muted'}
         paddingX={2}
-        paddingY={1}
+        paddingY={0}
         alignItems="center"
       >
         {selectedSector ? (
@@ -276,100 +388,85 @@ export const SectorScreen: React.FC<SectorScreenProps> = ({
             {selectedSector.port && (
               <Text color="yellow"> (Port Class {selectedSector.port.class})</Text>
             )}
-            <Text color="green"> — [Enter] to Jump (1 turn)</Text>
+            <Text color="green"> — [Enter] Jump (1 turn)</Text>
           </Text>
         ) : (
           <Text color="muted">No warp lanes available</Text>
         )}
       </Box>
-      
-      {/* Low turns warning */}
-      {shipState.turns === 0 && (
-        <Box marginTop={1} alignItems="center">
-          <Text color="red" bold>
-            ⚠ OUT OF TURNS — Cannot jump!
-          </Text>
-        </Box>
-      )}
-      {shipState.turns > 0 && shipState.turns <= 20 && (
-        <Box marginTop={1} alignItems="center">
-          <Text color="yellow" bold>
-            ⚠ LOW TURNS — {shipState.turns} remaining
-          </Text>
-        </Box>
-      )}
 
-      {/* Idle warning */}
-      {isIdle && (
-        <Box marginTop={1} alignItems="center">
-          <Text color="red" bold>
-            💤 IDLE — Galaxy frozen. Press any key to resume.
+      {/* Compact status line (always rendered, prevents layout jumps) */}
+      <Box marginTop={0} paddingY={0} alignItems="center">
+        {statusMessages.length > 0 ? (
+          <Text>
+            {statusMessages.map((msg, i) => (
+              <Text key={i} color={msg.includes('OUT') ? 'red' : msg.includes('LOW') ? 'yellow' : msg.includes('IDLE') ? 'red' : 'magenta'} bold>
+                {i > 0 && ' · '}
+                {msg.includes('STARDOCK') ? '⚡ StarDock [D]' : msg.includes('OUT') ? `⚠ ${msg}` : msg.includes('LOW') ? `⚠ ${msg}` : `💤 ${msg}`}
+              </Text>
+            ))}
           </Text>
-        </Box>
-      )}
+        ) : (
+          <Text color="muted" dimColor> </Text>
+        )}
+      </Box>
 
-      {/* StarDock hint */}
-      {isStarDock && (
-        <Box marginTop={1} alignItems="center">
-          <Text color="magenta" bold>
-            ⚡ StarDock detected — [D] to dock and upgrade ship
+      {/* Tick stats (compact, always same height when present) */}
+      {tickStats && (
+        <Box marginTop={0} borderStyle="single" borderColor="cyan" paddingX={1} paddingY={0} flexDirection="column">
+          <Text color="cyan">
+            🌌 {tickStats.npcsProcessed > 0
+              ? `${tickStats.npcsProcessed} NPCs acted (${tickStats.actionsTaken} actions)`
+              : 'Galaxy quiet'}
+            {tickStats.llmCalls > 0 && <Text color="yellow"> · {tickStats.llmCalls} LLM</Text>}
+            {tickStats.llmCacheHits > 0 && <Text color="green"> · {tickStats.llmCacheHits} cached</Text>}
+            {(tickStats.llmCalls > 0 || tickStats.llmCacheHits > 0) && <Text color="muted"> · ${tickStats.llmCost.toFixed(4)}</Text>}
           </Text>
         </Box>
       )}
 
-      {/* Tick stats (shown once after login) */}
-      {tickStats && tickStats.npcsProcessed > 0 && (
-        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={2} paddingY={1} flexDirection="column">
-          <Text color="cyan" bold>🌌 Galaxy evolved while you were away:</Text>
-          <Text color="muted">
-            {tickStats.npcsProcessed} NPCs took actions ({tickStats.actionsTaken} moves/trades/fights)
-            {tickStats.llmCalls > 0 && (
-              <Text color="muted"> · {tickStats.llmCalls} LLM calls · ${tickStats.llmCost.toFixed(4)}</Text>
-            )}
+      {/* NPCs present (capped, stable height) */}
+      <Box marginTop={0} flexDirection="column">
+        {displayNpcs.map(npc => {
+          const rep = npc.memory.reputation?.['player'];
+          const repText = rep
+            ? rep.score > 30 ? 'friendly' : rep.score < -30 ? 'hostile' : 'neutral'
+            : null;
+          const repColor = rep
+            ? rep.score > 30 ? 'green' : rep.score < -30 ? 'red' : 'gray'
+            : 'gray';
+          return (
+            <Box key={npc.id} flexDirection="row" gap={1}>
+              <Text
+                color={
+                  npc.persona.type === 'raider' ? 'red' :
+                  npc.persona.type === 'patrol' ? 'green' :
+                  'cyan'
+                }
+              >
+                {npc.persona.type === 'raider' ? '⚠️ ' :
+                 npc.persona.type === 'patrol' ? '🛡️ ' :
+                 '📦 '}
+                {npc.persona.name}
+                <Text color="muted" dimColor> — {npc.persona.type}</Text>
+                {repText && (
+                  <Text color={repColor}> ({repText}{rep ? ` ${rep.score > 0 ? '+' : ''}${rep.score}` : ''})</Text>
+                )}
+              </Text>
+            </Box>
+          );
+        })}
+        {extraNpcCount > 0 && (
+          <Text color="muted" dimColor>
+            … and {extraNpcCount} more
           </Text>
-        </Box>
-      )}
+        )}
+      </Box>
 
-      {/* NPCs present */}
-      {npcs && npcs.length > 0 && (
-        <Box marginTop={1} flexDirection="column">
-          {npcs.map(npc => {
-            const rep = npc.memory.reputation?.['player'];
-            const repText = rep
-              ? rep.score > 30 ? 'friendly' : rep.score < -30 ? 'hostile' : 'neutral'
-              : null;
-            const repColor = rep
-              ? rep.score > 30 ? 'green' : rep.score < -30 ? 'red' : 'gray'
-              : 'gray';
-            return (
-              <Box key={npc.id} flexDirection="row" gap={1}>
-                <Text
-                  color={
-                    npc.persona.type === 'raider' ? 'red' :
-                    npc.persona.type === 'patrol' ? 'green' :
-                    'cyan'
-                  }
-                >
-                  {npc.persona.type === 'raider' ? '⚠️ ' :
-                   npc.persona.type === 'patrol' ? '🛡️ ' :
-                   '📦 '}
-                  {npc.persona.name}
-                  <Text color="muted" dimColor> — {npc.persona.type}</Text>
-                  {repText && (
-                    <Text color={repColor}> ({repText}{rep ? ` ${rep.score > 0 ? '+' : ''}${rep.score}` : ''})</Text>
-                  )}
-                </Text>
-              </Box>
-            );
-          })}
-        </Box>
-      )}
-
-      {/* News ticker */}
-      {news && news.length > 0 && (
-        <Box marginTop={1} borderStyle="single" borderColor="muted" paddingX={2} paddingY={1} flexDirection="column">
-          <Text color="muted" dimColor>📰 Galaxy News:</Text>
-          {news.slice(-3).map((item, i) => (
+      {/* News ticker (capped, compact) */}
+      {displayNews.length > 0 && (
+        <Box marginTop={0} borderStyle="single" borderColor="muted" paddingX={1} paddingY={0} flexDirection="column">
+          {displayNews.map((item, i) => (
             <Text key={i} color="muted" dimColor>
               • {item.headline}
             </Text>

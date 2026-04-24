@@ -22,8 +22,8 @@ export interface ShipStatusProps {
 }
 
 /**
- * Compact ship status panel showing vitals.
- * Always visible during sector navigation.
+ * Compact vertical ship status panel.
+ * Stacked layout for narrow terminals; responsive parent handles positioning.
  */
 export const ShipStatus: React.FC<ShipStatusProps> = ({
   shipName,
@@ -39,10 +39,8 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
   currentSector,
   netWorth,
 }) => {
-  // Calculate cargo total
   const cargoTotal = cargo.ore + cargo.organics + cargo.equipment;
-  
-  // Color coding based on thresholds
+
   const getCreditsColor = () => {
     if (credits < 100) return 'red';
     if (credits < 1000) return 'yellow';
@@ -70,14 +68,6 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
     return 'green';
   };
 
-  const getShieldColor = () => {
-    if (!maxShield || maxShield === 0) return 'muted';
-    const pct = (shield ?? 0) / maxShield;
-    if (pct < 25) return 'red';
-    if (pct < 75) return 'yellow';
-    return 'cyan';
-  };
-
   const getTurnsColor = () => {
     if (turns < 10) return 'red';
     if (turns < 30) return 'yellow';
@@ -85,76 +75,76 @@ export const ShipStatus: React.FC<ShipStatusProps> = ({
   };
 
   return (
-    <Box 
-      borderStyle="single" 
+    <Box
+      borderStyle="single"
       borderColor="cyan"
       paddingX={2}
       paddingY={1}
       flexDirection="column"
+      minWidth={30}
     >
+      {/* Ship name */}
       <Text color="cyan" bold>
         {`⚡ ${shipName}`}
       </Text>
-      
+
+      {/* Net worth + rank */}
       {netWorth !== undefined && (
         <>
-          <Box paddingY={0} />
           <Text color="cyan" dimColor>
-            Net Worth: {netWorth.toLocaleString()} cr
-            {'  '}
-            <Text color={getRankColor(netWorth)} bold>
-              {getRank(netWorth)}
-            </Text>
+            {netWorth.toLocaleString()} cr
+          </Text>
+          <Text color={getRankColor(netWorth)} bold>
+            {getRank(netWorth)}
           </Text>
         </>
       )}
 
-      <Box paddingY={1} />
-
-      <Box flexDirection="row" gap={2}>
-        <Box width={18}>
-          <Text color="muted">Credits:</Text>
-          <Text color={getCreditsColor()} bold>
-            {credits.toLocaleString()}
-          </Text>
-        </Box>
-        
-        <Box width={16}>
-          <Text color="muted">Cargo:</Text>
-          <Text color={cargoTotal > maxCargo * 0.8 ? 'yellow' : 'white'}>
-            {cargoTotal}/{maxCargo}
-          </Text>
-        </Box>
-        
-        <Box width={12}>
-          <Text color="muted">Hull:</Text>
-          <Text color={getHullColor()} bold>
-            {maxHull ? `${hull}/${maxHull}` : `${hull}%`}
-          </Text>
-        </Box>
-
-        {maxShield !== undefined && maxShield > 0 && (
-          <Box width={12}>
-            <Text color="muted">Shield:</Text>
-            <Text color={getShieldColor()} bold>
-              {shield ?? 0}/{maxShield}
-            </Text>
-          </Box>
-        )}
-        
-        <Box width={12}>
-          <Text color="muted">Turns:</Text>
-          <Text color={getTurnsColor()}>
-            {turns}/{maxTurns}
-          </Text>
-        </Box>
-      </Box>
-      
       <Box paddingY={0} />
-      
-      <Text color="muted" dimColor>
-        {`Location: Sector ${currentSector}`}
-      </Text>
+
+      {/* Credits — right-aligned value */}
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text color="muted">Credits</Text>
+        <Text color={getCreditsColor()} bold>
+          {credits.toLocaleString()}
+        </Text>
+      </Box>
+
+      {/* Cargo | Hull on one line */}
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text color="muted">
+          Cargo <Text color={cargoTotal > maxCargo * 0.8 ? 'yellow' : 'white'}>{cargoTotal}/{maxCargo}</Text>
+        </Text>
+        <Text color="muted">
+          Hull <Text color={getHullColor()} bold>{maxHull ? `${Math.round(hull)}/${maxHull}` : `${Math.round(hull)}%`}</Text>
+        </Text>
+      </Box>
+
+      {/* Shield (if any) */}
+      {maxShield !== undefined && maxShield > 0 && (
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text color="muted">Shield</Text>
+          <Text color="cyan" bold>
+            {Math.round(shield ?? 0)}/{maxShield}
+          </Text>
+        </Box>
+      )}
+
+      <Box paddingY={0} />
+
+      {/* Turns */}
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text color="muted">Turns</Text>
+        <Text color={getTurnsColor()}>
+          {turns}/{maxTurns}
+        </Text>
+      </Box>
+
+      {/* Location */}
+      <Box flexDirection="row" justifyContent="space-between">
+        <Text color="muted">Location</Text>
+        <Text color="white">Sector {currentSector}</Text>
+      </Box>
     </Box>
   );
 };

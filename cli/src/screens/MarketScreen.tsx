@@ -17,6 +17,7 @@ export interface ShipState {
 
 export interface MarketScreenProps {
   onBack: () => void;
+  onHelp?: () => void;
   currentSectorId: number;
   shipState: ShipState;
   onUpdateShip: (newState: ShipState) => void;
@@ -27,8 +28,9 @@ export interface MarketScreenProps {
 
 type TradeMode = 'browse' | 'buy' | 'sell';
 
-export const MarketScreen: React.FC<MarketScreenProps> = ({ 
+export const MarketScreen: React.FC<MarketScreenProps> = ({
   onBack,
+  onHelp,
   currentSectorId,
   shipState,
   onUpdateShip,
@@ -219,6 +221,7 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
       }
     },
     onQ: () => setShowQuitConfirm(true),
+    onH: () => onHelp?.(),
   });
   
   if (!port || marketData.length === 0) {
@@ -293,11 +296,10 @@ export const MarketScreen: React.FC<MarketScreenProps> = ({
     <Box flexDirection="column" padding={1}>
       {/* Header */}
       <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
-        <Box flexDirection="row">
+        <Box flexDirection="row" justifyContent="space-between" width="100%">
           <Text color="cyan" bold>
             CLASS {port.class} PORT — {port.name.toUpperCase()}
           </Text>
-          <Box flexGrow={1} />
           <Text color="yellow" bold>
             {shipState.credits.toLocaleString()} cr
           </Text>
