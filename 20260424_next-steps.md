@@ -164,9 +164,9 @@ Build a simple HTML admin page (protected by `ADMIN_SECRET`):
 ## Recommended Order of Attack
 
 **This week:**
-1. CLI: npm publish (30 min)
+1. CLI: Wire cloud mode game loop (4–6 hours)
 2. Cloud: Turn regeneration endpoint (1–2 hours)
-3. CLI: Wire cloud mode game loop (4–6 hours)
+3. CLI: npm publish (30 min)
 
 **Next week:**
 4. Cloud: NPC tick endpoint (rule-based) (6–8 hours)
