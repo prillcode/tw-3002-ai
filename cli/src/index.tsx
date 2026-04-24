@@ -9,12 +9,12 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
 }
 import { useScreen, useExitHandler } from './hooks';
 import { AppLayout, ConfirmDialog } from './components';
-import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen, HelpScreen, SettingsScreen, NavigationScreen, CloudLoginScreen } from './screens';
+import { WelcomeScreen, SectorScreen, MarketScreen, SlotSelectScreen, GalaxySizeScreen, StarDockScreen, ShipClassSelectScreen, CombatScreen, HelpScreen, SettingsScreen, NavigationScreen, CloudLoginScreen, CloudSectorScreen } from './screens';
 import { LoadingScreen } from './components';
 import { initDatabase, saveGame, loadGame, hasSave, clearSave, type GameState, type Database } from './db';
 import { createGalaxy, getShipClass, computeEffectiveStats, UPGRADE_CATALOG, generateNPCs, tickNPCs, GameStateContainer, loadConfig, testLLMConnection, addGrudge, updateReputation, addMarketObservation, regenerateTurns, formatIdleTime, type Galaxy, type Combatant, type CombatResult, type NPC, type NewsItem, type GameState as EngineGameState, type TickStats, type ConfigLoadResult, type LLMHealthResult } from '@tw3002/engine';
 
-type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat' | 'help' | 'settings' | 'navigation' | 'cloudLogin';
+type AppMode = 'welcome' | 'slotSelect' | 'galaxySize' | 'shipName' | 'shipClass' | 'sector' | 'market' | 'stardock' | 'combat' | 'help' | 'settings' | 'navigation' | 'cloudLogin' | 'cloudSector';
 type SelectMode = 'new' | 'continue' | null;
 
 /**
@@ -886,9 +886,20 @@ const App = () => {
           <CloudLoginScreen
             onLogin={(auth) => {
               setCloudAuth(auth);
-              setAppMode('welcome');
+              setAppMode('cloudSector');
             }}
             onBack={handleBack}
+          />
+        );
+
+      case 'cloudSector':
+        if (!cloudAuth) return null;
+        return (
+          <CloudSectorScreen
+            auth={cloudAuth}
+            galaxyId={cloudGalaxyId ?? 1}
+            onQuit={handleQuit}
+            onBack={() => setAppMode('welcome')}
           />
         );
 
@@ -972,6 +983,15 @@ const App = () => {
         return [
           { key: 'Enter', action: 'Connect' },
           { key: 'Esc', action: 'Back' }
+        ];
+      case 'cloudSector':
+        return [
+          { key: '↑↓', action: 'Select' },
+          { key: 'Enter', action: 'Jump' },
+          { key: 'M', action: 'Market' },
+          { key: 'H', action: 'Help' },
+          { key: 'Esc', action: 'Menu' },
+          { key: 'Q', action: 'Quit' }
         ];
       default:
         return [{ key: 'Q', action: 'Quit' }];
