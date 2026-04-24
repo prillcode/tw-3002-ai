@@ -12,15 +12,66 @@ export const DEFAULT_CONFIG: LLMConfig = {
 
 const CONFIG_PATH = `${process.env.HOME}/.tw3002/config.json`;
 
+export interface ConfigLoadResult {
+  config: LLMConfig;
+  warning?: string;
+}
+
+export type LLMHealthResult =
+  | { ok: true; quote: string; model?: string; latencyMs: number }
+  | { ok: false; error: string };
+
+/**
+ * Test LLM connection with a thematic prompt.
+ * Returns a space-trading quote on success, or an error message.
+ */
+export async function testLLMConnection(config: LLMConfig): Promise<LLMHealthResult> {
+  if (config.provider === 'disabled') {
+    return { ok: false, error: 'LLM provider is disabled. NPCs will use rule-based logic.' };
+  }
+
+  const { createProvider } = await import('./factory.js');
+  const provider = createProvider(config);
+  if (!provider) {
+    return { ok: false, error: `Failed to create ${config.provider} provider. Check your config.` };
+  }
+
+  const start = performance.now();
+  try {
+    const response = await provider.chat(
+      [
+        {
+          role: 'system',
+          content: 'You are a grizzled space trader from the BBS era. Respond with exactly one short quote (1 sentence) about space trading, profit, or the void. No markdown, no quotes around the text.',
+        },
+        {
+          role: 'user',
+          content: 'Share a space trading themed quote.',
+        },
+      ],
+      {
+        temperature: 0.9,
+        maxTokens: 64,
+      }
+    );
+    const latencyMs = Math.round(performance.now() - start);
+    const quote = response.content.trim().replace(/^["']|["']$/g, '').slice(0, 120);
+    return { ok: true, quote, model: response.model, latencyMs };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Unknown LLM error' };
+  }
+}
+
 /**
  * Load LLM config from disk. Returns defaults if file missing or invalid.
  */
-export function loadConfig(): LLMConfig {
+export function loadConfig(): ConfigLoadResult {
   try {
     const fs = require('fs');
     if (!fs.existsSync(CONFIG_PATH)) {
-      console.log('[LLM] No config found at', CONFIG_PATH, '- using rule-based NPCs');
-      return DEFAULT_CONFIG;
+      const warning = 'No LLM config found — NPCs will use rule-based logic. Create ~/.tw3002/config.json to enable AI-driven NPCs.';
+      console.log('[LLM]', warning);
+      return { config: DEFAULT_CONFIG, warning };
     }
 
     const text = fs.readFileSync(CONFIG_PATH, 'utf-8');
@@ -28,10 +79,9 @@ export function loadConfig(): LLMConfig {
     try {
       raw = JSON.parse(text);
     } catch (parseErr) {
-      console.warn('[LLM] Config file exists but is not valid JSON:', CONFIG_PATH);
-      console.warn('[LLM] Parse error:', (parseErr as Error).message);
-      console.warn('[LLM] Falling back to rule-based NPCs. Fix your config and restart.');
-      return DEFAULT_CONFIG;
+      const warning = `Config file is not valid JSON (${(parseErr as Error).message}). NPCs will use rule-based logic.`;
+      console.warn('[LLM]', warning);
+      return { config: DEFAULT_CONFIG, warning };
     }
 
     const npcBrain = (raw as Record<string, unknown>).npcBrain ?? raw;
@@ -47,15 +97,17 @@ export function loadConfig(): LLMConfig {
 
     // Validation
     if (config.provider === 'openrouter' && !config.apiKey) {
-      console.warn('[LLM] OpenRouter provider selected but no apiKey. Falling back to disabled.');
-      return { ...DEFAULT_CONFIG };
+      const warning = 'OpenRouter selected but no apiKey found. NPCs will use rule-based logic. Add your API key to ~/.tw3002/config.json.';
+      console.warn('[LLM]', warning);
+      return { config: { ...DEFAULT_CONFIG }, warning };
     }
 
     console.log(`[LLM] Using provider: ${config.provider}${config.model ? ` (${config.model})` : ''}`);
-    return config;
+    return { config };
   } catch (err) {
-    console.warn('[LLM] Unexpected error loading config:', (err as Error).message);
-    return DEFAULT_CONFIG;
+    const warning = `Unexpected error loading config: ${(err as Error).message}. NPCs will use rule-based logic.`;
+    console.warn('[LLM]', warning);
+    return { config: DEFAULT_CONFIG, warning };
   }
 }
 

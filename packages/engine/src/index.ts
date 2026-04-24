@@ -128,7 +128,8 @@ export type {
 } from './llm/provider.js';
 
 export { createProvider } from './llm/factory.js';
-export { loadConfig, saveConfig } from './llm/config.js';
+export { loadConfig, saveConfig, testLLMConnection } from './llm/config.js';
+export type { ConfigLoadResult, LLMHealthResult } from './llm/config.js';
 export { isOllamaAvailable } from './llm/ollama.js';
 export { globalCache } from './llm/cache.js';
 export type { DecisionCache, CacheEntry } from './llm/cache.js';

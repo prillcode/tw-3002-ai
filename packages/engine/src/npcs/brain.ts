@@ -205,6 +205,13 @@ export function decideRuleBased(
   }
 }
 
+export type DecisionSource = 'llm' | 'cache' | 'rule';
+
+export interface NPCDecision {
+  action: NPCAction;
+  source: DecisionSource;
+}
+
 /**
  * Decide an NPC's next action.
  * Tries LLM if configured, falls back to rule-based on any failure.
@@ -215,10 +222,10 @@ export async function decideAction(
   galaxy: Galaxy,
   players: PlayerShip[],
   config?: LLMConfig,
-): Promise<NPCAction> {
+): Promise<NPCDecision> {
   // Fast path: no config or disabled → rules
   if (!config || config.provider === 'disabled') {
-    return decideRuleBased(npc, galaxy, players);
+    return { action: decideRuleBased(npc, galaxy, players), source: 'rule' };
   }
 
   // Check cache
@@ -241,13 +248,13 @@ export async function decideAction(
           },
         ].slice(-3),
       };
-      return cached.action;
+      return { action: cached.action, source: 'cache' };
     }
   }
 
   // Build provider
   const provider = createProvider(config);
-  if (!provider) return decideRuleBased(npc, galaxy, players);
+  if (!provider) return { action: decideRuleBased(npc, galaxy, players), source: 'rule' };
 
   // Build prompt
   const systemPrompt = `You are an NPC in a space trading game called TW 3002 AI.
@@ -311,14 +318,14 @@ Action param schemas:
           },
         ].slice(-3),
       };
-      return parsed.action;
+      return { action: parsed.action, source: 'llm' };
     }
   } catch (err) {
     // Silently fall back to rules on any error
   }
 
   // Fallback
-  return decideRuleBased(npc, galaxy, players);
+  return { action: decideRuleBased(npc, galaxy, players), source: 'rule' };
 }
 
 /**

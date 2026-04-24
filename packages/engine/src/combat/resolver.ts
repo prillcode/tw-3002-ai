@@ -58,9 +58,9 @@ function calculateDamage(attacker: Combatant, defender: Combatant): { hit: boole
 
   const rawDamage = attacker.weaponDamage * randomRange(0.8, 1.2);
   const shieldAbsorb = Math.min(defender.shield, rawDamage * 0.5);
-  defender.shield -= shieldAbsorb;
+  defender.shield = Math.round(Math.max(0, defender.shield - shieldAbsorb));
   const hullDamage = rawDamage - shieldAbsorb;
-  defender.hull -= hullDamage;
+  defender.hull = Math.round(Math.max(0, defender.hull - hullDamage));
 
   return { hit: true, rawDamage, absorbed: shieldAbsorb, hullDamage };
 }

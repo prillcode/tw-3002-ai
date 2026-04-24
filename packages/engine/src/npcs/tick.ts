@@ -14,6 +14,7 @@ export interface TickStats {
   npcsProcessed: number;
   actionsTaken: number;
   llmCalls: number;
+  llmCacheHits: number;
   llmCost: number;
   durationMs: number;
 }
@@ -30,16 +31,16 @@ function resolveNPCCombat(attacker: NPC, defender: NPC): { attacker: NPC; defend
     // Attacker hits defender
     const aDmg = a.ship.weaponDamage * (0.8 + Math.random() * 0.4);
     const aShieldAbsorb = Math.min(d.ship.shield, aDmg * 0.5);
-    d.ship.shield = Math.max(0, d.ship.shield - aShieldAbsorb);
-    d.ship.hull = Math.max(0, d.ship.hull - (aDmg - aShieldAbsorb));
+    d.ship.shield = Math.round(Math.max(0, d.ship.shield - aShieldAbsorb));
+    d.ship.hull = Math.round(Math.max(0, d.ship.hull - (aDmg - aShieldAbsorb)));
 
     if (d.ship.hull <= 0) break;
 
     // Defender hits attacker
     const dDmg = d.ship.weaponDamage * (0.8 + Math.random() * 0.4);
     const dShieldAbsorb = Math.min(a.ship.shield, dDmg * 0.5);
-    a.ship.shield = Math.max(0, a.ship.shield - dShieldAbsorb);
-    a.ship.hull = Math.max(0, a.ship.hull - (dDmg - dShieldAbsorb));
+    a.ship.shield = Math.round(Math.max(0, a.ship.shield - dShieldAbsorb));
+    a.ship.hull = Math.round(Math.max(0, a.ship.hull - (dDmg - dShieldAbsorb)));
 
     if (a.ship.hull <= 0) break;
   }
@@ -203,6 +204,7 @@ export async function tickNPCs(
     npcsProcessed: 0,
     actionsTaken: 0,
     llmCalls: 0,
+    llmCacheHits: 0,
     llmCost: 0,
     durationMs: 0,
   };
@@ -234,9 +236,12 @@ export async function tickNPCs(
     // Decide action
     let action: import('./types.js').NPCAction;
     try {
-      action = await decideAction(currentNPC, galaxy, [player], llmConfig);
-      if (llmConfig && llmConfig.provider !== 'disabled') {
+      const decision = await decideAction(currentNPC, galaxy, [player], llmConfig);
+      action = decision.action;
+      if (decision.source === 'llm') {
         stats.llmCalls++;
+      } else if (decision.source === 'cache') {
+        stats.llmCacheHits++;
       }
     } catch {
       // Fallback on any error
