@@ -7,3 +7,6 @@ export { GalaxySizeScreen, type GalaxySizeScreenProps, GALAXY_SIZES } from './Ga
 export { StarDockScreen, type StarDockScreenProps } from './StarDockScreen';
 export { ShipClassSelectScreen, type ShipClassSelectProps } from './ShipClassSelectScreen';
 export { CombatScreen, type CombatScreenProps } from './CombatScreen';
+export { HelpScreen, type HelpScreenProps, type HelpContext } from './HelpScreen';
+export { SettingsScreen, type SettingsScreenProps } from './SettingsScreen';
+export { NavigationScreen, type NavigationScreenProps } from './NavigationScreen';
