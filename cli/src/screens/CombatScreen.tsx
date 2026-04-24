@@ -168,7 +168,8 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
 
   // ── RESULT ──
   if (phase === 'result' && combatState.result) {
-    const result = combatState.result;
+    const { computeResult } = require('@tw3002/engine');
+    const result = computeResult(combatState, rounds);
     const won = result.victory;
     const fled = result.fled;
     const bribed = result.bribed;
