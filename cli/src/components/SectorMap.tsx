@@ -26,13 +26,13 @@ export const SectorMap: React.FC<SectorMapProps> = ({
   
   return (
     <Box 
-      borderStyle="double" 
+      borderStyle="single" 
       borderColor="cyan"
       paddingX={2}
       paddingY={1}
       flexDirection="column"
       alignItems="center"
-      minWidth={40}
+
     >
       <Box marginBottom={1}>
         <Text color="cyan" bold>

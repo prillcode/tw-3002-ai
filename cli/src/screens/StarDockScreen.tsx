@@ -15,6 +15,7 @@ export interface StarDockScreenProps {
   ship: PlayerShip;
   onUpdateShip: (ship: PlayerShip) => void;
   onBack: () => void;
+  onHelp?: () => void;
 }
 
 export const StarDockScreen: React.FC<StarDockScreenProps> = ({
@@ -22,6 +23,7 @@ export const StarDockScreen: React.FC<StarDockScreenProps> = ({
   ship,
   onUpdateShip,
   onBack,
+  onHelp,
 }) => {
   const availableUpgrades = useMemo(
     () => getAvailableUpgrades(ship.upgrades),
@@ -43,7 +45,7 @@ export const StarDockScreen: React.FC<StarDockScreenProps> = ({
 
   const selectedUpgrade = availableUpgrades[selectedIndex];
 
-  useInput((_input, key) => {
+  useInput((input, key) => {
     if (showConfirm) return; // handled by confirm dialog
     if (key.upArrow) {
       setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev));
@@ -56,6 +58,8 @@ export const StarDockScreen: React.FC<StarDockScreenProps> = ({
       setShowConfirm(true);
     } else if (key.escape) {
       onBack();
+    } else if (input === '?') {
+      onHelp?.();
     }
   });
 
@@ -96,11 +100,11 @@ export const StarDockScreen: React.FC<StarDockScreenProps> = ({
     <Box flexDirection="column" padding={1}>
       {/* Header */}
       <Box borderStyle="double" borderColor="cyan" paddingX={2} paddingY={1} marginBottom={1}>
-        <Box flexDirection="row" justifyContent="space-between">
+        <Box flexDirection="row" justifyContent="space-between" width="100%">
           <Text color="cyan" bold>
             STARDOCK — SHIP UPGRADES
           </Text>
-          <Text color="yellow">
+          <Text color="yellow" bold>
             {ship.credits.toLocaleString()} cr
           </Text>
         </Box>
