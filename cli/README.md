@@ -13,14 +13,22 @@ bun run build
 ./tw3002
 ```
 
-### From npm (when published)
+### From npm
 
 ```bash
 npm install -g tw3002
 tw3002
 ```
 
-The compiled binary is self-contained (~100MB) and requires no runtime.
+**Linux:** The npm package includes a pre-built binary (~100MB). No runtime needed.
+
+**macOS / Windows:** The npm package includes a wrapper script. If the binary isn't available for your platform, run:
+```bash
+tw3002 --build
+```
+This requires [Bun](https://bun.sh) to compile from source.
+
+For platform-specific pre-built binaries, see [GitHub Releases](https://github.com/prillcode/tw-3002-ai/releases).
 
 ## How to Play
 
