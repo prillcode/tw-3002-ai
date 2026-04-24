@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { render } from 'ink';
 
-const VERSION = '0.5.1';
+const VERSION = '0.5.5';
 
 if (process.argv.includes('--version') || process.argv.includes('-v')) {
   console.log(`tw3002 ${VERSION}`);

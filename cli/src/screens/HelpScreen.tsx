@@ -123,7 +123,7 @@ export const HelpScreen: React.FC<HelpScreenProps> = ({ context, onBack }) => {
 
         <Box paddingY={0} />
         <Text color="muted" dimColor>
-          v0.5.1 · github.com/prillcode/tw-3002-ai
+          v0.5.5 · github.com/prillcode/tw-3002-ai
         </Text>
       </Box>
     </Box>
