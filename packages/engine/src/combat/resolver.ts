@@ -69,7 +69,7 @@ function calculateDamage(attacker: Combatant, defender: Combatant): { hit: boole
  * Compute flee success chance.
  */
 export function computeFleeChance(player: Combatant, enemy: Combatant): number {
-  const baseChance = player.dodgeChance * 100;
+  const baseChance = 25 + player.dodgeChance * 200;
   // Speed advantage: higher dodge = faster
   const speedDiff = (player.dodgeChance - enemy.dodgeChance) * 50;
   const chance = baseChance + speedDiff;
