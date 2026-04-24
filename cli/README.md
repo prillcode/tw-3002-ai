@@ -2,20 +2,25 @@
 
 A terminal-native space trading game — a spiritual successor to Trade Wars 2002.
 
-## Quick Start
+## Install
+
+### From Source
 
 ```bash
 cd cli
 bun install
-bun run dev
-```
-
-Or build the standalone binary (~103MB, no runtime needed):
-
-```bash
 bun run build
 ./tw3002
 ```
+
+### From npm (when published)
+
+```bash
+npm install -g tw3002
+tw3002
+```
+
+The compiled binary is self-contained (~100MB) and requires no runtime.
 
 ## How to Play
 
@@ -27,7 +32,8 @@ bun run build
 6. **Trade** — Press **M** at ports to buy low, sell high
 7. **Fight** — Dangerous sectors may have pirates or NPC raiders! Attack, flee, or bribe
 8. **Upgrade** — Find a **StarDock** (press **D**) to buy ship improvements
-9. **Save** — Your progress auto-saves; resume anytime via **Continue**
+9. **Track** — Press **N** to view your Navigation Log
+10. **Save** — Your progress auto-saves; resume anytime via **Continue**
 
 > **NPCs evolve while you're away.** Every time you log in, nearby NPCs take their turns — trading, fighting, and moving. Check the news ticker to see what happened.
 
@@ -40,7 +46,45 @@ bun run build
 | Esc | Back / Cancel |
 | M | Open Market (at ports) |
 | D | Enter StarDock |
+| N | Navigation Log |
+| H | Help screen |
 | Q | Quit |
+
+### Sector View
+- ↑↓ — Select connected sector
+- Enter — Jump (costs 1 turn)
+- M — Market (if port present)
+- D — StarDock (if present)
+- N — Navigation Log
+- H — Help
+- Q — Quit
+
+### Market
+- ↑↓ — Select commodity
+- B — Buy mode
+- S — Sell mode
+- ←→ — Adjust quantity
+- T — Max quantity
+- Enter — Confirm trade
+- H — Help
+- Esc — Back to sector
+
+### Combat
+- ↑↓ — Select action (Attack / Flee / Bribe)
+- Enter — Confirm selected action
+- H — Help
+
+### StarDock
+- ↑↓ — Select upgrade
+- Enter — Purchase
+- H — Help
+- Esc — Leave
+
+### Navigation Log
+- N or Esc — Return to sector
+
+### Help Screen
+- H or Esc — Close help
 
 ## Features
 
@@ -54,32 +98,9 @@ bun run build
 - 📊 **Net worth tracking** — Climb from Space Peasant to Galactic Tycoon
 - 🤖 **Optional LLM-driven NPCs** — Via Ollama (local, free) or OpenRouter (cloud, cheap)
 - 📰 **Galaxy news ticker** — Track NPC movements, fights, and market events
-
-## Keyboard Reference
-
-### Sector View
-- ↑↓ — Select connected sector
-- Enter — Jump (costs 1 turn)
-- M — Market (if port present)
-- D — StarDock (if present)
-- Q — Quit
-
-### Market
-- ↑↓ — Select commodity
-- B — Buy mode
-- S — Sell mode
-- ←→ — Adjust quantity
-- Enter — Confirm trade
-- Esc — Back to sector
-
-### Combat
-- ↑↓ — Select action (Attack / Flee / Bribe)
-- Enter — Confirm selected action
-
-### StarDock
-- ↑↓ — Select upgrade
-- Enter — Purchase
-- Esc — Leave
+- 📍 **Navigation Log** — Breadcrumb trail of visited sectors with blast markers on death
+- 📐 **Responsive layout** — Adapts to terminal width (wide ≥100 cols vs narrow)
+- 💥 **Auto-save on Ctrl+C** — Graceful exit with save
 
 ## Balance Notes
 
@@ -88,6 +109,7 @@ bun run build
 - Shield regenerates on every jump (first-hit buffer)
 - Hull only repairs at StarDock or on respawn
 - Combat in dangerous sectors (~30% chance); safe sectors are peaceful
+- Death penalty: respawn in FedSpace with 90% credits, cargo lost
 
 ## Known Limitations
 
@@ -116,3 +138,15 @@ bun run build
 ```
 
 Delete this file to reset all progress.
+
+## Config Location
+
+```
+~/.tw3002/config.json
+```
+
+Optional LLM provider configuration. See [GAME_GUIDE.md](../GAME_GUIDE.md) for examples.
+
+## License
+
+MIT
