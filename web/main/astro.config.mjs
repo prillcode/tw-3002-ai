@@ -4,6 +4,7 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   site: 'https://playtradewars.net',
+  output: 'static',
   integrations: [
     vue(),
     tailwind({
