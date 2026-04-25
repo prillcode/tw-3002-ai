@@ -31,7 +31,6 @@ export const useGalaxyStore = defineStore('galaxy', () => {
   const visitedIds = ref<number[]>([]);
 
   async function loadGalaxy(galaxyId: number) {
-    const auth = useAuthStore();
     loading.value = true;
     error.value = null;
     try {

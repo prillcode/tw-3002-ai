@@ -189,7 +189,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGalaxyStore } from '../stores/galaxy';
 import { useShipStore } from '../stores/ship';
@@ -284,7 +284,7 @@ onMounted(async () => {
   await galaxy.loadGalaxy(galaxyId);
   await ship.loadShip(galaxyId);
   if (ship.ship) {
-    galaxy.currentSectorId.value = ship.ship.currentSector;
+    galaxy.currentSectorId = ship.ship.currentSector;
     galaxy.visit(ship.ship.currentSector);
     await galaxy.loadSector(galaxyId, ship.ship.currentSector);
   }
