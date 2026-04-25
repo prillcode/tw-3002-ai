@@ -36,3 +36,14 @@ Ensure deliverability and monitoring.
 - [ ] 04-03: Add email templates (verification, welcome, newsletter)
 - [ ] 04-04: Monitor sender reputation and bounce rates
 - [ ] 04-05: Add retry logic for failed email sends
+
+## Phase 05 — Player Profile & Identity
+Let players manage their profile, ships, and visual identity.
+
+- [ ] 05-01: Create `GET /api/player/profile` and `PUT /api/player/profile` endpoints
+- [ ] 05-02: Add display name, bio, timezone, locale fields to `players` table
+- [ ] 05-03: Build profile settings UI (Vue component accessible from game client)
+- [ ] 05-04: Add custom avatar support (upload or generative — initials, identicon, pixel art)
+- [ ] 05-05: Ship management screen (view all ships across galaxies, rename, retire)
+- [ ] 05-06: Player public profile page (shareable URL with stats, badges, avatar)
+- [ ] 05-07: Privacy controls (hide email, hide stats, make profile private)
