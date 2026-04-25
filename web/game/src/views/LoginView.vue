@@ -5,7 +5,7 @@
       <div class="text-center mb-8">
         <div class="text-4xl mb-4">🌌</div>
         <h1 class="text-3xl font-mono font-bold text-terminal-cyan mb-2">TW 3002 AI</h1>
-        <p class="text-terminal-muted font-mono text-sm">Web Client v0.1.0</p>
+        <p class="text-terminal-muted font-mono text-sm">Web Client v0.5.0</p>
       </div>
 
       <!-- Login Form -->

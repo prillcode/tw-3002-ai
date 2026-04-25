@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://tw3002-api.prilldev.workers.dev';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://api.playtradewars.net';
 
 export interface CloudAuth {
   token: string;
