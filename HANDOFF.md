@@ -21,8 +21,12 @@ Repo: https://github.com/prillcode/tw-3002-ai
 - **Market Overlay** (`M`) — Buy/sell all 3 commodities with live prices, supply, quantity selector
 - **StarDock Overlay** (`D`) — Upgrade catalog, purchase with prerequisites, stat updates
 - **Combat Overlay** — Attack/flee/bribe, narrative text, all outcomes (win/lose/destroyed)
+- **Leaderboard** (`L`) — Full-page ranked table with net worth, K/D, ship class
+- **Navigation Log** (`N`) — Breadcrumb trail of visited sectors with names and danger colors
+- **Warp Jump Animation** — 800ms CSS radial burst + star streaks + CRT scanlines
 - **Keyboard Shortcuts** — M, D, N, H, L, Esc, ↑↓, Enter all wired
 - **Sector Map** — Visual neighbor display with connection lines, color-coded icons
+- **Ship Stats** — Correct base stats per class (Merchant/Scout/Interceptor) + upgrades apply immediately
 
 ### CLI Cloud Mode (Previously Completed)
 - Trade prices from `port_inventory_json`
@@ -35,29 +39,25 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ## What's Next — Priority Order
 
-### 🔥 P0 — Fix Before Anyone Notices
-
-1. **Web client ship stats are wrong** — `web/game/src/stores/ship.ts` hardcodes `maxCargo: 120` and `maxHull: s.hull`. It should use `computeEffectiveStats()` from the engine package. Right now all ships feel identical regardless of class or upgrades.
-
-2. **Web client Leaderboard is a placeholder** — `LeaderboardView.vue` says "Coming soon." The API endpoint works. Just needs a table component.
-
-3. **Web client Navigation is a placeholder** — `NavigationView.vue` says "Coming soon." The visitedIds are tracked in the galaxy store. Just needs the breadcrumb UI.
-
 ### 🎯 P1 — Next Features
 
-4. **TW-05 PvP Combat** — Big feature. Needs server endpoints (`/api/action/pvp/attack`, `/api/action/pvp/resolve`, `/api/action/pvp/status`) and web client UI. See `.planning/TW-05-pvp-update/phases/05-01-PLAN.md`.
+1. **Combat doesn't remove dead NPC** — After winning combat, the defeated raider still shows in the sector list until you jump away. Easy fix: remove it from `npcs.value` locally after a win in `CombatView.vue`.
 
-5. **Web client responsive design** — Currently desktop-only. The sector view grid breaks on mobile. Consider a mobile layout: ship stats stacked, warp lanes as a list, map hidden or collapsible.
+2. **Destroyed player respawn** — After ship destruction, the web client doesn't reload ship data from server, so the respawn sector might be wrong visually until refresh. Call `ship.loadShip(galaxyId)` after a destroyed combat result.
 
-6. **Web client animations** — Warp jumps feel instant. Add a CSS transition or screen flash when jumping sectors. Combat could use a shake effect.
+3. **TW-05 PvP Combat** — Big feature. Needs server endpoints (`/api/action/pvp/attack`, `/api/action/pvp/resolve`, `/api/action/pvp/status`) and web client UI. See `.planning/TW-05-pvp-update/phases/05-01-PLAN.md`.
+
+4. **Web client settings** — Sound toggle, animation toggle, colorblind mode, font size. Add a gear icon or `S` key.
 
 ### 📝 P2 — Polish & Backlog
 
-7. **TW-09 Game Engine Polish** — Combat balance, trade economy tuning, ship class differentiation, NPC behavior. See `.planning/TW-09-game-engine-polish/`.
+5. **TW-09 Game Engine Polish** — Combat balance, trade economy tuning, ship class differentiation, NPC behavior. See `.planning/TW-09-game-engine-polish/`.
 
-8. **TW-11 Email & Player Polish** — Email verification, anti-spam, player profiles, avatars. See `.planning/TW-11-email-player-polish/`.
+6. **TW-11 Email & Player Polish** — Email verification, anti-spam, player profiles, avatars. See `.planning/TW-11-email-player-polish/`.
 
-9. **Web client settings** — Sound toggle, animation toggle, colorblind mode, font size.
+7. **Mobile polish** — User reports it renders fine on phone, but the sector map is 320px fixed which may overflow on very small screens. Could tighten padding/scale.
+
+8. **Combat screen shake** — When taking damage in combat, add a CSS shake animation to the panel.
 
 ---
 
@@ -86,23 +86,19 @@ cd cloud && npx wrangler deploy
 
 ## Critical Files for Next Session
 
-- `web/game/src/stores/ship.ts` — **needs computeEffectiveStats()**
-- `web/game/src/views/LeaderboardView.vue` — **placeholder, needs table**
-- `web/game/src/views/NavigationView.vue` — **placeholder, needs breadcrumb**
+- `web/game/src/views/CombatView.vue` — **remove dead NPC from npcs.value after win**
+- `web/game/src/views/CombatView.vue` — **reload ship data after destruction**
 - `cloud/src/routes/action.ts` — **PvP endpoints go here**
 - `cloud/src/routes/player.ts` — **PvP status endpoint goes here**
-- `packages/engine/src/ships/upgrades.ts` — **computeEffectiveStats() source**
+- `.planning/TW-05-pvp-update/phases/05-01-PLAN.md` — **PvP plan**
 
 ---
 
 ## Known Issues
 
-1. **Ship stats hardcoded in web** — Merchant/Scout/Interceptor all show same stats. Upgrades don't visually update stats until page refresh.
-2. **Leaderboard not implemented in web** — Modal shows "Coming soon."
-3. **Navigation log not implemented in web** — Modal shows "Coming soon."
-4. **Destroyed player respawn** — Web client doesn't reload ship data after destruction, so respawn sector may be wrong visually.
-5. **Combat doesn't remove dead NPC** — After winning combat, the NPC still appears in the sector list until you jump away.
-6. **No mobile layout** — Sector view grid is unusable below ~768px.
+1. **Combat doesn't remove dead NPC** — After winning combat, the NPC still appears in the sector list until you jump away.
+2. **Destroyed player respawn** — Web client doesn't reload ship data after destruction, so respawn sector may be wrong visually.
+3. **No settings page** — No way to toggle sound, animations, or accessibility options.
 
 ---
 
@@ -121,9 +117,9 @@ When releasing:
 
 ## Next Immediate Step
 
-**Fix ship stats in web client** — `web/game/src/stores/ship.ts` line ~30-40. Import `computeEffectiveStats` from `@tw3002/engine` and use it to set `maxCargo`, `maxHull`, `maxShield`, `maxTurns` after loading ship data. Then do the same after upgrade purchase in `StarDockView.vue`.
+**Fix dead NPC persistence** — In `CombatView.vue`, after a successful combat result (`result.won`), emit an event or call a callback that removes the defeated NPC from `SectorView.vue`'s `npcs` array. Simplest: add a `combatResult` event emitter from CombatView, listen in SectorView to filter out the dead NPC.
 
-After that: implement `LeaderboardView.vue` (API already works) and `NavigationView.vue` (galaxy.visitedIds already tracked).
+After that: **reload ship after destruction** — In `CombatView.vue`, if `result.destroyed` is true, call `ship.loadShip(galaxyId)` before navigating back to update the sector position.
 
 ---
 
