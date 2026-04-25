@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-void-950 text-terminal-white;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+  body {
+    @apply min-h-screen antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-mono font-bold tracking-tight;
+  }
+  code {
+    @apply font-mono text-sm;
+  }
+  pre {
+    @apply rounded-lg bg-void-900 p-4 overflow-x-auto;
+  }
+}
+
+@layer components {
+  .terminal-border {
+    @apply border border-void-700 rounded-lg;
+  }
+  .terminal-glow {
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+  }
+  .btn-primary {
+    @apply px-6 py-3 bg-terminal-cyan/10 border border-terminal-cyan/50 text-terminal-cyan font-mono font-bold rounded hover:bg-terminal-cyan/20 transition-colors;
+  }
+  .btn-secondary {
+    @apply px-6 py-3 bg-void-800 border border-void-700 text-terminal-white font-mono rounded hover:bg-void-700 transition-colors;
+  }
+}

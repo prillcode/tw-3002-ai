@@ -1,0 +1,106 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TerminalHeader from '../components/TerminalHeader.vue';
+---
+<Layout title="TW 3002 AI — Trade Wars for the Terminal Age">
+  <TerminalHeader client:load />
+
+  <main class="max-w-6xl mx-auto px-4">
+    <!-- Hero -->
+    <section class="py-20 md:py-32 text-center">
+      <div class="inline-block mb-6 px-4 py-1 rounded-full border border-terminal-cyan/30 bg-terminal-cyan/5 text-terminal-cyan text-xs font-mono">
+        v0.6.0 — Now with Cloud Multiplayer
+      </div>
+      <h1 class="text-5xl md:text-7xl font-mono font-bold mb-6">
+        <span class="text-terminal-cyan">Explore.</span>
+        <span class="text-terminal-magenta"> Trade.</span>
+        <span class="text-terminal-yellow"> Fight.</span>
+        <br />
+        <span class="text-terminal-white">Survive.</span>
+      </h1>
+      <p class="text-xl text-terminal-muted max-w-2xl mx-auto mb-10 leading-relaxed">
+        A spiritual successor to Trade Wars 2002. Command a starship in a shared galaxy of 1,000 sectors.
+        Trade commodities, upgrade your hull, outwit NPCs — and other players.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="https://portal.playtradewars.net" class="btn-primary text-lg">
+          Launch Web Client
+        </a>
+        <a href="/guide/getting-started" class="btn-secondary text-lg">
+          Read the Guide
+        </a>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="py-16 border-t border-void-700">
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="terminal-border p-6 terminal-glow">
+          <div class="text-3xl mb-4">📦</div>
+          <h3 class="text-lg font-mono font-bold text-terminal-cyan mb-2">Trade & Profit</h3>
+          <p class="text-terminal-muted text-sm leading-relaxed">
+            Buy low, sell high across 1,000 sectors. Port prices shift with supply and demand.
+            Master the trade routes and build your fortune.
+          </p>
+        </div>
+        <div class="terminal-border p-6 terminal-glow">
+          <div class="text-3xl mb-4">⚔️</div>
+          <h3 class="text-lg font-mono font-bold text-terminal-magenta mb-2">Combat & Survival</h3>
+          <p class="text-terminal-muted text-sm leading-relaxed">
+            Face NPC raiders, patrols, and rival players. Choose your tactics: attack, flee, or bribe.
+            Death costs — but respawn is only a FedSpace jump away.
+          </p>
+        </div>
+        <div class="terminal-border p-6 terminal-glow">
+          <div class="text-3xl mb-4">⚡</div>
+          <h3 class="text-lg font-mono font-bold text-terminal-yellow mb-2">Upgrade & Evolve</h3>
+          <p class="text-terminal-muted text-sm leading-relaxed">
+            Visit StarDocks to install cargo holds, shields, weapons, and hull plating.
+            Three tiers per category. Build the ship that matches your playstyle.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Platforms -->
+    <section class="py-16 border-t border-void-700">
+      <div class="text-center mb-12">
+        <h2 class="text-2xl font-mono font-bold mb-4">Play Your Way</h2>
+        <p class="text-terminal-muted">Terminal purist or browser captain — the galaxy is the same.</p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+        <div class="terminal-border p-8 text-center">
+          <div class="text-4xl mb-4">💻</div>
+          <h3 class="font-mono font-bold text-lg mb-2">Terminal CLI</h3>
+          <p class="text-terminal-muted text-sm mb-6">
+            The authentic experience. Build from source or install via npm. Keyboard-driven, fast, and offline-capable.
+          </p>
+          <code class="block bg-void-900 rounded p-3 text-xs font-mono text-terminal-cyan mb-4">
+            npm install -g tw3002-ai<br/>tw3002
+          </code>
+          <a href="/guide/local-cli-gameplay" class="text-terminal-cyan text-sm font-mono hover:underline">CLI Setup Guide →</a>
+        </div>
+        <div class="terminal-border p-8 text-center terminal-glow">
+          <div class="text-4xl mb-4">🌐</div>
+          <h3 class="font-mono font-bold text-lg mb-2 text-terminal-cyan">Web Client</h3>
+          <p class="text-terminal-muted text-sm mb-6">
+            Play in your browser. Same shared galaxy, no installation. Cloud saves, leaderboards, and cross-device play.
+          </p>
+          <a href="https://portal.playtradewars.net" class="btn-primary inline-block">
+            Play in Browser →
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-void-700 text-center">
+      <p class="text-terminal-muted text-sm font-mono">
+        TW 3002 AI — A spiritual successor to Trade Wars 2002
+      </p>
+      <p class="text-terminal-muted/60 text-xs font-mono mt-2">
+        Built with ❤️ using Bun, Ink, Vue, Astro, and Cloudflare
+      </p>
+    </footer>
+  </main>
+</Layout>

@@ -8,168 +8,102 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ## What Was Accomplished This Session
 
-- Cloud mode scaffolding: CloudLoginScreen, CloudSectorScreen, cloud API client
-- Turn regeneration: local (on load) + cloud (in GET /api/player/ship)
-- npm publish ready: cross-platform wrapper script in cli/bin/tw3002.js
-- Fixed SQLite migration bug: ALTER TABLE rejects DEFAULT CURRENT_TIMESTAMP — use TEXT type
-- Created planning work items: TW-06, TW-07, TW-08, TW-05 phase plans
-- Committed and pushed all changes
+### TW-06 Cloud Gameplay Limitations (P0) — COMPLETE
 
----
+**06-01 Trade Prices**
+- `CloudSectorScreen` now parses `port_inventory_json` from `cloudGetSector()`
+- Trade overlay displays buy/sell prices, supply, and owned cargo for all 3 commodities
+- Profit indicators (▲/▼) shown when player has cargo, comparing current price to `BASE_PRICES`
+- Client-side validation in `handleTrade()` prevents overspending, overbuying, and exceeding cargo space
+- Ship cargo and sector inventory refresh after every trade
 
-## Project Architecture
+**06-02 StarDocks**
+- D1 migration `0002_stardocks.sql` applied to cloud DB
+- `cloud/scripts/seed.ts` updated to pick 3–5 stardock sectors per galaxy
+- Targeted UPDATE applied to existing galaxy (sectors 13, 250, 500, 750 are now stardocks)
+- `buildGalaxyFromCloud()` populates `galaxy.stardocks` from DB flag
+- Cloud API `GET /api/galaxy/:id/sectors` returns `stardock` column
+- New endpoint `POST /api/action/upgrade` validates stardock presence, upgrade prerequisites, and credits
+- Worker uses self-contained `cloud/src/upgrades.ts` (no Node.js `process` import issues)
+- CLI `D` key opens upgrade menu at stardock sectors
+- `computeEffectiveStats()` used in `loadShip()` to set correct maxCargo/maxHull/maxShield/maxTurns per class + upgrades
+- Upgrade purchase refreshes ship stats client-side immediately
 
-### Monorepo Structure
-```
-/
-├── cli/                    # Ink + Bun terminal game
-│   ├── src/
-│   │   ├── index.tsx       # Main App component, AppMode routing
-│   │   ├── screens/        # One per screen (Welcome, Sector, Market, Combat, CloudSector, etc.)
-│   │   ├── components/     # Reusable UI (Box, Text, Menu, ShipStatus, SectorMap, etc.)
-│   │   ├── hooks/          # useKeyHandler, useExitHandler, useScreen
-│   │   ├── db/             # SQLite init, migrations, save/load
-│   │   └── cloud/          # REST API client for cloud mode
-│   ├── bin/tw3002.js       # Cross-platform npm entry point
-│   └── tw3002              # Compiled binary (~100MB, Linux only)
-├── cloud/                  # Cloudflare Worker + D1
-│   ├── src/
-│   │   ├── index.ts        # Worker router
-│   │   ├── routes/         # auth, galaxy, player, action, news
-│   │   └── utils/          # cors, auth token verification
-│   ├── migrations/         # D1 SQL files
-│   ├── scripts/            # Bun seed scripts (generate galaxy SQL)
-│   └── wrangler.toml       # Worker config, env vars
-├── packages/engine/        # Pure TypeScript game logic
-│   ├── src/
-│   │   ├── galaxy/         # generator, layout, names
-│   │   ├── economy/        # pricing, trade
-│   │   ├── combat/         # resolver, encounters
-│   │   ├── npcs/           # generator, brain, tick, memory
-│   │   ├── ships/          # upgrades, stats
-│   │   ├── llm/            # config, provider, cache
-│   │   └── state/          # GameStateContainer
-│   └── src/index.ts        # All exports
-└── .planning/              # Work items and phase plans
-```
+**06-03 NPC Ticks**
+- New `cloud/src/routes/npc.ts` with rule-based NPC tick system
+- `POST /api/npc/tick` endpoint (admin-only via `X-Admin-Secret`)
+- Cron Trigger configured in `wrangler.toml` to run every 5 minutes
+- NPCs move (60% chance), trade at ports (30% if trader), attack each other (raiders/patrols)
+- News items generated for NPC deaths
+- Worker `scheduled` handler added to `cloud/src/index.ts`
+- `ADMIN_SECRET` set in Worker secrets
 
-### Key Constraint: Engine Cannot Run in Worker
-The `@tw3002/engine` package uses `process` (Node.js) in `llm/config.ts`. It CANNOT be imported by the Cloudflare Worker. Seed scripts run in Bun locally and generate SQL that is executed against D1. This is documented in both `cli/AGENTS.md` and `cloud/AGENTS.md`.
+### TW-07 Polish and Balance (P1) — COMPLETE
 
----
+**07-01 Port Inventory Refresh**
+- Already implemented via `loadSector()` calls on jump and after trade
+- Supply visible in trade overlay and updates in real-time
 
-## CLI Patterns (from cli/AGENTS.md)
+**07-02 Ship Stats from Class + Upgrades**
+- `loadShip()` now parses `upgrades_json` and calls `computeEffectiveStats()`
+- No hardcoded stats remain in `CloudShipState`
+- Merchant/Scout/Interceptor classes have distinct base stats
+- Upgrades apply immediately (tested: Cargo Holds Mk I adds +30 cargo)
 
-- State management: AppMode drives `renderContent()` switch. Add new modes there.
-- Keyboard: Always use `useKeyHandler` hook. Never raw `useInput`.
-- Keys: H=Help, N=Nav, M=Market, D=StarDock, Esc=Back, Q=Quit
-- Migrations: Never use `DEFAULT CURRENT_TIMESTAMP` in `ALTER TABLE`. Use TEXT type.
-- Paths: Always `os.homedir()`, never `process.env.HOME`.
-- Responsive: Wide >=100 cols = 3-column. Narrow <100 = stacked.
-- Save data: `~/.tw3002/saves.db`. Config: `~/.tw3002/config.json`.
-- Version bumps: Update `src/index.tsx`, `package.json`, `HelpScreen.tsx`.
-- Build: `cd cli && bun run build` produces `./tw3002` binary.
+**07-03 Combat Narrative**
+- `handleCombat()` returns `narrative` field with contextual story text
+- 5+ narrative templates per action type (attack-won, attack-lost, attack-survived, flee-success, flee-fail, flee-death, bribe)
+- Narrative uses enemy persona name for personalization
+- CLI displays narrative in combat result message
 
----
+### TW-08 Navigation, Help, Leaderboard (P2) — COMPLETE
 
-## Cloud API Endpoints (live at tw3002-api.prilldev.workers.dev)
+**08-01 Navigation Log**
+- `visitedSectorIds` state tracks flight history
+- `-1` appended on ship destruction as blast marker
+- `N` key opens `NavigationScreen` with breadcrumb trail and visited sectors
+- Blast markers visually separate life segments
 
-### Public (no auth)
-- GET /health
-- GET /api/galaxy — list galaxies
-- GET /api/galaxy/:id — galaxy details
-- GET /api/galaxy/:id/sectors — all sectors
-- GET /api/galaxy/:id/sector?id= — single sector + NPCs
-- GET /api/leaderboard?galaxyId=&limit=
-- GET /api/news?galaxyId=&limit=
+**08-02 Help Screen**
+- Added `'cloud'` context to `HelpScreen.tsx` with all cloud controls
+- `H` key opens cloud-specific help from `CloudSectorScreen`
+- Controls documented: jump, market, stardock, nav log, help, quit
 
-### Auth (no auth required)
-- POST /api/auth/register — body: {email}. Returns {token, email}
-- POST /api/auth/verify — body: {token}
+**08-03 Leaderboard**
+- New `LeaderboardScreen.tsx` component fetches `cloudGetLeaderboard(galaxyId, 10)`
+- Displays rank, ship name, class, net worth, kills, deaths
+- Current player highlighted with ★
+- `L` key opens leaderboard from `CloudSectorScreen`
+- `onL` added to `useKeyHandler` hook
 
-### Protected (Bearer token)
-- GET /api/player — profile
-- GET /api/player/ship?galaxyId= — ship + turn regeneration
-- POST /api/player/ship — create ship: {galaxyId, shipName, classId}
-- POST /api/player/ship/move — jump: {galaxyId, sectorId}
-- POST /api/action/trade — {galaxyId, sectorId, commodity, quantity, action}
-- POST /api/action/combat — {galaxyId, sectorId, enemyNpcId, playerAction}
-- POST /api/news — add news item
+### TW-10 Web Client & Docs Site (Scaffolded)
 
----
+**Architecture decided and scaffolded:**
+- `web/main/` — Astro marketing + docs site → `playtradewars.net`
+- `web/game/` — Vue 3 SPA game client → `portal.playtradewars.net`
+- Shared design system: Tailwind with "space terminal" palette
 
-## Deployed Cloud State
+**Created:**
+- `web/main/` — Astro project with Vue integration, Tailwind, content collections
+  - Landing page with hero, features, platform cards
+  - Guide pages migrated from GAME_GUIDE.md (getting-started, trading, combat, stardock, keyboard)
+  - `TerminalHeader.vue` component
+- `web/game/` — Vue 3 project with Pinia, Vue Router, Tailwind
+  - Auth store with localStorage persistence
+  - Galaxy store with sector/neighbor logic
+  - Ship store with load/create/move
+  - UI store for modals
+  - `LoginView.vue` — registration + ship creation
+  - `SectorView.vue` — main game screen with ship status, warp lanes, actions
+  - Placeholder views for Market, Combat, StarDock, Navigation, Leaderboard
+- `cloud/src/utils/cors.ts` — origin-based CORS with `applyCors()` helper
+- `cloud/src/index.ts` — all responses wrapped with origin-restricted CORS
+- `.planning/TW-10-web-client-docs/` with BRIEF.md, ROADMAP.md, and phase plans
 
-- Galaxy: "The Void — Shared Galaxy" (id=1)
-- Sectors: 1,000
-- NPCs: 150 (15% density)
-- Seed: 42
-- URL: https://tw3002-api.prilldev.workers.dev
-- D1: tw3002-galaxy (database_id in wrangler.toml)
-
----
-
-## Known Limitations (from 20260424_cloud-limitations.md)
-
-### P0 — Must Fix
-- Trade prices not displayed in cloud mode (need to parse port_inventory_json)
-- No StarDocks in cloud (need migration + seed script update + upgrade endpoint)
-- NPCs frozen (need rule-based tick endpoint or Cron Trigger)
-
-### P1 — Important
-- Port inventory not shared between players (refresh on sector entry)
-- Ship stats hardcoded in CloudSectorScreen (need computeEffectiveStats)
-- Combat is one-shot (could add narrative strings)
-
-### P2 — Nice to Have
-- Navigation log missing in cloud mode
-- Help screen not wired in cloud mode
-- Leaderboard not displayed in CLI
-
-### P3 — Future
-- PvP combat (TW-05)
-
----
-
-## Planning Work Items (in .planning/)
-
-Execute in this order:
-
-1. TW-06 Cloud Gameplay Limitations (P0)
-   - Phase 06-01: Trade prices (1–2h)
-   - Phase 06-02: StarDocks (3–4h)
-   - Phase 06-03: NPC ticks (6–8h)
-
-2. TW-07 Polish and Balance (P1)
-   - Phase 07-01: Port inventory refresh (1–2h)
-   - Phase 07-02: Ship stats from class (1–2h)
-   - Phase 07-03: Combat narrative (2–3h)
-
-3. TW-08 Navigation, Help, Leaderboard (P2)
-   - Phase 08-01: Navigation log (1h)
-   - Phase 08-02: Help screen (30m)
-   - Phase 08-03: Leaderboard (1–2h)
-
-4. TW-05 PvP Update (P3)
-   - Phase 05-01: PvP combat foundation (6–8h)
-   - Phase 05-02: Bounty system (5–7h)
-   - Phase 05-03: Notifications (4–5h)
-   - Phase 05-04: Leaderboards (4–5h)
-   - Phase 05-05: Polish (5–7h)
-
----
-
-## Critical Files for Next Session
-
-- `.planning/TW-06-cloud-gameplay-limitations/phases/06-01-PLAN.md` — start here
-- `cli/src/screens/CloudSectorScreen.tsx` — main cloud gameplay screen
-- `cli/src/cloud/client.ts` — API client (all endpoints wrapped)
-- `cloud/src/routes/action.ts` — trade + combat endpoints
-- `cloud/src/routes/player.ts` — ship + move endpoints
-- `cloud/src/routes/galaxy.ts` — sector data endpoints
-- `cloud/scripts/seed.ts` — galaxy generator (Bun, not Worker)
-- `cli/AGENTS.md` — CLI patterns and gotchas
-- `cloud/AGENTS.md` — Cloud patterns and gotchas
+**Domains:**
+- `playtradewars.net` — marketing/docs
+- `portal.playtradewars.net` — game client
+- `api.playtradewars.net` — Cloudflare Worker API (CORS updated)
 
 ---
 
@@ -179,41 +113,73 @@ Execute in this order:
 # Local CLI
 cd cli && bun run build && ./tw3002
 
-# Cloud API
+# Cloud API health
 curl https://tw3002-api.prilldev.workers.dev/health
 
-# D1 migrations
-cd cloud
-npx wrangler d1 migrations apply tw3002-galaxy --remote
-npx wrangler d1 execute tw3002-galaxy --remote --command="SELECT COUNT(*) FROM npcs"
+# Sector with stardock
+curl "https://tw3002-api.prilldev.workers.dev/api/galaxy/1/sector?id=13" | jq '.sector.stardock'
+
+# Admin NPC tick (needs token + admin secret)
+curl -X POST "https://tw3002-api.prilldev.workers.dev/api/npc/tick" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "X-Admin-Secret: test-admin-123" \
+  -H "Content-Type: application/json" \
+  -d '{"galaxyId":1}'
+
+# Leaderboard
+curl "https://tw3002-api.prilldev.workers.dev/api/leaderboard?galaxyId=1&limit=10"
 
 # Deploy Worker
 cd cloud && npx wrangler deploy
 
-# Seed galaxy
-cd cloud
-bun run scripts/seed.ts > scripts/seed.sql
-npx wrangler d1 execute tw3002-galaxy --remote --file=scripts/seed.sql
+# Build CLI
+cd cli && bun run build
+
+# Web dev servers
+cd web/main && npm install && npm run dev    # localhost:4321
+cd web/game && npm install && npm run dev    # localhost:5173
 ```
-
----
-
-## Secrets (already set via wrangler secret put)
-
-- OPENROUTER_API_KEY — for NPC LLM decisions
-- No ADMIN_SECRET or DISCORD_WEBHOOK_URL set yet
-
----
-
-## Version Bump Locations
-
-When releasing:
-1. cli/src/index.tsx — const VERSION
-2. cli/package.json — version field
-3. cli/src/screens/HelpScreen.tsx — footer text
 
 ---
 
 ## Next Immediate Step
 
-Read `.planning/TW-06-cloud-gameplay-limitations/phases/06-01-PLAN.md` and implement trade price display in CloudSectorScreen. Parse `port_inventory_json` from the sector API response and show buy/sell prices in the trade overlay. No server changes needed.
+**TW-10 Phase 01** — Get Astro docs site building: `cd web/main && npm install && npm run dev`
+
+After that:
+- Phase 02: Get Vue game client building and auth flow working
+- Phase 03: Deploy both to Cloudflare Pages with custom domains
+
+---
+
+## Key Files Modified This Session
+
+- `cli/src/screens/CloudSectorScreen.tsx` — trade, stardock, nav, help, leaderboard, combat narrative
+- `cli/src/screens/HelpScreen.tsx` — added `cloud` context
+- `cli/src/screens/LeaderboardScreen.tsx` — new
+- `cli/src/hooks/useKeyHandler.ts` — added `onL`
+- `cli/src/cloud/client.ts` — added `cloudUpgrade`, `narrative` in combat
+- `cloud/src/index.ts` — added upgrade route, NPC tick route, scheduled handler, CORS wrapper
+- `cloud/src/routes/action.ts` — added `handleUpgrade`, combat narrative
+- `cloud/src/routes/npc.ts` — new rule-based NPC tick system
+- `cloud/src/routes/galaxy.ts` — added `stardock` to sector queries
+- `cloud/src/upgrades.ts` — new self-contained upgrade catalog
+- `cloud/src/utils/cors.ts` — origin-based CORS
+- `cloud/wrangler.toml` — added Cron Trigger (`*/5 * * * *`)
+- `cloud/migrations/0002_stardocks.sql` — new migration
+- `cloud/scripts/seed.ts` — stardock column in INSERTs
+- `cloud/scripts/set_stardocks.sql` — targeted update for existing DB
+- `web/main/` — new Astro marketing + docs site
+- `web/game/` — new Vue 3 SPA game client
+- `.planning/TW-10-web-client-docs/` — planning work item
+
+---
+
+## Deployed Cloud State
+
+- Galaxy: "The Void — Shared Galaxy" (id=1)
+- StarDocks: sectors 13, 250, 500, 750
+- NPC Cron: fires every 5 minutes
+- Admin secret: set
+- CORS: allows `playtradewars.net`, `portal.playtradewars.net`, localhost dev
+- URL: https://tw3002-api.prilldev.workers.dev

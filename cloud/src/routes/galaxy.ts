@@ -45,7 +45,7 @@ export async function handleGetSectors(galaxyId: string, db: D1Database): Promis
   if (isNaN(id)) return jsonError('Invalid galaxy id');
 
   const result = await db
-    .prepare('SELECT sector_index, name, danger, port_class, port_name, connections_json FROM sectors WHERE galaxy_id = ? ORDER BY sector_index')
+    .prepare('SELECT sector_index, name, danger, port_class, port_name, connections_json, stardock FROM sectors WHERE galaxy_id = ? ORDER BY sector_index')
     .bind(id)
     .all();
 

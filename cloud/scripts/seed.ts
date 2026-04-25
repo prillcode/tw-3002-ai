@@ -24,8 +24,26 @@ const lines: string[] = [];
 // Update galaxy metadata
 lines.push(`UPDATE galaxies SET name = 'The Void — Shared Galaxy', slug = 'the-void', sector_count = ${SECTOR_COUNT}, config_json = '{"seed":${GALAXY_SEED},"sectorCount":${SECTOR_COUNT}}' WHERE id = 1;`);
 
-// Insert sectors
 const sectors = Array.from(galaxy.sectors.values());
+
+// Pick 3-5 stardock sectors (generator's + extras)
+const extraStardockCount = Math.floor(Math.random() * 3) + 2; // 2-4 extras
+const stardockSet = new Set(galaxy.stardocks);
+const nonFedSpaceIds = sectors.filter(s => !galaxy.fedSpace.includes(s.id)).map(s => s.id);
+// Shuffle candidates
+for (let i = nonFedSpaceIds.length - 1; i > 0; i--) {
+  const j = Math.floor(Math.random() * (i + 1));
+  [nonFedSpaceIds[i], nonFedSpaceIds[j]] = [nonFedSpaceIds[j], nonFedSpaceIds[i]];
+}
+let added = 0;
+for (const id of nonFedSpaceIds) {
+  if (stardockSet.has(id)) continue;
+  stardockSet.add(id);
+  added++;
+  if (added >= extraStardockCount) break;
+}
+
+// Insert sectors
 for (const sector of sectors) {
   const connections = galaxy.connections
     .filter(c => c.from === sector.id || c.to === sector.id)
@@ -40,11 +58,13 @@ for (const sector of sectors) {
       }
     : {};
 
+  const isStardock = stardockSet.has(sector.id) ? 1 : 0;
+
   lines.push(
-    `INSERT INTO sectors (galaxy_id, sector_index, name, danger, port_class, port_name, port_inventory_json, connections_json) VALUES (` +
+    `INSERT INTO sectors (galaxy_id, sector_index, name, danger, port_class, port_name, port_inventory_json, connections_json, stardock) VALUES (` +
     `1, ${sector.id}, '${escapeSql(sector.name)}', '${sector.danger}', ` +
     `${port?.class ?? 'NULL'}, ${port ? `'${escapeSql(port.name)}'` : 'NULL'}, ` +
-    `'${escapeSql(JSON.stringify(portInventory))}', '${escapeSql(JSON.stringify(connections))}'` +
+    `'${escapeSql(JSON.stringify(portInventory))}', '${escapeSql(JSON.stringify(connections))}', ${isStardock}` +
     `);`
   );
 }

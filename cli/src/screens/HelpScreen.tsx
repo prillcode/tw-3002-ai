@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text } from '../components';
 import { useKeyHandler } from '../hooks';
 
-export type HelpContext = 'sector' | 'market' | 'combat' | 'stardock' | 'general';
+export type HelpContext = 'sector' | 'market' | 'combat' | 'stardock' | 'general' | 'cloud';
 
 export interface HelpScreenProps {
   context: HelpContext;
@@ -46,6 +46,16 @@ const CONTROLS: Record<HelpContext, Array<{ keys: string; desc: string }>> = {
     { keys: 'Esc', desc: 'Back / Cancel' },
     { keys: 'Q', desc: 'Quit game' },
     { keys: 'H', desc: 'Help' },
+  ],
+  cloud: [
+    { keys: '↑↓', desc: 'Select warp destination' },
+    { keys: 'Enter', desc: 'Jump to selected sector' },
+    { keys: 'M', desc: 'Open Market (if port exists)' },
+    { keys: 'D', desc: 'Enter StarDock (if present)' },
+    { keys: 'N', desc: 'Navigation Log' },
+    { keys: 'H', desc: 'Toggle this help screen' },
+    { keys: 'Esc', desc: 'Back / Menu' },
+    { keys: 'Q', desc: 'Quit game' },
   ],
 };
 

@@ -122,10 +122,21 @@ export async function cloudCombat(
   sectorId: number,
   enemyNpcId: string,
   playerAction: 'attack' | 'flee' | 'bribe'
-): Promise<{ result: any }> {
+): Promise<{ result: any; narrative?: string }> {
   return api('/api/action/combat', {
     method: 'POST',
     body: JSON.stringify({ galaxyId, sectorId, enemyNpcId, playerAction }),
+  });
+}
+
+export async function cloudUpgrade(
+  galaxyId: number,
+  sectorId: number,
+  upgradeId: string
+): Promise<any> {
+  return api('/api/action/upgrade', {
+    method: 'POST',
+    body: JSON.stringify({ galaxyId, sectorId, upgradeId }),
   });
 }
 

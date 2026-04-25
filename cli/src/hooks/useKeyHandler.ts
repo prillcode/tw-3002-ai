@@ -40,6 +40,9 @@ export interface KeyHandlers {
   /** N key pressed (navigation). */
   onN?: () => void;
 
+  /** L key pressed (leaderboard). */
+  onL?: () => void;
+
   /** Any other key pressed. */
   onInput?: (input: string, key: Key) => void;
 }
@@ -98,6 +101,8 @@ export const useKeyHandler = (options: UseKeyHandlerOptions) => {
       handlers.onD();
     } else if (input === 'n' && handlers.onN) {
       handlers.onN();
+    } else if (input === 'l' && handlers.onL) {
+      handlers.onL();
     } else if (handlers.onInput) {
       handlers.onInput(input, key);
     }

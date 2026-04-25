@@ -29,3 +29,7 @@ coverage/
 *.db
 *.sqlite
 cloud/.wrangler/
+
+# Generated seed SQL
+cloud/scripts/seed.sql
+cloud/scripts/add-npcs.sql

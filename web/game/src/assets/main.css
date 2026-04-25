@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-void-950 text-terminal-white;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+  body {
+    @apply min-h-screen antialiased;
+  }
+}
+
+@layer components {
+  .terminal-panel {
+    @apply bg-void-900 border border-void-700 rounded-lg;
+  }
+  .terminal-btn {
+    @apply px-4 py-2 bg-void-800 border border-void-600 text-terminal-white font-mono text-sm rounded hover:bg-void-700 transition-colors;
+  }
+  .terminal-btn-primary {
+    @apply px-4 py-2 bg-terminal-cyan/10 border border-terminal-cyan/50 text-terminal-cyan font-mono text-sm font-bold rounded hover:bg-terminal-cyan/20 transition-colors;
+  }
+}

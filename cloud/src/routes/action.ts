@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError } from '../utils/cors.js';
+import { UPGRADE_CATALOG, computeEffectiveStats } from '../upgrades.js';
 
 /**
  * POST /api/action/trade
@@ -156,6 +157,7 @@ export async function handleCombat(
 
   // Simple combat resolver (cloud-side)
   const shipJson = JSON.parse(enemy.ship_json as string);
+  const enemyPersona = JSON.parse(enemy.persona_json as string) as { name: string; type: string };
   const enemyHull = shipJson.hull ?? 60;
   const enemyShield = shipJson.shield ?? 0;
   const enemyDmg = shipJson.weaponDamage ?? 5;
@@ -226,5 +228,169 @@ export async function handleCombat(
       .run();
   }
 
-  return json({ result });
+  // Generate narrative
+  const narrative = generateCombatNarrative(playerAction, result, enemyPersona.name, enemyPersona.type);
+
+  return json({ result, narrative });
+}
+
+function generateCombatNarrative(
+  action: 'attack' | 'flee' | 'bribe',
+  result: { won: boolean; fled: boolean; bribed: boolean; destroyed: boolean; playerHullRemaining: number; creditsGained: number; creditsLost: number },
+  enemyName: string,
+  enemyType: string
+): string {
+  const templates: Record<string, string[]> = {
+    'attack-won': [
+      `Your cannons tear through ${enemyName}'s shields. They break apart in a shower of debris. +${result.creditsGained} cr looted.`,
+      `A well-placed salvo cripples ${enemyName}. Their reactor goes critical and they vanish in a flash. +${result.creditsGained} cr.`,
+      `${enemyName} tries to evade but your guns track true. The explosion lights up the void. +${result.creditsGained} cr.`,
+      `You overload their shield grid. ${enemyName} breaks apart, scattering salvage across the sector. +${result.creditsGained} cr.`,
+      `A barrage of fire punches through ${enemyName}'s hull. They go dark and drift. +${result.creditsGained} cr looted.`,
+    ],
+    'attack-lost': [
+      `${enemyName}'s return fire is devastating. Your hull breaches and alarms scream. Ship destroyed!`,
+      `You land a hit, but ${enemyName} is tougher than they look. Their counter-blow shatters your hull. Ship destroyed!`,
+      `${enemyName} weaves through your fire and rips into your flank. The deck bucks and goes dark. Ship destroyed!`,
+    ],
+    'attack-survived': [
+      `You exchange blows with ${enemyName}. Both ships are scarred but still flying. Hull at ${result.playerHullRemaining}.`,
+      `${enemyName} absorbs your fire and returns it. You pull back, hull integrity at ${result.playerHullRemaining}.`,
+      `The fight is a slugfest. ${enemyName} is damaged but so are you — hull at ${result.playerHullRemaining}.`,
+    ],
+    'flee-success': [
+      `You fire retros and slingshot around debris. ${enemyName} can't match your turn rate. Clean escape!`,
+      `A burst of thrust throws you into a dust cloud. ${enemyName} loses lock. You're clear!`,
+      `You punch the engines and vanish into a sensor shadow. ${enemyName} drifts past, searching.`,
+    ],
+    'flee-fail': [
+      `You punch the throttle but ${enemyName} anticipated the move. A blast catches your flank. Hull down to ${result.playerHullRemaining}.`,
+      `Your maneuver is sloppy. ${enemyName} tracks you and lands a solid hit. Hull at ${result.playerHullRemaining}.`,
+      `You nearly make it, but ${enemyName} clips your drive section. Sparks fly. Hull at ${result.playerHullRemaining}.`,
+    ],
+    'flee-death': [
+      `You try to run but ${enemyName} is relentless. A final barrage tears your ship apart.`,
+      `Your engines flare but ${enemyName} has the angle. They don't miss. Ship destroyed!`,
+    ],
+    'bribe': [
+      `You transfer ${result.creditsLost} credits to ${enemyName}'s account. They power down weapons and let you pass.`,
+      `${enemyName} scans the transfer and opens a comms channel: "Pleasure doing business."`,
+      `The bribe is accepted. ${enemyName} turns away, leaving you alone in the dark.`,
+      `Credits change hands. ${enemyName}'s targeting lasers go dark. You live to trade another day.`,
+      `A quiet transaction. ${enemyName} spares you for ${result.creditsLost} credits.`,
+    ],
+  };
+
+  let key: string;
+  if (action === 'attack') {
+    if (result.destroyed) key = 'attack-lost';
+    else if (result.won) key = 'attack-won';
+    else key = 'attack-survived';
+  } else if (action === 'flee') {
+    if (result.destroyed) key = 'flee-death';
+    else if (result.fled) key = 'flee-success';
+    else key = 'flee-fail';
+  } else {
+    key = 'bribe';
+  }
+
+  const options = templates[key] ?? ['The encounter ends in silence.'];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+/**
+ * POST /api/action/upgrade
+ * Body: { galaxyId, sectorId, upgradeId }
+ */
+export async function handleUpgrade(
+  auth: AuthContext,
+  request: Request,
+  db: D1Database
+): Promise<Response> {
+  if (request.method !== 'POST') return jsonError('Method not allowed', 405);
+
+  let body: {
+    galaxyId?: number;
+    sectorId?: number;
+    upgradeId?: string;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const { galaxyId, sectorId, upgradeId } = body;
+  if (!galaxyId || sectorId === undefined || !upgradeId) {
+    return jsonError('galaxyId, sectorId, upgradeId required');
+  }
+
+  // Verify sector has a stardock
+  const sector = await db
+    .prepare('SELECT stardock FROM sectors WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(galaxyId, sectorId)
+    .first<{ stardock: number }>();
+
+  if (!sector || sector.stardock !== 1) {
+    return jsonError('No StarDock in this sector', 400);
+  }
+
+  // Get ship
+  const ship = await db
+    .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(auth.playerId, galaxyId)
+    .first<{
+      credits: number;
+      class_id: string;
+      hull: number;
+      shield: number;
+      turns: number;
+      max_turns: number;
+      upgrades_json: string;
+      current_sector: number;
+    }>();
+
+  if (!ship) return jsonError('Ship not found', 404);
+  if (ship.current_sector !== sectorId) return jsonError('Not in target sector', 403);
+
+  // Validate upgrade
+  const upgrade = UPGRADE_CATALOG.find(u => u.id === upgradeId);
+  if (!upgrade) return jsonError('Upgrade not found', 400);
+
+  const upgrades: Record<string, number> = JSON.parse(ship.upgrades_json ?? '{}');
+  if (upgrades[upgradeId]) return jsonError('Already purchased', 403);
+  if (upgrade.prerequisite && !upgrades[upgrade.prerequisite]) {
+    return jsonError(`Requires ${UPGRADE_CATALOG.find(u => u.id === upgrade.prerequisite)?.name ?? 'previous tier'}`, 403);
+  }
+  if (ship.credits < upgrade.cost) {
+    return jsonError(`Need ${upgrade.cost} credits (have ${ship.credits})`, 403);
+  }
+
+  // Apply upgrade
+  upgrades[upgradeId] = 1;
+  const newCredits = ship.credits - upgrade.cost;
+  const effectiveStats = computeEffectiveStats(ship.class_id, upgrades);
+
+  await db
+    .prepare(
+      'UPDATE player_ships SET credits = ?, upgrades_json = ?, hull = ?, shield = ?, max_turns = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?'
+    )
+    .bind(
+      newCredits,
+      JSON.stringify(upgrades),
+      effectiveStats.maxHull,
+      effectiveStats.shieldPoints,
+      effectiveStats.maxTurns,
+      auth.playerId,
+      galaxyId
+    )
+    .run();
+
+  return json({
+    success: true,
+    upgradeId,
+    upgradeName: upgrade.name,
+    remainingCredits: newCredits,
+    stats: effectiveStats,
+  });
 }

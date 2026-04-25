@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Box, Text, SectorMap, SectorList, SectorInfo, ShipStatus, ConfirmDialog, WarpTransition } from '../components';
+import { NavigationScreen } from './NavigationScreen';
+import { HelpScreen } from './HelpScreen';
+import { LeaderboardScreen } from './LeaderboardScreen';
 import { useKeyHandler } from '../hooks';
 import {
   cloudGetSectors,
@@ -9,9 +12,11 @@ import {
   cloudMoveShip,
   cloudTrade,
   cloudCombat,
+  cloudUpgrade,
   cloudGetNews,
   type CloudAuth,
 } from '../cloud/client';
+import { BASE_PRICES, computeEffectiveStats, getAvailableUpgrades, getOwnedUpgrades } from '@tw3002/engine';
 import type { Galaxy, Sector, Combatant, NPC, NewsItem } from '@tw3002/engine';
 
 // ─── Types ─────────────────────────────────────────────────
@@ -29,6 +34,7 @@ interface CloudShipState {
   maxTurns: number;
   classId: string;
   currentSector: number;
+  upgrades: Record<string, number>;
 }
 
 export interface CloudSectorScreenProps {
@@ -44,6 +50,7 @@ function buildGalaxyFromCloud(galaxyId: number, sectorsData: Array<any>): Galaxy
   const sectors = new Map<number, Sector>();
   const connections: Array<{ from: number; to: number; type: 'warp' }> = [];
   const fedSpace: number[] = [];
+  const stardocks: number[] = [];
 
   for (const row of sectorsData) {
     const id = row.sector_index;
@@ -74,6 +81,7 @@ function buildGalaxyFromCloud(galaxyId: number, sectorsData: Array<any>): Galaxy
     }
 
     if (row.danger === 'safe') fedSpace.push(id);
+    if (row.stardock === 1) stardocks.push(id);
   }
 
   return {
@@ -82,7 +90,7 @@ function buildGalaxyFromCloud(galaxyId: number, sectorsData: Array<any>): Galaxy
     sectors,
     connections,
     fedSpace,
-    stardocks: [], // TODO: not stored in cloud schema yet
+    stardocks,
     createdAt: new Date().toISOString(),
   };
 }
@@ -110,7 +118,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
   onQuit,
   onBack,
 }) => {
-  const [phase, setPhase] = useState<'loading' | 'createShip' | 'sector' | 'trade' | 'combat' | 'error'>('loading');
+  const [phase, setPhase] = useState<'loading' | 'createShip' | 'sector' | 'trade' | 'combat' | 'upgrades' | 'nav' | 'help' | 'leaderboard' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   // Galaxy data
@@ -118,6 +126,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
   const [ship, setShip] = useState<CloudShipState | null>(null);
   const [npcs, setNpcs] = useState<NPC[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [sectorInventory, setSectorInventory] = useState<Record<string, { price: number; supply: number }> | null>(null);
 
   // UI state
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -136,6 +145,10 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
   const [combatEnemy, setCombatEnemy] = useState<NPC | null>(null);
   const [combatResult, setCombatResult] = useState<any>(null);
   const [combatSelectedAction, setCombatSelectedAction] = useState(0);
+
+  // Upgrade state
+  const [selectedUpgradeIndex, setSelectedUpgradeIndex] = useState(0);
+  const [visitedSectorIds, setVisitedSectorIds] = useState<number[]>([]);
 
   // Terminal width
   const [termWidth, setTermWidth] = useState(process.stdout.columns ?? 120);
@@ -165,19 +178,22 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
     try {
       const data = await cloudGetShip(galaxyId);
       const s = data.ship;
+      const upgrades = JSON.parse(s.upgrades_json || '{}');
+      const stats = computeEffectiveStats(s.class_id, upgrades);
       setShip({
         name: s.ship_name,
         credits: s.credits,
         cargo: JSON.parse(s.cargo_json || '{}'),
-        maxCargo: 120, // TODO: compute from class + upgrades
+        maxCargo: stats.maxCargo,
         hull: s.hull,
-        maxHull: s.hull, // TODO: compute effective stats
+        maxHull: stats.maxHull,
         shield: s.shield,
-        maxShield: s.shield,
+        maxShield: stats.shieldPoints,
         turns: s.turns,
-        maxTurns: s.max_turns,
+        maxTurns: stats.maxTurns,
         classId: s.class_id,
         currentSector: s.current_sector,
+        upgrades,
       });
       if (s.regenerated > 0) {
         setMessage(`⏳ +${s.regenerated} turns regenerated while away`);
@@ -210,8 +226,17 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
         turnsSinceSpawn: 0,
       }));
       setNpcs(sectorNpcs);
+
+      // Parse port inventory
+      const invJson = data.sector?.port_inventory_json;
+      if (invJson && typeof invJson === 'string' && invJson !== '{}') {
+        setSectorInventory(JSON.parse(invJson));
+      } else {
+        setSectorInventory(null);
+      }
     } catch {
       setNpcs([]);
+      setSectorInventory(null);
     }
   }, [galaxyId]);
 
@@ -240,6 +265,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       }
       await loadSector(s.current_sector);
       await loadNews();
+      setVisitedSectorIds([s.current_sector]);
       setPhase('sector');
     }
     init();
@@ -302,6 +328,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       setSelectedIndex(0);
       setScrollOffset(0);
       await loadSector(warpTarget.id);
+      setVisitedSectorIds(prev => [...prev, warpTarget.id]);
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Jump failed');
     }
@@ -312,10 +339,8 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
   // ─── Trade ─────────────────────────────────────────────
 
   const currentInventory = useMemo(() => {
-    if (!currentSector) return null;
-    const row = (currentSector as any)._raw; // Not available — parse from cloud
-    return null;
-  }, [currentSector]);
+    return sectorInventory;
+  }, [sectorInventory]);
 
   // For trade, we need to refetch sector to get current inventory
   const handleTrade = async () => {
@@ -324,11 +349,53 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       setTradeMode('buy');
       return;
     }
+
+    // Client-side validation using displayed prices
+    const inv = sectorInventory?.[tradeCommodity];
+    if (!inv) {
+      setMessage('Commodity not available at this port');
+      return;
+    }
+
+    if (tradeMode === 'buy') {
+      const cost = inv.price * tradeQuantity;
+      const totalCargo = Object.values(ship.cargo).reduce((a, b) => a + b, 0);
+      if (cost > ship.credits) {
+        setMessage(`Not enough credits (need ${cost.toLocaleString()} cr)`);
+        return;
+      }
+      if (inv.supply < tradeQuantity) {
+        setMessage(`Port only has ${inv.supply} units`);
+        return;
+      }
+      if (totalCargo + tradeQuantity > ship.maxCargo) {
+        setMessage(`Not enough cargo space (${ship.maxCargo - totalCargo} free)`);
+        return;
+      }
+    } else {
+      const owned = ship.cargo[tradeCommodity as keyof typeof ship.cargo] ?? 0;
+      if (owned < tradeQuantity) {
+        setMessage(`You only have ${owned} units`);
+        return;
+      }
+    }
+
     try {
       const result = await cloudTrade(galaxyId, currentSector.id, tradeCommodity, tradeQuantity, tradeMode);
-      setShip(prev => prev ? { ...prev, credits: result.remainingCredits } : null);
+      setShip(prev => {
+        if (!prev) return null;
+        const newCargo = { ...prev.cargo };
+        if (tradeMode === 'buy') {
+          newCargo[tradeCommodity as keyof typeof newCargo] = (newCargo[tradeCommodity as keyof typeof newCargo] ?? 0) + tradeQuantity;
+        } else {
+          newCargo[tradeCommodity as keyof typeof newCargo] = (newCargo[tradeCommodity as keyof typeof newCargo] ?? 0) - tradeQuantity;
+        }
+        return { ...prev, credits: result.remainingCredits, cargo: newCargo };
+      });
       setMessage(`${tradeMode === 'buy' ? 'Bought' : 'Sold'} ${tradeQuantity} ${tradeCommodity} for ${tradeMode === 'buy' ? result.cost : result.revenue} cr`);
+      await loadSector(currentSector.id);
       setTradeMode(null);
+      setPhase('sector');
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Trade failed');
     }
@@ -343,6 +410,9 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       const r = res.result;
       setCombatResult(r);
 
+      // Use server-generated narrative
+      const narrative = res.narrative ?? 'The encounter ends in silence.';
+
       if (r.destroyed) {
         setShip(prev => prev ? {
           ...prev,
@@ -352,13 +422,14 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
           cargo: { ore: 0, organics: 0, equipment: 0 },
           currentSector: galaxy?.fedSpace[0] ?? 0,
         } : null);
-        setMessage(`💥 Ship destroyed! Respawned in FedSpace with ${Math.floor(ship.credits * 0.9).toLocaleString()} cr`);
+        setVisitedSectorIds(prev => [...prev, -1]);
+        setMessage(`💥 ${narrative} Respawned in FedSpace with ${Math.floor(ship.credits * 0.9).toLocaleString()} cr`);
       } else if (r.fled) {
         if (r.playerHullRemaining < ship.hull) {
           setShip(prev => prev ? { ...prev, hull: r.playerHullRemaining, shield: prev.maxShield } : null);
-          setMessage(`🏃 Flee failed — took ${ship.hull - r.playerHullRemaining} damage but escaped!`);
+          setMessage(`🏃 ${narrative}`);
         } else {
-          setMessage('🏃 Escaped cleanly!');
+          setMessage(`🏃 ${narrative}`);
         }
       } else if (r.bribed) {
         setShip(prev => prev ? {
@@ -366,7 +437,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
           credits: prev.credits - r.creditsLost,
           shield: prev.maxShield,
         } : null);
-        setMessage(`💰 Bribed ${combatEnemy.persona.name} for ${r.creditsLost.toLocaleString()} cr`);
+        setMessage(`💰 ${narrative}`);
       } else if (r.won) {
         setShip(prev => prev ? {
           ...prev,
@@ -374,7 +445,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
           shield: prev.maxShield,
           credits: prev.credits + r.creditsGained,
         } : null);
-        setMessage(`⚔ Destroyed ${combatEnemy.persona.name}! +${r.creditsGained.toLocaleString()} cr`);
+        setMessage(`⚔ ${narrative}`);
         setNpcs(prev => prev.filter(n => n.id !== combatEnemy.id));
       } else {
         // Survived but didn't win (draw or enemy fled — edge case)
@@ -383,13 +454,42 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
           hull: r.playerHullRemaining,
           shield: prev.maxShield,
         } : null);
-        setMessage(`⚔ Combat ended — hull at ${r.playerHullRemaining}/${ship.maxHull}`);
+        setMessage(`⚔ ${narrative}`);
       }
     } catch (err: unknown) {
       setMessage(err instanceof Error ? err.message : 'Combat failed');
     }
     setCombatEnemy(null);
     setCombatSelectedAction(0);
+  };
+
+  // ─── Upgrade ───────────────────────────────────────────
+
+  const handleUpgradePurchase = async () => {
+    if (!ship || !currentSector) return;
+    const available = getAvailableUpgrades(ship.upgrades);
+    const upgrade = available[selectedUpgradeIndex];
+    if (!upgrade) return;
+
+    try {
+      const result = await cloudUpgrade(galaxyId, currentSector.id, upgrade.id);
+      setShip(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          credits: result.remainingCredits,
+          maxCargo: result.stats.maxCargo,
+          maxHull: result.stats.maxHull,
+          maxShield: result.stats.shieldPoints,
+          maxTurns: result.stats.maxTurns,
+          upgrades: { ...prev.upgrades, [upgrade.id]: 1 },
+        };
+      });
+      setMessage(`⚡ Purchased ${upgrade.name}!`);
+      setPhase('sector');
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : 'Upgrade failed');
+    }
   };
 
   // ─── Keyboard ──────────────────────────────────────────
@@ -402,6 +502,10 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       }
       if (phase === 'combat') {
         setCombatSelectedAction(i => (i > 0 ? i - 1 : 2));
+        return;
+      }
+      if (phase === 'upgrades') {
+        setSelectedUpgradeIndex(i => Math.max(0, i - 1));
         return;
       }
       setSelectedIndex(prev => {
@@ -417,6 +521,11 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       }
       if (phase === 'combat') {
         setCombatSelectedAction(i => (i < 2 ? i + 1 : 0));
+        return;
+      }
+      if (phase === 'upgrades') {
+        const availableCount = getAvailableUpgrades(ship?.upgrades ?? {}).length;
+        setSelectedUpgradeIndex(i => Math.min(availableCount - 1, i + 1));
         return;
       }
       setSelectedIndex(prev => {
@@ -442,12 +551,37 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
         if (action) handleCombatAction(action);
         return;
       }
+      if (phase === 'upgrades') {
+        handleUpgradePurchase();
+        return;
+      }
       handleJump();
     },
     onM: () => {
       if (phase === 'sector' && currentSector?.port) {
         setTradeMode('buy');
         setPhase('trade');
+      }
+    },
+    onN: () => {
+      if (phase === 'sector') {
+        setPhase('nav');
+      }
+    },
+    onH: () => {
+      if (phase === 'sector') {
+        setPhase('help');
+      }
+    },
+    onL: () => {
+      if (phase === 'sector') {
+        setPhase('leaderboard');
+      }
+    },
+    onD: () => {
+      if (phase === 'sector' && galaxy?.stardocks.includes(ship?.currentSector ?? -1)) {
+        setSelectedUpgradeIndex(0);
+        setPhase('upgrades');
       }
     },
     onB: () => {
@@ -469,6 +603,22 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
       if (phase === 'combat') {
         setCombatEnemy(null);
         setCombatResult(null);
+        setPhase('sector');
+        return;
+      }
+      if (phase === 'upgrades') {
+        setPhase('sector');
+        return;
+      }
+      if (phase === 'nav') {
+        setPhase('sector');
+        return;
+      }
+      if (phase === 'help') {
+        setPhase('sector');
+        return;
+      }
+      if (phase === 'leaderboard') {
         setPhase('sector');
         return;
       }
@@ -571,14 +721,30 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
         <Box paddingY={1} />
 
         <Box flexDirection="column">
-          {commodities.map(c => (
-            <Box key={c} flexDirection="row" gap={2}>
-              <Text color={tradeCommodity === c ? 'yellow' : 'white'} bold={tradeCommodity === c}>
-                {tradeCommodity === c ? '> ' : '  '}{c}
-              </Text>
-              <Text color="muted">Owned: {ship.cargo[c as keyof typeof ship.cargo]}</Text>
-            </Box>
-          ))}
+          {commodities.map(c => {
+            const inv = sectorInventory?.[c];
+            const owned = ship.cargo[c as keyof typeof ship.cargo] ?? 0;
+            const basePrice = (BASE_PRICES as Record<string, number>)[c] ?? 0;
+            const price = inv?.price ?? 0;
+            const profitIndicator = owned > 0
+              ? price > basePrice ? '▲' : price < basePrice ? '▼' : '—'
+              : '';
+            const profitColor = price > basePrice ? 'green' : price < basePrice ? 'red' : 'muted';
+
+            return (
+              <Box key={c} flexDirection="row" gap={2}>
+                <Text color={tradeCommodity === c ? 'yellow' : 'white'} bold={tradeCommodity === c}>
+                  {tradeCommodity === c ? '> ' : '  '}{c}
+                </Text>
+                <Text color="cyan">{price > 0 ? `${price} cr` : '—'}</Text>
+                <Text color="muted">Sup:{inv?.supply ?? 0}</Text>
+                <Text color="muted">Own:{owned}</Text>
+                {owned > 0 && (
+                  <Text color={profitColor}>{profitIndicator}</Text>
+                )}
+              </Box>
+            );
+          })}
         </Box>
 
         <Box paddingY={1} />
@@ -586,6 +752,12 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
         <Box flexDirection="row" gap={2}>
           <Text color="white">Quantity: </Text>
           <Text color="yellow" bold>{tradeQuantity}</Text>
+          {tradeMode === 'buy' && sectorInventory?.[tradeCommodity] && (
+            <Text color="muted">Cost: {(sectorInventory[tradeCommodity].price * tradeQuantity).toLocaleString()} cr</Text>
+          )}
+          {tradeMode === 'sell' && sectorInventory?.[tradeCommodity] && (
+            <Text color="muted">Revenue: {(sectorInventory[tradeCommodity].price * tradeQuantity).toLocaleString()} cr</Text>
+          )}
         </Box>
 
         <Box paddingY={1} />
@@ -646,6 +818,102 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
     );
   }
 
+  // ─── Render Upgrades ─────────────────────────────────
+
+  if (phase === 'upgrades' && ship && currentSector) {
+    const isDock = galaxy?.stardocks.includes(currentSector.id) ?? false;
+    if (!isDock) {
+      setPhase('sector');
+      return null;
+    }
+
+    const available = getAvailableUpgrades(ship.upgrades);
+    const owned = getOwnedUpgrades(ship.upgrades);
+
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Box borderStyle="double" borderColor="magenta" paddingX={2} paddingY={1}>
+          <Text color="magenta" bold>⚡ STARDOCK — {currentSector.name}</Text>
+        </Box>
+
+        <Box paddingY={1} />
+
+        {owned.length > 0 && (
+          <Box flexDirection="column" marginBottom={1}>
+            <Text color="cyan" bold>Installed Upgrades</Text>
+            {owned.map(u => (
+              <Text key={u.id} color="muted">  {u.name}</Text>
+            ))}
+          </Box>
+        )}
+
+        <Box flexDirection="column">
+          <Text color="yellow" bold>Available Upgrades</Text>
+          {available.length === 0 && (
+            <Text color="muted">No upgrades available</Text>
+          )}
+          {available.map((u, i) => (
+            <Box key={u.id} flexDirection="row" gap={2}>
+              <Text color={selectedUpgradeIndex === i ? 'yellow' : 'white'} bold={selectedUpgradeIndex === i}>
+                {selectedUpgradeIndex === i ? '> ' : '  '}{u.name}
+              </Text>
+              <Text color="cyan">{u.cost.toLocaleString()} cr</Text>
+              <Text color="muted">— {u.description}</Text>
+            </Box>
+          ))}
+        </Box>
+
+        <Box paddingY={1} />
+
+        <Box flexDirection="row" gap={2}>
+          <Text color="cyan">Credits: {ship.credits.toLocaleString()}</Text>
+        </Box>
+
+        <Box marginTop={1}>
+          <Text color="muted" dimColor>[↑↓] Select  [Enter] Purchase  [Esc] Back</Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // ─── Render Navigation ───────────────────────────────
+
+  if (phase === 'nav' && galaxy && ship) {
+    return (
+      <NavigationScreen
+        galaxy={galaxy}
+        visitedIds={visitedSectorIds}
+        currentSectorId={ship.currentSector}
+        startingSectorId={visitedSectorIds[0] ?? ship.currentSector}
+        onBack={() => setPhase('sector')}
+      />
+    );
+  }
+
+  // ─── Render Help ─────────────────────────────────────
+
+  if (phase === 'help') {
+    return (
+      <HelpScreen
+        context="cloud"
+        onBack={() => setPhase('sector')}
+      />
+    );
+  }
+
+  // ─── Render Leaderboard ────────────────────────────────
+
+  if (phase === 'leaderboard') {
+    return (
+      <LeaderboardScreen
+        auth={auth}
+        galaxyId={galaxyId}
+        currentPlayerEmail={auth.email}
+        onBack={() => setPhase('sector')}
+      />
+    );
+  }
+
   // ─── Render Sector View ────────────────────────────────
 
   if (!galaxy || !ship || !currentSector) {
@@ -670,7 +938,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
 
   return (
     <Box flexDirection="column" padding={1}>
-      <SectorInfo sector={currentSector} isStarDock={false} />
+      <SectorInfo sector={currentSector} isStarDock={galaxy?.stardocks.includes(currentSector.id) ?? false} />
 
       <Box paddingY={1} />
 
@@ -696,7 +964,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
             <SectorList
               sectors={visibleNeighbors}
               selectedIndex={selectedIndex - scrollOffset}
-              stardockIds={[]}
+              stardockIds={galaxy?.stardocks ?? []}
             />
             {showScrollDown && <Text color="muted" dimColor> ▼ {neighbors.length - scrollOffset - MAX_VISIBLE_NEIGHBORS} more</Text>}
           </Box>
@@ -731,7 +999,7 @@ export const CloudSectorScreen: React.FC<CloudSectorScreenProps> = ({
               <SectorList
                 sectors={visibleNeighbors}
                 selectedIndex={selectedIndex - scrollOffset}
-                stardockIds={[]}
+                stardockIds={galaxy?.stardocks ?? []}
               />
               {showScrollDown && <Text color="muted" dimColor> ▼ {neighbors.length - scrollOffset - MAX_VISIBLE_NEIGHBORS} more</Text>}
             </Box>

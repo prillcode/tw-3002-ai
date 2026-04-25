@@ -3,12 +3,13 @@
  * Cloudflare Worker serving REST endpoints for shared galaxy state.
  */
 
-import { corsHeaders, json, jsonError } from './utils/cors.js';
+import { corsHeaders, json, jsonError, applyCors } from './utils/cors.js';
 import { verifyToken, type AuthContext } from './utils/auth.js';
 import { handleRegister, handleVerify } from './routes/auth.js';
 import { handleListGalaxies, handleGetGalaxy, handleGetSectors, handleGetSector } from './routes/galaxy.js';
 import { handleGetPlayer, handleGetShip, handleCreateShip, handleMoveShip } from './routes/player.js';
-import { handleTrade, handleCombat } from './routes/action.js';
+import { handleTrade, handleCombat, handleUpgrade } from './routes/action.js';
+import { handleNPCTick, runNPCTick } from './routes/npc.js';
 import { handleGetNews, handleAddNews, handleLeaderboard } from './routes/news.js';
 
 export interface Env {
@@ -24,89 +25,103 @@ export default {
 
     // CORS preflight
     if (method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return applyCors(new Response(null, { status: 204, headers: corsHeaders }), request);
     }
 
+    let response: Response;
     try {
       // Health check (no auth)
       if (path === '/health') {
-        return json({ status: 'ok', version: '0.1.0' });
+        response = json({ status: 'ok', version: '0.1.0' });
       }
 
       // Auth routes (no auth required)
-      if (path === '/api/auth/register') {
-        return await handleRegister(request, env.DB);
+      else if (path === '/api/auth/register') {
+        response = await handleRegister(request, env.DB);
       }
-      if (path === '/api/auth/verify') {
-        return await handleVerify(request, env.DB);
+      else if (path === '/api/auth/verify') {
+        response = await handleVerify(request, env.DB);
       }
 
       // Galaxy routes (no auth required for read)
-      if (path === '/api/galaxy' && method === 'GET') {
-        return await handleListGalaxies(env.DB);
+      else if (path === '/api/galaxy' && method === 'GET') {
+        response = await handleListGalaxies(env.DB);
       }
-      if (path.startsWith('/api/galaxy/')) {
+      else if (path.startsWith('/api/galaxy/')) {
         const parts = path.split('/');
         const galaxyId = parts[3];
 
         if (parts[4] === 'sectors' && method === 'GET') {
-          return await handleGetSectors(galaxyId, env.DB);
+          response = await handleGetSectors(galaxyId, env.DB);
         }
-        if (parts[4] === 'sector' && method === 'GET') {
-          return await handleGetSector(galaxyId, url.searchParams.get('id'), env.DB);
+        else if (parts[4] === 'sector' && method === 'GET') {
+          response = await handleGetSector(galaxyId, url.searchParams.get('id'), env.DB);
         }
-        if (parts.length === 4 && method === 'GET') {
-          return await handleGetGalaxy(galaxyId, env.DB);
+        else if (parts.length === 4 && method === 'GET') {
+          response = await handleGetGalaxy(galaxyId, env.DB);
+        }
+        else {
+          response = jsonError('Not found', 404);
         }
       }
 
       // Leaderboard (no auth)
-      if (path === '/api/leaderboard' && method === 'GET') {
-        return await handleLeaderboard(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
+      else if (path === '/api/leaderboard' && method === 'GET') {
+        response = await handleLeaderboard(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
       }
 
       // News (read is public, write is auth-gated)
-      if (path === '/api/news' && method === 'GET') {
-        return await handleGetNews(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
+      else if (path === '/api/news' && method === 'GET') {
+        response = await handleGetNews(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
       }
 
       // Everything below requires authentication
-      const auth = await verifyToken(env.DB, request.headers.get('Authorization'));
-      if (!auth) {
-        return jsonError('Unauthorized', 401);
+      else {
+        const auth = await verifyToken(env.DB, request.headers.get('Authorization'));
+        if (!auth) {
+          response = jsonError('Unauthorized', 401);
+        }
+        else if (path === '/api/news' && method === 'POST') {
+          response = await handleAddNews(request, env.DB);
+        }
+        else if (path === '/api/player' && method === 'GET') {
+          response = await handleGetPlayer(auth, env.DB);
+        }
+        else if (path === '/api/player/ship' && method === 'GET') {
+          response = await handleGetShip(auth, url.searchParams.get('galaxyId'), env.DB);
+        }
+        else if (path === '/api/player/ship' && method === 'POST') {
+          response = await handleCreateShip(auth, request, env.DB);
+        }
+        else if (path === '/api/player/ship/move' && method === 'POST') {
+          response = await handleMoveShip(auth, request, env.DB);
+        }
+        else if (path === '/api/action/trade' && method === 'POST') {
+          response = await handleTrade(auth, request, env.DB);
+        }
+        else if (path === '/api/action/combat' && method === 'POST') {
+          response = await handleCombat(auth, request, env.DB);
+        }
+        else if (path === '/api/action/upgrade' && method === 'POST') {
+          response = await handleUpgrade(auth, request, env.DB);
+        }
+        else if (path === '/api/npc/tick' && method === 'POST') {
+          response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET);
+        }
+        else {
+          response = jsonError('Not found', 404);
+        }
       }
-
-      // News write
-      if (path === '/api/news' && method === 'POST') {
-        return await handleAddNews(request, env.DB);
-      }
-
-      // Player routes
-      if (path === '/api/player' && method === 'GET') {
-        return await handleGetPlayer(auth, env.DB);
-      }
-      if (path === '/api/player/ship' && method === 'GET') {
-        return await handleGetShip(auth, url.searchParams.get('galaxyId'), env.DB);
-      }
-      if (path === '/api/player/ship' && method === 'POST') {
-        return await handleCreateShip(auth, request, env.DB);
-      }
-      if (path === '/api/player/ship/move' && method === 'POST') {
-        return await handleMoveShip(auth, request, env.DB);
-      }
-
-      // Action routes
-      if (path === '/api/action/trade' && method === 'POST') {
-        return await handleTrade(auth, request, env.DB);
-      }
-      if (path === '/api/action/combat' && method === 'POST') {
-        return await handleCombat(auth, request, env.DB);
-      }
-
-      return jsonError('Not found', 404);
     } catch (err) {
       console.error('API error:', err);
-      return jsonError('Internal server error', 500);
+      response = jsonError('Internal server error', 500);
     }
+
+    return applyCors(response, request);
+  },
+
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runNPCTick(env.DB, 1));
+    return;
   },
 };
