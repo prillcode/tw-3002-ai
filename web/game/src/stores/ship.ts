@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://api.playtradewars.net';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://tw3002-api.prilldev.workers.dev';
 
 export interface ShipState {
   name: string;
