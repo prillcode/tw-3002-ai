@@ -32,7 +32,7 @@ export default {
     try {
       // Health check (no auth)
       if (path === '/health') {
-        response = json({ status: 'ok', version: '0.1.0' });
+        response = json({ status: 'ok', version: '0.5.0' });
       }
 
       // Auth routes (no auth required)
