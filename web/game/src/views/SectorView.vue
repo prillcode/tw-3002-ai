@@ -132,6 +132,116 @@
         </div>
       </div>
 
+      <!-- Sector Map -->
+      <div class="terminal-panel p-4 mt-4">
+        <h3 class="font-mono font-bold text-terminal-cyan mb-3 text-sm">Sector Map</h3>
+        <div class="flex items-center justify-center py-4">
+          <div class="relative" style="width: 320px; height: 200px;">
+            <!-- Center: current sector -->
+            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+              <div class="w-12 h-12 rounded-full bg-terminal-cyan/20 border-2 border-terminal-cyan flex items-center justify-center">
+                <span class="text-terminal-cyan font-mono font-bold text-sm">★</span>
+              </div>
+              <span class="text-terminal-cyan font-mono text-xs mt-1 block">{{ currentSector.id }}</span>
+            </div>
+            <!-- Neighbors positioned around center -->
+            <div
+              v-for="(n, i) in neighborList.slice(0, 6)"
+              :key="n.id"
+              class="absolute text-center cursor-pointer hover:opacity-80 transition-opacity"
+              :style="getNeighborPosition(i, Math.min(neighborList.length, 6))"
+              @click="selectedNeighbor = n.id"
+            >
+              <div
+                :class="[
+                  'w-10 h-10 rounded-full border-2 flex items-center justify-center',
+                  selectedNeighbor === n.id
+                    ? 'bg-terminal-green/20 border-terminal-green'
+                    : n.stardock
+                    ? 'bg-terminal-magenta/10 border-terminal-magenta/50'
+                    : n.hasPort
+                    ? 'bg-terminal-yellow/10 border-terminal-yellow/50'
+                    : 'bg-void-700 border-void-600'
+                ]"
+              >
+                <span :class="[
+                  'font-mono font-bold text-xs',
+                  selectedNeighbor === n.id ? 'text-terminal-green' : 'text-terminal-white'
+                ]">{{ n.id }}</span>
+              </div>
+              <span class="text-terminal-muted font-mono text-[10px] mt-0.5 block truncate max-w-[60px]">{{ n.name }}</span>
+            </div>
+            <!-- Connection lines (simple SVG overlay) -->
+            <svg class="absolute inset-0 pointer-events-none" width="320" height="200">
+              <line
+                v-for="(n, i) in neighborList.slice(0, 6)"
+                :key="`line-${n.id}`"
+                x1="160" y1="100"
+                :x2="getLineEnd(i, Math.min(neighborList.length, 6)).x"
+                :y2="getLineEnd(i, Math.min(neighborList.length, 6)).y"
+                stroke="#252a3d"
+                stroke-width="1"
+                stroke-dasharray="4 2"
+              />
+            </svg>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3 justify-center text-xs font-mono text-terminal-muted">
+          <span><span class="text-terminal-cyan">★</span> You</span>
+          <span><span class="text-terminal-yellow">●</span> Port</span>
+          <span><span class="text-terminal-magenta">●</span> StarDock</span>
+          <span><span class="text-terminal-green">●</span> Selected</span>
+        </div>
+      </div>
+
+      <!-- NPCs -->
+      <div v-if="npcs.length > 0" class="mt-4 terminal-panel p-4">
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2 text-sm">Ships in Sector</h3>
+        <div class="space-y-1">
+          <div
+            v-for="npc in npcs.slice(0, 3)"
+            :key="npc.npc_id"
+            class="flex items-center justify-between px-3 py-2 rounded hover:bg-void-800 transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-lg">
+                {{ npc.persona.type === 'raider' ? '⚠️' : npc.persona.type === 'patrol' ? '🛡️' : '📦' }}
+              </span>
+              <span class="font-mono text-sm" :class="{
+                'text-terminal-red': npc.persona.type === 'raider',
+                'text-terminal-green': npc.persona.type === 'patrol',
+                'text-terminal-cyan': npc.persona.type === 'trader'
+              }">{{ npc.persona.name }}</span>
+              <span class="text-terminal-muted font-mono text-xs">{{ npc.persona.type }}</span>
+            </div>
+            <button
+              v-if="npc.persona.type === 'raider'"
+              @click="initiateCombat(npc)"
+              class="terminal-btn text-xs text-terminal-red"
+            >
+              ⚔ Attack
+            </button>
+          </div>
+          <p v-if="npcs.length > 3" class="text-terminal-muted font-mono text-xs px-3">
+            … and {{ npcs.length - 3 }} more
+          </p>
+        </div>
+      </div>
+
+      <!-- News -->
+      <div v-if="news.length > 0" class="mt-4 terminal-panel p-4">
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2 text-sm">📰 Galaxy News</h3>
+        <div class="space-y-1">
+          <p
+            v-for="(item, i) in news.slice(-2)"
+            :key="i"
+            class="text-terminal-muted font-mono text-xs"
+          >
+            • {{ item.headline }}
+          </p>
+        </div>
+      </div>
+
       <!-- Message -->
       <div v-if="ship.message" class="mt-4 terminal-panel p-3 border-terminal-yellow/50">
         <p class="text-terminal-yellow font-mono text-sm">{{ ship.message }}</p>
@@ -203,9 +313,42 @@ const ui = useUiStore();
 const galaxyId = 1;
 const selectedNeighbor = ref<number | null>(null);
 const jumping = ref(false);
+const npcs = ref<Array<any>>([]);
+const news = ref<Array<any>>([]);
 
 const currentSector = computed(() => galaxy.currentSector());
 const neighborList = computed(() => galaxy.neighbors());
+
+function getNeighborPosition(index: number, total: number) {
+  const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+  const radius = 70;
+  const cx = 160;
+  const cy = 100;
+  const x = cx + radius * Math.cos(angle);
+  const y = cy + radius * Math.sin(angle);
+  return {
+    left: `${x - 20}px`,
+    top: `${y - 20}px`,
+  };
+}
+
+function getLineEnd(index: number, total: number) {
+  const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+  const radius = 70;
+  const cx = 160;
+  const cy = 100;
+  return {
+    x: cx + radius * Math.cos(angle),
+    y: cy + radius * Math.sin(angle),
+  };
+}
+
+function initiateCombat(npc: any) {
+  router.push({
+    path: `/galaxy/${galaxyId}/combat`,
+    query: { enemyId: npc.npc_id, enemyName: npc.persona.name, enemyType: npc.persona.type },
+  });
+}
 
 const totalCargo = computed(() => {
   if (!ship.ship) return 0;
@@ -247,7 +390,7 @@ async function handleJump() {
   const success = await ship.moveShip(galaxyId, selectedNeighbor.value);
   if (success) {
     galaxy.visit(selectedNeighbor.value);
-    await galaxy.loadSector(galaxyId, selectedNeighbor.value);
+    await loadSectorData(selectedNeighbor.value);
     selectedNeighbor.value = null;
   }
   jumping.value = false;
@@ -280,13 +423,31 @@ function handleKey(e: KeyboardEvent) {
   if (e.key === 'l' || e.key === 'L') ui.openModal('leaderboard');
 }
 
+async function loadSectorData(sectorId: number) {
+  const data = await galaxy.loadSector(galaxyId, sectorId);
+  if (data) {
+    npcs.value = (data.npcs || []).map((n: any) => ({
+      ...n,
+      persona: JSON.parse(n.persona_json || '{}'),
+    }));
+  }
+  // Load news
+  try {
+    const newsRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/news?galaxyId=${galaxyId}&limit=5`);
+    const newsData = await newsRes.json();
+    news.value = newsData.news || [];
+  } catch {
+    news.value = [];
+  }
+}
+
 onMounted(async () => {
   await galaxy.loadGalaxy(galaxyId);
   await ship.loadShip(galaxyId);
   if (ship.ship) {
     galaxy.currentSectorId = ship.ship.currentSector;
     galaxy.visit(ship.ship.currentSector);
-    await galaxy.loadSector(galaxyId, ship.ship.currentSector);
+    await loadSectorData(ship.ship.currentSector);
   }
   window.addEventListener('keydown', handleKey);
 });
