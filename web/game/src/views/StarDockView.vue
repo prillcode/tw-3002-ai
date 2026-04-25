@@ -117,13 +117,8 @@ async function purchase() {
 
     // Update local ship state
     ship.ship.credits = data.remainingCredits;
-    ship.ship.maxCargo = data.stats.maxCargo;
-    ship.ship.maxHull = data.stats.maxHull;
-    ship.ship.maxShield = data.stats.shieldPoints;
-    ship.ship.maxTurns = data.stats.maxTurns;
-    ship.ship.hull = data.stats.maxHull;
-    ship.ship.shield = data.stats.shieldPoints;
     ship.ship.upgrades[upgrade.id] = 1;
+    ship.applyEffectiveStats();
 
     message.value = `⚡ Purchased ${upgrade.name}!`;
     selectedIndex.value = 0;

@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useAuthStore } from './auth';
+import { computeEffectiveStats } from '../data/ships';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.playtradewars.net';
 
@@ -25,6 +26,18 @@ export const useShipStore = defineStore('ship', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const message = ref<string | null>(null);
+
+  function applyEffectiveStats() {
+    if (!ship.value) return;
+    const stats = computeEffectiveStats(ship.value.classId, ship.value.upgrades);
+    ship.value.maxCargo = stats.maxCargo;
+    ship.value.maxHull = stats.maxHull;
+    ship.value.maxShield = stats.shieldPoints;
+    ship.value.maxTurns = stats.maxTurns;
+    // Cap current shield/hull at new maxima
+    ship.value.shield = Math.min(ship.value.shield, stats.shieldPoints);
+    ship.value.hull = Math.min(ship.value.hull, stats.maxHull);
+  }
 
   async function loadShip(galaxyId: number) {
     const auth = useAuthStore();
@@ -58,6 +71,7 @@ export const useShipStore = defineStore('ship', () => {
         currentSector: s.current_sector,
         upgrades: JSON.parse(s.upgrades_json || '{}'),
       };
+      applyEffectiveStats();
       if (data.ship.regenerated > 0) {
         message.value = `+${data.ship.regenerated} turns regenerated while away`;
       }
@@ -113,5 +127,5 @@ export const useShipStore = defineStore('ship', () => {
     message.value = null;
   }
 
-  return { ship, loading, error, message, loadShip, createShip, moveShip, clearMessage };
+  return { ship, loading, error, message, loadShip, createShip, moveShip, clearMessage, applyEffectiveStats };
 });

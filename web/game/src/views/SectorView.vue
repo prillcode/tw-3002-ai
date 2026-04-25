@@ -23,8 +23,8 @@
         </div>
         <div class="flex items-center gap-2">
           <button @click="ui.openModal('help')" class="terminal-btn text-xs">H</button>
-          <button @click="ui.openModal('nav')" class="terminal-btn text-xs">N</button>
-          <button @click="ui.openModal('leaderboard')" class="terminal-btn text-xs">L</button>
+          <button @click="$router.push(`/galaxy/${galaxyId}/nav`)" class="terminal-btn text-xs">N</button>
+          <button @click="$router.push(`/galaxy/${galaxyId}/leaderboard`)" class="terminal-btn text-xs">L</button>
           <button @click="handleQuit" class="terminal-btn text-xs text-terminal-red">Q</button>
         </div>
       </div>
@@ -418,9 +418,9 @@ function handleKey(e: KeyboardEvent) {
       router.push(`/galaxy/${galaxyId}/stardock`);
     }
   }
-  if (e.key === 'n' || e.key === 'N') ui.openModal('nav');
+  if (e.key === 'n' || e.key === 'N') router.push(`/galaxy/${galaxyId}/nav`);
   if (e.key === 'h' || e.key === 'H' || e.key === '?') ui.openModal('help');
-  if (e.key === 'l' || e.key === 'L') ui.openModal('leaderboard');
+  if (e.key === 'l' || e.key === 'L') router.push(`/galaxy/${galaxyId}/leaderboard`);
 }
 
 async function loadSectorData(sectorId: number) {
