@@ -249,8 +249,11 @@
       </div>
     </div>
 
-    <!-- Modals -->
-    <Teleport to="body">
+    <!-- Warp Overlay -->
+    <WarpOverlay :active="isWarping" :target-sector="warpTarget" />
+
+  <!-- Modals -->
+  <Teleport to="body">
       <div v-if="ui.activeModal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
         <div class="terminal-panel p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-4">
@@ -304,6 +307,7 @@ import { useRouter } from 'vue-router';
 import { useGalaxyStore } from '../stores/galaxy';
 import { useShipStore } from '../stores/ship';
 import { useUiStore } from '../stores/ui';
+import WarpOverlay from '../components/WarpOverlay.vue';
 
 const router = useRouter();
 const galaxy = useGalaxyStore();
@@ -313,6 +317,8 @@ const ui = useUiStore();
 const galaxyId = 1;
 const selectedNeighbor = ref<number | null>(null);
 const jumping = ref(false);
+const isWarping = ref(false);
+const warpTarget = ref(0);
 const npcs = ref<Array<any>>([]);
 const news = ref<Array<any>>([]);
 
@@ -384,15 +390,24 @@ const turnsColor = computed(() => {
   return 'text-terminal-white';
 });
 
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function handleJump() {
   if (!selectedNeighbor.value || !ship.ship) return;
+  const target = selectedNeighbor.value;
+  warpTarget.value = target;
+  isWarping.value = true;
+  await delay(800);
   jumping.value = true;
-  const success = await ship.moveShip(galaxyId, selectedNeighbor.value);
+  const success = await ship.moveShip(galaxyId, target);
   if (success) {
-    galaxy.visit(selectedNeighbor.value);
-    await loadSectorData(selectedNeighbor.value);
+    galaxy.visit(target);
+    await loadSectorData(target);
     selectedNeighbor.value = null;
   }
+  isWarping.value = false;
   jumping.value = false;
 }
 
@@ -404,6 +419,7 @@ function handleQuit() {
 
 // Keyboard shortcuts
 function handleKey(e: KeyboardEvent) {
+  if (isWarping.value) return;
   if (ui.activeModal) {
     if (e.key === 'Escape') ui.closeModal();
     return;
