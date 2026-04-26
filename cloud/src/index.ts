@@ -209,6 +209,7 @@ export default {
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(runNPCTick(env.DB, 1));
+    ctx.waitUntil(handleProductionTick(env.DB, 1));
     return;
   },
 };
