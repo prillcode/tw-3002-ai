@@ -1,7 +1,13 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError } from '../utils/cors.js';
-import { getEntryEncounter, resolveFighterEncounter } from './fighters.js';
+import {
+  baseEntryOperations,
+  getEntryEncounter,
+  resolveFighterEncounter,
+  resolveShipToShipAfterEntry,
+  type OperationStep,
+} from './fighters.js';
 
 /**
  * GET /api/player
@@ -175,6 +181,7 @@ export async function handleMoveShip(
     return jsonError('Sector not connected', 403);
   }
 
+  const operations: OperationStep[] = baseEntryOperations();
   const encounter = await getEntryEncounter(db, auth.playerId, galaxyId, sectorId);
 
   if (encounter) {
@@ -183,19 +190,56 @@ export async function handleMoveShip(
       const outcome = await resolveFighterEncounter(db, auth.playerId, galaxyId, sectorId, 'attack');
       if (!outcome.success) return jsonError(outcome.narrative, 400);
 
+      operations.push({
+        step: 'fighters',
+        status: 'resolved',
+        details: {
+          outcome: outcome.outcome,
+          hostileDestroyed: outcome.fighterLosses.hostile,
+          playerLosses: outcome.fighterLosses.player,
+          tollPaid: outcome.tollPaid,
+        },
+      });
+
+      if (outcome.moved) {
+        const shipCombat = await resolveShipToShipAfterEntry(db, auth.playerId, galaxyId, sectorId);
+        operations.push(shipCombat.operation);
+
+        return json({
+          moved: !shipCombat.destroyed,
+          encounterAutoResolved: true,
+          outcome,
+          operations,
+          ship: shipCombat.ship,
+        });
+      }
+
+      operations.push({ step: 'ship_to_ship', status: 'no_op', details: { reason: 'entry_failed' } });
+
       return json({
-        moved: outcome.moved,
+        moved: false,
         encounterAutoResolved: true,
         outcome,
+        operations,
         ship: outcome.ship,
       });
     }
 
+    operations.push({
+      step: 'fighters',
+      status: 'awaiting_player_choice',
+      details: { hostileGroups: encounter.fighters.length, tollCredits: encounter.tollCredits },
+    });
+    operations.push({ step: 'ship_to_ship', status: 'no_op', details: { reason: 'pending_fighter_resolution' } });
+
     return json({
       error: 'fighter_encounter_required',
       ...encounter,
+      operations,
     }, 409);
   }
+
+  operations.push({ step: 'fighters', status: 'skipped_no_hostiles' });
 
   // Update position and decrement turns
   await db
@@ -205,10 +249,8 @@ export async function handleMoveShip(
     .bind(sectorId, auth.playerId, galaxyId)
     .run();
 
-  const updated = await db
-    .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
-    .bind(auth.playerId, galaxyId)
-    .first();
+  const shipCombat = await resolveShipToShipAfterEntry(db, auth.playerId, galaxyId, sectorId);
+  operations.push(shipCombat.operation);
 
-  return json({ ship: updated, moved: true });
+  return json({ ship: shipCombat.ship, moved: !shipCombat.destroyed, operations });
 }

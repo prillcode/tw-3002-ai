@@ -288,6 +288,23 @@
         </div>
       </div>
 
+      <!-- Entry Operations Log -->
+      <div v-if="operationLog.length > 0" class="mt-4 terminal-panel p-3">
+        <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">Operations</h3>
+        <div class="space-y-1">
+          <div
+            v-for="(op, idx) in operationLog"
+            :key="`${op.step}-${idx}`"
+            class="flex items-start justify-between gap-2 font-mono text-xs"
+          >
+            <span class="text-terminal-muted">{{ op.step }}</span>
+            <span :class="op.status.includes('skipped') ? 'text-terminal-yellow' : op.status === 'resolved' ? 'text-terminal-green' : op.status === 'awaiting_player_choice' ? 'text-terminal-red' : 'text-terminal-muted'">
+              {{ op.status }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- Message -->
       <div v-if="ship.message" class="mt-4 terminal-panel p-3 border-terminal-yellow/50">
         <p class="text-terminal-yellow font-mono text-sm">{{ ship.message }}</p>
@@ -392,6 +409,7 @@ const news = ref<Array<any>>([]);
 const sectorFighters = ref<Array<{ ownerId: number; ownerName: string; count: number; mode: string; hostile: boolean }>>([]);
 const showDeployModal = ref(false);
 const activeEncounter = ref<any | null>(null);
+const operationLog = ref<Array<{ step: string; status: string; details?: Record<string, unknown> }>>([]);
 const recalling = ref(false);
 
 const currentSector = computed(() => galaxy.currentSector());
@@ -500,12 +518,18 @@ async function handleJump() {
   const result = await ship.moveShip(galaxyId, target);
 
   if (result.status === 'moved') {
+    operationLog.value = result.operations ?? [];
+    if (result.outcome?.narrative) {
+      ship.message = result.outcome.narrative;
+    }
     if (ship.ship) {
       galaxy.visit(ship.ship.currentSector);
       await loadSectorData(ship.ship.currentSector);
     }
     selectedNeighbor.value = null;
   } else if (result.status === 'encounter') {
+    operationLog.value = result.encounter.operations ?? [];
+    ship.message = 'Fighter encounter detected. Choose your response.';
     activeEncounter.value = result.encounter;
     isWarping.value = false;
   }
@@ -516,6 +540,7 @@ async function handleJump() {
 
 async function handleEncounterResolved(data: any) {
   ship.message = data.narrative;
+  operationLog.value = data.operations ?? [];
   activeEncounter.value = null;
   selectedNeighbor.value = null;
 

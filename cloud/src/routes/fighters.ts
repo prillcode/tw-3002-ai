@@ -9,6 +9,21 @@ const MODES = new Set(['defensive', 'offensive', 'tolled']);
 
 export type EncounterAction = 'attack' | 'retreat' | 'surrender' | 'pay_toll';
 
+export interface OperationStep {
+  step: 'nav_hazard' | 'limpet_mines' | 'armid_mines' | 'q_cannon' | 'fighters' | 'empty_ships' | 'ship_to_ship';
+  status: 'skipped_not_implemented' | 'skipped_no_hostiles' | 'awaiting_player_choice' | 'resolved' | 'no_op';
+  details?: Record<string, unknown>;
+}
+
+export function baseEntryOperations(): OperationStep[] {
+  return [
+    { step: 'nav_hazard', status: 'skipped_not_implemented' },
+    { step: 'limpet_mines', status: 'skipped_not_implemented' },
+    { step: 'armid_mines', status: 'skipped_not_implemented' },
+    { step: 'q_cannon', status: 'skipped_not_implemented' },
+  ];
+}
+
 interface HostileFighterGroup {
   ownerId: number;
   ownerName: string;
@@ -17,6 +32,10 @@ interface HostileFighterGroup {
 }
 
 interface ShipSnapshot {
+  ship_name?: string;
+  class_id?: string;
+  created_at?: string;
+
   player_id: number;
   galaxy_id: number;
   credits: number;
@@ -37,7 +56,7 @@ function asPositiveInt(value: unknown): number | null {
 async function getShip(db: D1Database, playerId: number, galaxyId: number): Promise<ShipSnapshot | null> {
   return db
     .prepare(
-      'SELECT player_id, galaxy_id, credits, fighters, hull, shield, max_turns, turns, current_sector FROM player_ships WHERE player_id = ? AND galaxy_id = ?'
+      'SELECT player_id, galaxy_id, ship_name, class_id, credits, fighters, hull, shield, max_turns, turns, current_sector, created_at FROM player_ships WHERE player_id = ? AND galaxy_id = ?'
     )
     .bind(playerId, galaxyId)
     .first<ShipSnapshot>();
@@ -185,6 +204,144 @@ async function nearestFedSpaceSector(db: D1Database, galaxyId: number): Promise<
     .first<{ sector_index: number }>();
 
   return row?.sector_index ?? 0;
+}
+
+function strikeDamage(attacker: ShipSnapshot): number {
+  const hullPart = Math.max(1, Math.floor(attacker.hull / 25));
+  const shieldPart = Math.max(0, Math.floor(attacker.shield / 30));
+  const fighterPart = Math.max(0, Math.floor(attacker.fighters / 60));
+  const classBonus = attacker.class_id === 'interceptor' ? 2 : 0;
+  return Math.max(3, hullPart + shieldPart + fighterPart + classBonus);
+}
+
+function applyDamage(target: ShipSnapshot, damage: number): ShipSnapshot {
+  let remaining = damage;
+  let shield = target.shield;
+  let hull = target.hull;
+
+  if (shield > 0) {
+    const s = Math.min(shield, remaining);
+    shield -= s;
+    remaining -= s;
+  }
+
+  if (remaining > 0) {
+    hull = Math.max(0, hull - remaining);
+  }
+
+  return { ...target, shield, hull };
+}
+
+async function updateCombatStats(db: D1Database, ship: ShipSnapshot): Promise<void> {
+  await db
+    .prepare('UPDATE player_ships SET hull = ?, shield = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+    .bind(ship.hull, ship.shield, ship.player_id, ship.galaxy_id)
+    .run();
+}
+
+async function loadHostileShipsInSector(
+  db: D1Database,
+  galaxyId: number,
+  sectorId: number,
+  playerId: number,
+): Promise<ShipSnapshot[]> {
+  const rows = await db
+    .prepare(
+      `SELECT ps.player_id, ps.galaxy_id, ps.ship_name, ps.class_id, ps.credits, ps.fighters, ps.hull, ps.shield, ps.max_turns, ps.turns, ps.current_sector, p.created_at
+       FROM player_ships ps
+       JOIN players p ON p.id = ps.player_id
+       WHERE ps.galaxy_id = ? AND ps.current_sector = ? AND ps.player_id != ?
+       ORDER BY p.created_at ASC, ps.player_id ASC`
+    )
+    .bind(galaxyId, sectorId, playerId)
+    .all<ShipSnapshot>();
+
+  return rows.results ?? [];
+}
+
+export async function resolveShipToShipAfterEntry(
+  db: D1Database,
+  playerId: number,
+  galaxyId: number,
+  targetSectorId: number,
+): Promise<{ operation: OperationStep; ship: Record<string, unknown> | null; destroyed: boolean }> {
+  const operation: OperationStep = {
+    step: 'ship_to_ship',
+    status: 'no_op',
+    details: { duels: [] },
+  };
+
+  // Empty-ship order slot (scaffold)
+  const emptyShipsStep: OperationStep = { step: 'empty_ships', status: 'skipped_not_implemented' };
+  (operation.details as any).emptyShips = emptyShipsStep.status;
+
+  let intruder = await getShip(db, playerId, galaxyId);
+  if (!intruder || intruder.current_sector !== targetSectorId) {
+    operation.status = 'no_op';
+    operation.details = { reason: 'intruder_not_in_sector' };
+    return { operation, ship: intruder as any, destroyed: false };
+  }
+
+  const opponents = await loadHostileShipsInSector(db, galaxyId, targetSectorId, playerId);
+  if (opponents.length === 0) {
+    operation.status = 'no_op';
+    operation.details = { reason: 'no_hostile_ships' };
+    return { operation, ship: intruder as any, destroyed: false };
+  }
+
+  operation.status = 'resolved';
+  const duelLog: Array<Record<string, unknown>> = [];
+
+  for (const opponentStart of opponents) {
+    let opponent = opponentStart;
+    if (!intruder) break;
+
+    let rounds = 0;
+    while (rounds < 3 && intruder.hull > 0 && opponent.hull > 0) {
+      rounds += 1;
+      const intruderDmg = strikeDamage(intruder);
+      const opponentDmg = strikeDamage(opponent);
+      opponent = applyDamage(opponent, intruderDmg);
+      intruder = applyDamage(intruder, opponentDmg);
+    }
+
+    duelLog.push({
+      opponentId: opponent.player_id,
+      opponentName: opponent.ship_name ?? `Pilot ${opponent.player_id}`,
+      rounds,
+      intruderHullAfter: intruder.hull,
+      opponentHullAfter: opponent.hull,
+    });
+
+    if (opponent.hull <= 0) {
+      await resolveDefeat(db, galaxyId, opponent.player_id, targetSectorId, playerId, 'pvp');
+    } else {
+      await updateCombatStats(db, opponent);
+    }
+
+    if (intruder.hull <= 0) {
+      await resolveDefeat(db, galaxyId, playerId, targetSectorId, opponent.player_id, 'pvp');
+      const refreshed = await db.prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?').bind(playerId, galaxyId).first();
+      operation.details = {
+        ...(operation.details ?? {}),
+        duels: duelLog,
+        winner: `player:${opponent.player_id}`,
+      };
+      return { operation, ship: refreshed, destroyed: true };
+    }
+
+    await updateCombatStats(db, intruder);
+    intruder = await getShip(db, playerId, galaxyId);
+  }
+
+  operation.details = {
+    ...(operation.details ?? {}),
+    duels: duelLog,
+    winner: `player:${playerId}`,
+  };
+
+  const refreshed = await db.prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?').bind(playerId, galaxyId).first();
+  return { operation, ship: refreshed, destroyed: false };
 }
 
 export async function resolveFighterEncounter(
@@ -690,8 +847,35 @@ export async function handleResolveEncounter(
     return jsonError('Target sector no longer adjacent', 403);
   }
 
+  const operations: OperationStep[] = baseEntryOperations();
+
   const result = await resolveFighterEncounter(db, auth.playerId, galaxyId, targetSectorId, action);
   if (!result.success) return jsonError(result.narrative, 400);
 
-  return json(result);
+  operations.push({
+    step: 'fighters',
+    status: 'resolved',
+    details: {
+      outcome: result.outcome,
+      hostileDestroyed: result.fighterLosses.hostile,
+      playerLosses: result.fighterLosses.player,
+      tollPaid: result.tollPaid,
+    },
+  });
+
+  if (result.moved) {
+    const shipCombat = await resolveShipToShipAfterEntry(db, auth.playerId, galaxyId, targetSectorId);
+    operations.push(shipCombat.operation);
+
+    return json({
+      ...result,
+      moved: !shipCombat.destroyed,
+      ship: shipCombat.ship,
+      operations,
+    });
+  }
+
+  operations.push({ step: 'ship_to_ship', status: 'no_op', details: { reason: 'entry_failed' } });
+
+  return json({ ...result, operations });
 }
