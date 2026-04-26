@@ -80,7 +80,7 @@ function buildEncounterPayload(hostiles: HostileFighterGroup[], targetSector: nu
   }
 
   return {
-    encounterRequired: true,
+    encounterRequired: true as const,
     targetSector,
     fighters: hostiles,
     options,
