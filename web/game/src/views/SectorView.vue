@@ -85,16 +85,17 @@
               :key="n.id"
               @click="selectedNeighbor = n.id"
               :class="[
-                'w-full text-left px-3 py-2 rounded font-mono text-sm transition-colors',
+                'w-full text-left px-3 py-2 rounded font-mono text-sm transition-colors flex items-center gap-2',
                 selectedNeighbor === n.id
                   ? 'bg-terminal-cyan/10 border border-terminal-cyan/50 text-terminal-cyan'
                   : 'hover:bg-void-800 text-terminal-white'
               ]"
             >
+              <span :class="neighborDangerColor(n.danger)">{{ neighborDangerIcon(n.danger) }}</span>
               <span class="inline-block w-8">{{ n.id }}</span>
               <span class="text-terminal-muted">{{ n.name }}</span>
-              <span v-if="n.hasPort" class="text-terminal-yellow ml-2">P{{ n.portClass }}</span>
-              <span v-if="n.stardock" class="text-terminal-magenta ml-2">⚡</span>
+              <span v-if="n.hasPort" class="text-terminal-yellow ml-auto">P{{ n.portClass }}</span>
+              <span v-if="n.stardock" class="text-terminal-magenta ml-auto">⚡</span>
             </button>
           </div>
           <button
@@ -347,6 +348,24 @@ function getLineEnd(index: number, total: number) {
     x: cx + radius * Math.cos(angle),
     y: cy + radius * Math.sin(angle),
   };
+}
+
+function neighborDangerIcon(danger: string) {
+  switch (danger) {
+    case 'safe': return '●';
+    case 'caution': return '◐';
+    case 'dangerous': return '◉';
+    default: return '●';
+  }
+}
+
+function neighborDangerColor(danger: string) {
+  switch (danger) {
+    case 'safe': return 'text-terminal-green';
+    case 'caution': return 'text-terminal-yellow';
+    case 'dangerous': return 'text-terminal-red';
+    default: return 'text-terminal-green';
+  }
 }
 
 function initiateCombat(npc: any) {
