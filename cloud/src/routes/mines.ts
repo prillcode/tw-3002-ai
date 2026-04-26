@@ -274,7 +274,7 @@ export async function handleDeployMines(auth: AuthContext, request: Request, db:
     .first<{ danger: string }>();
 
   if (!sector) return jsonError('Sector not found', 404);
-  if (sector.danger === 'safe') return jsonError('Cannot deploy mines in FedSpace', 403);
+  if (sector.danger === 'safe') return jsonError('Cannot deploy mines in CHOAM Protected Space', 403);
 
   const column = type === 'limpet' ? 'limpets' : 'armids';
   const current = type === 'limpet' ? ship.limpets : ship.armids;

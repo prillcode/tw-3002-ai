@@ -17,19 +17,19 @@
         <!-- Commodity List -->
         <div class="space-y-2 mb-4">
           <button
-            v-for="c in commodities"
-            :key="c"
-            @click="selectedCommodity = c"
+            v-for="c in displayedCommodities"
+            :key="c.id"
+            @click="selectedCommodity = c.id"
             :class="[
               'w-full text-left px-3 py-2 rounded font-mono text-sm transition-colors flex items-center justify-between',
-              selectedCommodity === c
-                ? 'bg-terminal-cyan/10 border border-terminal-cyan/50 text-terminal-cyan'
+              selectedCommodity === c.id
+                ? c.id === 'melange' ? 'bg-amber-900/20 border border-amber-500/50 text-amber-400' : 'bg-terminal-cyan/10 border border-terminal-cyan/50 text-terminal-cyan'
                 : 'hover:bg-void-800 text-terminal-white'
             ]"
           >
-            <span class="capitalize">{{ c }}</span>
+            <span>{{ c.icon }} {{ c.label }}</span>
             <span class="text-terminal-muted text-xs">
-              {{ inventory[c]?.price ?? 0 }} cr · Sup:{{ inventory[c]?.supply ?? 0 }} · Own:{{ (ship.ship?.cargo as any)?.[c] ?? 0 }}
+              {{ inventory?.[c.id]?.price?.toLocaleString() ?? 0 }} cr · Sup:{{ inventory?.[c.id]?.supply ?? 0 }} · Own:{{ (ship.ship?.cargo as any)?.[c.id] ?? 0 }}
             </span>
           </button>
         </div>
@@ -113,7 +113,19 @@ const selectedCommodity = ref('ore');
 const tradeMode = ref<'buy' | 'sell'>('buy');
 const quantity = ref(1);
 
-const commodities = ['ore', 'organics', 'equipment'];
+const baseCommodities = [
+  { id: 'ore', label: 'Ore', icon: '⛏' },
+  { id: 'organics', label: 'Organics', icon: '🌱' },
+  { id: 'equipment', label: 'Equipment', icon: '⚙' },
+];
+
+const displayedCommodities = computed(() => {
+  const list = [...baseCommodities];
+  if (inventory.value && inventory.value.melange) {
+    list.push({ id: 'melange', label: 'Melange', icon: '⚡' });
+  }
+  return list;
+});
 const currentSector = computed(() => galaxy.currentSector());
 
 const totalCargo = computed(() => {
@@ -136,6 +148,9 @@ async function loadInventory() {
       const inv = JSON.parse(data.sector.port_inventory_json);
       if (Object.keys(inv).length > 0) {
         inventory.value = inv;
+        if (!inv[selectedCommodity.value]) {
+          selectedCommodity.value = Object.keys(inv)[0] || 'ore';
+        }
       } else {
         inventory.value = null;
       }
@@ -224,12 +239,14 @@ function handleKey(e: KeyboardEvent) {
   if (e.key === 'b' || e.key === 'B') tradeMode.value = 'buy';
   if (e.key === 's' || e.key === 'S') tradeMode.value = 'sell';
   if (e.key === 'ArrowUp') {
-    const idx = commodities.indexOf(selectedCommodity.value);
-    selectedCommodity.value = commodities[Math.max(0, idx - 1)];
+    const ids = displayedCommodities.value.map(c => c.id);
+    const idx = ids.indexOf(selectedCommodity.value);
+    selectedCommodity.value = ids[Math.max(0, idx - 1)] || ids[0] || 'ore';
   }
   if (e.key === 'ArrowDown') {
-    const idx = commodities.indexOf(selectedCommodity.value);
-    selectedCommodity.value = commodities[Math.min(commodities.length - 1, idx + 1)];
+    const ids = displayedCommodities.value.map(c => c.id);
+    const idx = ids.indexOf(selectedCommodity.value);
+    selectedCommodity.value = ids[Math.min(ids.length - 1, idx + 1)] || ids[ids.length - 1] || 'ore';
   }
   if (e.key === '+' || e.key === '=') quantity.value++;
   if (e.key === '-') quantity.value = Math.max(1, quantity.value - 1);

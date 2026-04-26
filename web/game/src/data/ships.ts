@@ -18,20 +18,20 @@ export interface ShipClass {
 export const SHIP_CLASSES: ShipClass[] = [
   {
     id: 'merchant',
-    name: 'Merchant Vessel',
-    description: 'Best for trading — haul more cargo',
+    name: 'Spice Runner',
+    description: 'Best for trading — haul more cargo through the spice lanes',
     baseStats: { maxCargo: 120, maxHull: 100, maxTurns: 80, baseTurnCost: 1, combatBonus: 0, dodgeChance: 0.05, shieldPoints: 0 },
   },
   {
     id: 'scout',
-    name: 'Scout Ship',
-    description: 'Best for exploration — more turns per day',
+    name: 'Dune Skiff',
+    description: 'Best for exploration — more turns per day for deep-space runs',
     baseStats: { maxCargo: 60, maxHull: 80, maxTurns: 120, baseTurnCost: 1, combatBonus: 0, dodgeChance: 0.10, shieldPoints: 0 },
   },
   {
     id: 'interceptor',
-    name: 'Interceptor',
-    description: 'Best for combat — tougher hull',
+    name: 'Sardaukar Blade',
+    description: 'Best for combat — tougher hull, built for aggression',
     baseStats: { maxCargo: 70, maxHull: 120, maxTurns: 100, baseTurnCost: 1, combatBonus: 2, dodgeChance: 0.08, shieldPoints: 0 },
   },
 ];

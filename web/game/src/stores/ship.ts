@@ -8,7 +8,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'
 export interface ShipState {
   name: string;
   credits: number;
-  cargo: { ore: number; organics: number; equipment: number };
+  cargo: { ore: number; organics: number; equipment: number; melange?: number };
   maxCargo: number;
   hull: number;
   maxHull: number;

@@ -13,9 +13,9 @@
         <!-- Enemy Info -->
         <div class="terminal-panel bg-void-900 p-4 mb-4">
           <div class="flex items-center gap-2 mb-2">
-            <span class="text-2xl">{{ enemyType === 'raider' ? '⚠️' : enemyType === 'patrol' ? '🛡️' : '📦' }}</span>
+            <span class="text-2xl">{{ enemyFactionIcon }}</span>
             <span class="font-mono font-bold text-terminal-red">{{ enemyName }}</span>
-            <span class="text-terminal-muted font-mono text-xs">{{ enemyType }}</span>
+            <span class="text-terminal-muted font-mono text-xs">{{ enemyFactionLabel }}</span>
           </div>
           <div class="text-sm font-mono text-terminal-muted">
             Hull: ???/??? · Shield: ???/???
@@ -113,6 +113,7 @@ const galaxyId = 1;
 const enemyId = (route.query.enemyId as string) || '';
 const enemyName = (route.query.enemyName as string) || 'Unknown';
 const enemyType = (route.query.enemyType as string) || 'raider';
+const enemyFaction = (route.query.enemyFaction as string) || 'independent';
 
 const selectedAction = ref(0);
 const resolving = ref(false);
@@ -120,6 +121,21 @@ const resolved = ref(false);
 const result = ref<any>(null);
 const narrative = ref('');
 const message = ref<string | null>(null);
+
+const enemyFactionIcon = computed(() => {
+  if (enemyFaction === 'fremen') return '⚔';
+  if (enemyFaction === 'sardaukar') return '💀';
+  if (enemyFaction === 'choam' || enemyFaction === 'guild') return '🛡';
+  return '📦';
+});
+
+const enemyFactionLabel = computed(() => {
+  if (enemyFaction === 'fremen') return 'Fremen';
+  if (enemyFaction === 'sardaukar') return 'Sardaukar';
+  if (enemyFaction === 'choam') return 'CHOAM';
+  if (enemyFaction === 'guild') return 'Guild';
+  return enemyType;
+});
 
 const actions = [
   { key: 'attack', label: 'Attack' },

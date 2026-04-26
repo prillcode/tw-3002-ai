@@ -33,6 +33,11 @@ export async function handleTrade(
     return jsonError('galaxyId, sectorId, commodity, quantity, action required');
   }
 
+  const allowedCommodities = new Set(['ore', 'organics', 'equipment', 'melange']);
+  if (!allowedCommodities.has(commodity)) {
+    return jsonError('Invalid commodity', 400);
+  }
+
   // Get ship
   const ship = await db
     .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
@@ -158,7 +163,7 @@ export async function handleCombat(
 
   // Simple combat resolver (cloud-side)
   const shipJson = JSON.parse(enemy.ship_json as string);
-  const enemyPersona = JSON.parse(enemy.persona_json as string) as { name: string; type: string };
+  const enemyPersona = JSON.parse(enemy.persona_json as string) as { name: string; type: string; faction?: 'choam' | 'fremen' | 'sardaukar' | 'guild' | 'independent' };
   const enemyHull = shipJson.hull ?? 60;
   const enemyShield = shipJson.shield ?? 0;
   const enemyDmg = shipJson.weaponDamage ?? 5;
@@ -220,7 +225,7 @@ export async function handleCombat(
   }
 
   // Generate narrative
-  const narrative = generateCombatNarrative(playerAction, result, enemyPersona.name, enemyPersona.type);
+  const narrative = generateCombatNarrative(playerAction, result, enemyPersona.name, enemyPersona.type, enemyPersona.faction);
 
   return json({ result, narrative });
 }
@@ -229,7 +234,8 @@ function generateCombatNarrative(
   action: 'attack' | 'flee' | 'bribe',
   result: { won: boolean; fled: boolean; bribed: boolean; destroyed: boolean; playerHullRemaining: number; creditsGained: number; creditsLost: number },
   enemyName: string,
-  enemyType: string
+  enemyType: string,
+  enemyFaction?: 'choam' | 'fremen' | 'sardaukar' | 'guild' | 'independent',
 ): string {
   const templates: Record<string, string[]> = {
     'attack-won': [
@@ -285,7 +291,34 @@ function generateCombatNarrative(
     key = 'bribe';
   }
 
-  const options = templates[key] ?? ['The encounter ends in silence.'];
+  const factionVariants: Record<string, string[]> = {
+    fremen: [
+      `The desert warrior fights with fanatical intensity, striking like a crysknife in the dark.`,
+      `${enemyName} moves with Fremen precision, reading your vectors before you commit.`
+    ],
+    sardaukar: [
+      `The Sardaukar assault is relentless, a brutal hammer-blow that never pauses.`,
+      `${enemyName} attacks with imperial discipline and murderous intent.`
+    ],
+    choam: [
+      `The CHOAM patrol holds formation, disciplined fire stitching the void.`,
+      `${enemyName} broadcasts a compliance warning before opening controlled volleys.`
+    ],
+    guild: [
+      `A Guild sentinel keeps perfect spacing, firing in measured cadence.`,
+      `${enemyName}'s gunnery is precise, almost ceremonial.`
+    ],
+    independent: [
+      `The trader's guns blaze in desperation, fighting for one more run through the lanes.`,
+      `${enemyName} is no soldier, but desperation makes them dangerous.`
+    ],
+  };
+
+  const options = [...(templates[key] ?? ['The encounter ends in silence.'])];
+  if (enemyFaction && action === 'attack') {
+    options.push(...(factionVariants[enemyFaction] ?? []));
+  }
+
   return options[Math.floor(Math.random() * options.length)];
 }
 

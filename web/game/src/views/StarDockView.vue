@@ -133,14 +133,14 @@
           <div class="text-xs font-mono text-terminal-muted">Visit a sector and press [G] to launch.</div>
         </div>
 
-        <!-- Insurance -->
+        <!-- Guild Protection Contract -->
         <div class="mt-4 pt-4 border-t border-void-700">
-          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Ship Insurance</h3>
+          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Guild Protection Contract</h3>
           <div v-if="ship.ship?.insuranceActive" class="text-terminal-green font-mono text-xs mb-2">
             ✓ Active — expires {{ formatDate(ship.ship.insuranceExpires) }}
           </div>
           <div v-else class="text-terminal-muted font-mono text-xs mb-2">
-            No active insurance. Death penalty: 25% credits lost.
+            No active Guild Protection Contract. Death penalty: 25% credits lost.
           </div>
           <div class="flex items-center justify-between mb-2">
             <span class="text-terminal-muted font-mono text-xs">Cost (5% net worth):</span>
@@ -151,7 +151,7 @@
             :disabled="insuring || ship.ship?.insuranceActive || ship.ship?.credits < insuranceCost"
             class="w-full terminal-btn disabled:opacity-50"
           >
-            {{ insuring ? 'Processing...' : ship.ship?.insuranceActive ? 'Already Insured' : 'Buy Insurance (7 days)' }}
+            {{ insuring ? 'Processing...' : ship.ship?.insuranceActive ? 'Already Protected' : 'Buy Contract (7 days)' }}
           </button>
         </div>
 
@@ -313,13 +313,13 @@ async function buyInsurance() {
       }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Insurance purchase failed');
+    if (!res.ok) throw new Error(data.error || 'Guild Protection Contract purchase failed');
 
     ship.ship.credits = data.remainingCredits;
     ship.ship.insuranceActive = true;
     ship.ship.insuranceExpires = data.expires;
 
-    message.value = `🛡 Insurance purchased! Expires ${formatDate(data.expires)}`;
+    message.value = `🛡 Guild Protection Contract active! Expires ${formatDate(data.expires)}`;
   } catch (err: any) {
     message.value = err.message;
   } finally {

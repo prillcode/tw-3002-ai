@@ -28,7 +28,7 @@ export function canTrade(
 
   const stats = computeEffectiveStats(state.player.classId, state.player.upgrades);
   const cargoTotal =
-    state.player.cargo.ore + state.player.cargo.organics + state.player.cargo.equipment;
+    (state.player.cargo.ore ?? 0) + (state.player.cargo.organics ?? 0) + (state.player.cargo.equipment ?? 0);
 
   if (trade.direction === 'buy') {
     if (cargoTotal + trade.quantity > stats.maxCargo) {
@@ -83,7 +83,7 @@ export function validateState(state: GameState): string[] {
   }
 
   const cargoTotal =
-    state.player.cargo.ore + state.player.cargo.organics + state.player.cargo.equipment;
+    (state.player.cargo.ore ?? 0) + (state.player.cargo.organics ?? 0) + (state.player.cargo.equipment ?? 0);
   if (cargoTotal > stats.maxCargo) {
     violations.push(`Cargo overflow: ${cargoTotal}/${stats.maxCargo}`);
   }

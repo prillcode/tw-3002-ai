@@ -364,7 +364,7 @@ export function executeNPCAction(
             if (updated.credits >= cost && quote.available >= action.quantity) {
               updated.credits -= cost;
               updated.cargo[action.commodity] = (updated.cargo[action.commodity] ?? 0) + action.quantity;
-              sector.port.inventory[action.commodity] -= action.quantity;
+              sector.port.inventory[action.commodity] = (sector.port.inventory[action.commodity] ?? 0) - action.quantity;
               news = {
                 timestamp: now,
                 headline: `${npc.persona.name} bought ${action.quantity} ${action.commodity} at ${sector.name}`,
@@ -378,7 +378,7 @@ export function executeNPCAction(
             if (owned >= action.quantity) {
               updated.credits += revenue;
               updated.cargo[action.commodity] = owned - action.quantity;
-              sector.port.inventory[action.commodity] += action.quantity;
+              sector.port.inventory[action.commodity] = (sector.port.inventory[action.commodity] ?? 0) + action.quantity;
               news = {
                 timestamp: now,
                 headline: `${npc.persona.name} sold ${action.quantity} ${action.commodity} at ${sector.name}`,

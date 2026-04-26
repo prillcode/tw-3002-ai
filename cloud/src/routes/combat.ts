@@ -173,7 +173,7 @@ export async function resolveDefeat(
       .first<{ count: number }>();
 
     if (recentKills && recentKills.count >= WANTED_KILL_THRESHOLD) {
-      const wantedHeadline = `${attackerName} is now WANTED — ${recentKills.count} kills in 24 hours`;
+      const wantedHeadline = `${attackerName} is now a CHOAM Bounty Target — ${recentKills.count} kills in 24 hours`;
       await db
         .prepare('INSERT INTO news (galaxy_id, headline, type, sector_id, player_id) VALUES (?, ?, ?, ?, ?)')
         .bind(galaxyId, wantedHeadline, 'bounty', sectorId, attackerId)
@@ -405,7 +405,7 @@ export async function handleInsuranceBuy(
     .first<{ stardock: number }>();
 
   if (!sector || sector.stardock !== 1) {
-    return jsonError('Insurance only available at StarDock', 400);
+    return jsonError('Guild Protection Contracts are only available at StarDock', 400);
   }
 
   const ship = await db

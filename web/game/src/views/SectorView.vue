@@ -95,10 +95,10 @@
             </div>
             <div v-if="ship.stats.wanted" class="flex justify-between">
               <span class="text-terminal-muted">Status</span>
-              <span class="text-terminal-red font-bold">☠ WANTED ({{ ship.stats.wantedKillCount }})</span>
+              <span class="text-terminal-red font-bold">☠ CHOAM BOUNTY TARGET ({{ ship.stats.wantedKillCount }})</span>
             </div>
             <div v-if="ship.stats.insuranceActive" class="flex justify-between">
-              <span class="text-terminal-muted">Insurance</span>
+              <span class="text-terminal-muted">Guild Protection Contract</span>
               <span class="text-terminal-green">✓ Active</span>
             </div>
           </div>
@@ -301,14 +301,10 @@
           >
             <div class="flex items-center gap-2">
               <span class="text-lg">
-                {{ npc.persona.type === 'raider' ? '⚠️' : npc.persona.type === 'patrol' ? '🛡️' : '📦' }}
+                {{ npcFactionIcon(npc) }}
               </span>
-              <span class="font-mono text-sm" :class="{
-                'text-terminal-red': npc.persona.type === 'raider',
-                'text-terminal-green': npc.persona.type === 'patrol',
-                'text-terminal-cyan': npc.persona.type === 'trader'
-              }">{{ npc.persona.name }}</span>
-              <span class="text-terminal-muted font-mono text-xs">{{ npc.persona.type }}</span>
+              <span class="font-mono text-sm" :class="npcFactionColor(npc)">{{ npc.persona.name }}</span>
+              <span class="text-terminal-muted font-mono text-xs">{{ npcFactionLabel(npc) }}</span>
             </div>
             <button
               v-if="npc.persona.type === 'raider'"
@@ -326,7 +322,7 @@
 
       <!-- News -->
       <div v-if="news.length > 0" class="mt-4 terminal-panel p-4">
-        <h3 class="font-mono font-bold text-terminal-cyan mb-2 text-sm">📰 Galaxy News</h3>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2 text-sm">📰 CHOAM Broadband</h3>
         <div class="space-y-1">
           <p
             v-for="(item, i) in news.slice(-2)"
@@ -522,10 +518,40 @@ function neighborDangerColor(danger: string) {
   }
 }
 
+function npcFactionIcon(npc: any): string {
+  const faction = npc?.persona?.faction;
+  if (faction === 'fremen') return '⚔';
+  if (faction === 'sardaukar') return '💀';
+  if (faction === 'choam' || faction === 'guild') return '🛡';
+  return '📦';
+}
+
+function npcFactionColor(npc: any): string {
+  const faction = npc?.persona?.faction;
+  if (faction === 'fremen') return 'text-amber-400';
+  if (faction === 'sardaukar') return 'text-terminal-red';
+  if (faction === 'choam' || faction === 'guild') return 'text-terminal-cyan';
+  return 'text-terminal-muted';
+}
+
+function npcFactionLabel(npc: any): string {
+  const faction = npc?.persona?.faction;
+  if (faction === 'fremen') return 'Fremen';
+  if (faction === 'sardaukar') return 'Sardaukar';
+  if (faction === 'choam') return 'CHOAM';
+  if (faction === 'guild') return 'Guild';
+  return 'Independent';
+}
+
 function initiateCombat(npc: any) {
   router.push({
     path: `/galaxy/${galaxyId}/combat`,
-    query: { enemyId: npc.npc_id, enemyName: npc.persona.name, enemyType: npc.persona.type },
+    query: {
+      enemyId: npc.npc_id,
+      enemyName: npc.persona.name,
+      enemyType: npc.persona.type,
+      enemyFaction: npc.persona.faction || 'independent',
+    },
   });
 }
 
@@ -737,7 +763,7 @@ async function loadMines(sectorId: number) {
 async function handleDeployMine(type: 'limpet' | 'armid') {
   if (!currentSector.value || !ship.ship) return;
   if (currentSector.value.danger === 'safe') {
-    ship.message = 'Cannot deploy mines in FedSpace';
+    ship.message = 'Cannot deploy mines in CHOAM Protected Space';
     return;
   }
 

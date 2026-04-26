@@ -116,9 +116,9 @@ const needsShip = ref(false);
 const digest = ref<DigestData | null>(null);
 
 const shipClasses = [
-  { id: 'merchant', name: 'Merchant', desc: '120 cargo, 80 turns' },
-  { id: 'scout', name: 'Scout', desc: '60 cargo, 120 turns' },
-  { id: 'interceptor', name: 'Interceptor', desc: '70 cargo, 120 hull' },
+  { id: 'merchant', name: 'Spice Runner', desc: '120 cargo, 80 turns' },
+  { id: 'scout', name: 'Dune Skiff', desc: '60 cargo, 120 turns' },
+  { id: 'interceptor', name: 'Sardaukar Blade', desc: '70 cargo, 120 hull' },
 ];
 
 const GALAXY_ID = 1;

@@ -113,7 +113,7 @@ export function executeTrade(
     }
 
     // Execute: port inventory decreases
-    port.inventory[commodity] -= quantity;
+    port.inventory[commodity] = (port.inventory[commodity] ?? 0) - quantity;
 
     return {
       result: { success: true, commodity, quantity, unitPrice, totalPrice },
@@ -126,7 +126,7 @@ export function executeTrade(
     const totalPrice = unitPrice * quantity;
 
     // Execute: port inventory increases
-    port.inventory[commodity] += quantity;
+    port.inventory[commodity] = (port.inventory[commodity] ?? 0) + quantity;
 
     return {
       result: { success: true, commodity, quantity, unitPrice, totalPrice },

@@ -1,83 +1,172 @@
 /**
  * NPC generator — creates a population of NPCs for a galaxy.
+ * Factions: CHOAM, Fremen, Sardaukar, Guild, Independent
+ * Reference: lore-reference/UNIVERSE-BIBLE.md
  */
 import type { Galaxy } from '../types.js';
-import type { NPC, NPCType, NPCPersona } from './types.js';
+import type { NPC, NPCType, NPCFaction, NPCPersona } from './types.js';
 import { SeededRandom } from '../rng.js';
 
-const NPC_NAME_PREFIXES = [
+// ─── Faction-specific name pools ────────────────────────────────────
+
+const FREMEN_PREFIXES = [
+  'Chani', 'Stilgar', 'Jamis', 'Otheym', 'Farok', 'Shishakli', 'Muriz',
+  'Namri', 'Shoab', 'Ali', 'Turok', 'Rinya', 'Korba', 'Bijaz', 'Lichna',
+  'Sabriha', 'Warrick', 'Tansho', 'Murbell', 'Zaal',
+];
+
+const FREMEN_SUFFIXES = [
+  'the Knife', 'Sandrider', 'Dune Walker', 'Sietch Keeper', 'Worm Rider',
+  'Deep Desert', 'Maker Finder', 'Stillman', 'Crysknife', 'Shai-Hulud\'s Eye',
+  'Dust Devil', 'Tent Fighter', 'Windborn', 'Raven of the Sands',
+];
+
+const SARDAUKAR_PREFIXES = [
+  'Aramsham', 'Tyekanik', 'Bashar', 'Cando', 'Kryubi', 'Iakin', 'Nefud',
+  'Farok', 'Saag', 'Denik', 'Batrek', 'Shishakli', 'Kronin', 'Valduz',
+  'Goruda', 'Malak', 'Shazar', 'Dragan', 'Kordac', 'Torval',
+];
+
+const SARDAUKAR_SUFFIXES = [
+  'Iron Fist', 'the Hammer', 'Breaker', 'Siege Lord', 'the Flayer',
+  'Black Blade', 'War Priest', 'the Butcher', 'Grave Maker', 'Steel Fang',
+  'Thane of Ash', 'the Scourge', 'Battleborn', 'Fist of Fire',
+];
+
+const CHOAM_PREFIXES = [
+  'Vries', 'Margot', 'Fenring', 'Shaddam', 'Wensicia', 'Irulan', 'Bannerjee',
+  'Alkando', 'Syaksa', 'Zolta', 'Brigmon', 'Tandis', 'Palymbris', 'Kallee',
+  'Bridgeman', 'Caventa', 'Grechman', 'Dwyrin', 'Halleck', 'Moritani',
+];
+
+const CHOAM_SUFFIXES = [
+  'Trade Commissioner', 'Guild Officer', 'Factor', 'Legate', 'Emissary',
+  'Attaché', 'Quartermaster', 'Port Warden', 'Customs Chief', 'Trade Adjutant',
+];
+
+const INDEPENDENT_PREFIXES = [
   'Zed', 'Kira', 'Jax', 'Vex', 'Nora', 'Milo', 'Rex', 'Luna',
   'Crix', 'Tara', 'Finn', 'Vera', 'Oren', 'Iris', 'Dax', 'Yara',
   'Bolt', 'Sera', 'Grek', 'Mina', 'Rook', 'Zara', 'Kael', 'Juno',
 ];
 
-const NPC_NAME_SUFFIXES = [
+const INDEPENDENT_SUFFIXES = [
   'the Trader', 'Voidwalker', 'Starhand', 'Quickfingers',
   'Ironheart', 'Shadow', 'Brighteye', 'Deepspace',
   'the Bold', 'Windsailor', 'Firebrand', 'Icevein',
   'the Cunning', 'Goldseeker', 'Dustrunner', 'Neonblade',
 ];
 
-const TRADER_FLAVORS = [
-  'Cautious merchant who avoids conflict',
+// ─── Faction flavors ─────────────────────────────────────────────────
+
+const FREMEN_FLAVORS = [
+  'Fierce desert warrior defending ancestral territory',
+  'Territorial scout who tolls travelers through the deep sectors',
+  'Battle-hardened warrior who fights with crysknife precision',
+  'Sentry watching the space lanes for Sardaukar incursions',
+  'Nomadic fighter who knows the hidden warp routes',
+];
+
+const SARDAUKAR_FLAVORS = [
+  'Brutal enforcer who attacks all on sight without mercy',
+  'Elite warrior forged in hell, relentless in pursuit',
+  'Disciplined killer who never retreats and never negotiates',
+  'Ruthless raider who strips sectors of all value',
+  'Iron-fisted soldier who answers only to the chain of command',
+];
+
+const CHOAM_FLAVORS = [
+  'Steadfast enforcer of CHOAM trade regulations',
+  'Veteran patrol officer maintaining order in the trade lanes',
+  'Pragmatic peacekeeper who defends Guild interests',
+  'Dedicated sentinel guarding CHOAM Protected Space',
+];
+
+const INDEPENDENT_FLAVORS = [
+  'Cautious merchant who avoids conflict at all costs',
   'Opportunistic trader seeking quick profits',
   'Honest dealer with a reputation to protect',
   'Shrewd negotiator who never pays full price',
   'Nomadic peddler who goes where the deals are',
 ];
 
-const RAIDER_FLAVORS = [
-  'Bloodthirsty pirate who attacks on sight',
-  'Calculating raider who sizes up prey first',
-  'Desperate outlaw running from debts',
-  'Opportunistic thief who hits weak targets',
-  'Vengeful renegade with a grudge against traders',
-];
+// ─── Faction assignment ──────────────────────────────────────────────
 
-const PATROL_FLAVORS = [
-  'Steadfast enforcer of FedSpace law',
-  'Veteran patrol officer nearing retirement',
-  'Young idealist who believes in order',
-  'Pragmatic peacekeeper who picks battles',
-];
+function factionForType(type: NPCType, rng: SeededRandom): NPCFaction {
+  switch (type) {
+    case 'trader':
+      return rng.next() < 0.7 ? 'independent' : 'choam';
+    case 'raider': {
+      const roll = rng.next();
+      if (roll < 0.55) return 'fremen';
+      return 'sardaukar';
+    }
+    case 'patrol':
+      return rng.next() < 0.8 ? 'choam' : 'guild';
+  }
+}
 
-function generateName(rng: SeededRandom): string {
-  return `${rng.pick(NPC_NAME_PREFIXES)} ${rng.pick(NPC_NAME_SUFFIXES)}`;
+function generateFactionName(faction: NPCFaction, rng: SeededRandom): string {
+  switch (faction) {
+    case 'fremen':
+      return `${rng.pick(FREMEN_PREFIXES)} ${rng.pick(FREMEN_SUFFIXES)}`;
+    case 'sardaukar':
+      return `${rng.pick(SARDAUKAR_PREFIXES)} ${rng.pick(SARDAUKAR_SUFFIXES)}`;
+    case 'choam':
+    case 'guild':
+      return `${rng.pick(CHOAM_PREFIXES)} ${rng.pick(CHOAM_SUFFIXES)}`;
+    case 'independent':
+      return `${rng.pick(INDEPENDENT_PREFIXES)} ${rng.pick(INDEPENDENT_SUFFIXES)}`;
+  }
 }
 
 function createPersona(type: NPCType, rng: SeededRandom): NPCPersona {
-  const name = generateName(rng);
+  const faction = factionForType(type, rng);
+  const name = generateFactionName(faction, rng);
 
   switch (type) {
     case 'trader':
       return {
         type,
+        faction,
         name,
         aggression: rng.nextFloat(0.05, 0.25),
         caution: rng.nextFloat(0.5, 0.9),
         greed: rng.nextFloat(0.4, 0.9),
         loyalty: rng.nextFloat(0.3, 0.7),
-        flavor: rng.pick(TRADER_FLAVORS),
+        flavor: faction === 'choam'
+          ? rng.pick(CHOAM_FLAVORS)
+          : rng.pick(INDEPENDENT_FLAVORS),
       };
     case 'raider':
       return {
         type,
+        faction,
         name,
-        aggression: rng.nextFloat(0.6, 0.95),
-        caution: rng.nextFloat(0.1, 0.5),
-        greed: rng.nextFloat(0.5, 0.9),
+        aggression: faction === 'sardaukar'
+          ? rng.nextFloat(0.8, 1.0)
+          : rng.nextFloat(0.6, 0.85),
+        caution: faction === 'sardaukar'
+          ? rng.nextFloat(0.05, 0.2)
+          : rng.nextFloat(0.3, 0.6),
+        greed: faction === 'sardaukar'
+          ? rng.nextFloat(0.5, 0.8)
+          : rng.nextFloat(0.2, 0.5),
         loyalty: rng.nextFloat(0.1, 0.4),
-        flavor: rng.pick(RAIDER_FLAVORS),
+        flavor: faction === 'sardaukar'
+          ? rng.pick(SARDAUKAR_FLAVORS)
+          : rng.pick(FREMEN_FLAVORS),
       };
     case 'patrol':
       return {
         type,
+        faction,
         name,
         aggression: rng.nextFloat(0.3, 0.7),
         caution: rng.nextFloat(0.4, 0.8),
         greed: rng.nextFloat(0.1, 0.3),
         loyalty: rng.nextFloat(0.6, 1.0),
-        flavor: rng.pick(PATROL_FLAVORS),
+        flavor: rng.pick(CHOAM_FLAVORS),
       };
   }
 }
@@ -86,7 +175,7 @@ function createShip(type: NPCType, rng: SeededRandom) {
   switch (type) {
     case 'trader':
       return {
-        name: '', // filled by persona
+        name: '',
         hull: Math.round(rng.nextFloat(60, 100)),
         maxHull: 100,
         shield: Math.round(rng.nextFloat(5, 20)),
@@ -155,10 +244,9 @@ export function generateNPCs(galaxy: Galaxy, count: number = 20, seed?: number):
     const ship = createShip(type, rng.fork());
     ship.name = persona.name;
 
-    // Placement bias
+    // Placement bias by faction
     let sectorId: number;
     if (type === 'patrol') {
-      // Near FedSpace
       const fedAdjacent = [...galaxy.fedSpace];
       for (const fs of galaxy.fedSpace) {
         for (const conn of galaxy.connections) {
@@ -167,12 +255,16 @@ export function generateNPCs(galaxy: Galaxy, count: number = 20, seed?: number):
         }
       }
       sectorId = rng.pick(fedAdjacent);
-    } else if (type === 'raider') {
-      // Dangerous sectors
+    } else if (persona.faction === 'fremen') {
+      // Fremen prefer dangerous sectors
       const dangerous = sectorIds.filter(id => galaxy.sectors.get(id)?.danger === 'dangerous');
       sectorId = dangerous.length > 0 ? rng.pick(dangerous) : rng.pick(sectorIds);
+    } else if (persona.faction === 'sardaukar') {
+      // Sardaukar go anywhere that's not safe
+      const hostile = sectorIds.filter(id => galaxy.sectors.get(id)?.danger !== 'safe');
+      sectorId = hostile.length > 0 ? rng.pick(hostile) : rng.pick(sectorIds);
     } else {
-      // Traders anywhere with ports
+      // Traders near ports
       const withPorts = sectorIds.filter(id => galaxy.sectors.get(id)?.port);
       sectorId = withPorts.length > 0 ? rng.pick(withPorts) : rng.pick(sectorIds);
     }

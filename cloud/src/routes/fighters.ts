@@ -433,7 +433,7 @@ export async function resolveFighterEncounter(
       outcome: 'surrendered',
       moved: false,
       targetSectorId,
-      narrative: `You surrender and are escorted to FedSpace (Sector ${fedSector}).`,
+      narrative: `You surrender and are escorted to CHOAM Protected Space (Sector ${fedSector}).`,
       fighterLosses: { player: 0, hostile: 0 },
       tollPaid: 0,
       ship: updated,
@@ -657,7 +657,7 @@ export async function handleDeployFighters(
     .first<{ danger: string }>();
 
   if (!sector) return jsonError('Sector not found', 404);
-  if (sector.danger === 'safe') return jsonError('Cannot deploy fighters in FedSpace', 403);
+  if (sector.danger === 'safe') return jsonError('Cannot deploy fighters in CHOAM Protected Space', 403);
 
   await db
     .prepare(

@@ -7,8 +7,11 @@ import type { Combatant } from '../combat/types.js';
 
 export type NPCType = 'trader' | 'raider' | 'patrol';
 
+export type NPCFaction = 'choam' | 'fremen' | 'sardaukar' | 'guild' | 'independent';
+
 export interface NPCPersona {
   type: NPCType;
+  faction: NPCFaction;
   name: string;
   aggression: number;      // 0-1, likelihood to attack
   caution: number;         // 0-1, likelihood to flee

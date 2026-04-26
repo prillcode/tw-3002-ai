@@ -86,14 +86,14 @@ const tabs = [
   { key: 'networth', label: 'Net Worth' },
   { key: 'kills', label: 'Kills' },
   { key: 'deaths', label: 'Deaths' },
-  { key: 'wanted', label: 'Wanted' },
+  { key: 'wanted', label: 'CHOAM Bounty Board' },
 ];
 
 const valueLabel = computed(() => {
   switch (activeTab.value) {
     case 'kills': return 'Kills';
     case 'deaths': return 'Deaths';
-    case 'wanted': return 'Recent Kills';
+    case 'wanted': return 'CHOAM Bounty Score';
     default: return 'Net Worth';
   }
 });

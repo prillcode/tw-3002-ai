@@ -142,10 +142,17 @@ function respawnDestroyedNPCs(npcs: NPC[], galaxy: Galaxy, seed: number): NPC[] 
       ? { ore: rng.nextInt(0, 30), organics: rng.nextInt(0, 30), equipment: rng.nextInt(0, 15) }
       : { ore: 0, organics: 0, equipment: 0 };
 
+    const faction = type === 'patrol'
+      ? 'choam'
+      : type === 'trader'
+      ? (rng.next() < 0.7 ? 'independent' : 'choam')
+      : (rng.next() < 0.55 ? 'fremen' : 'sardaukar');
+
     newNPCs.push({
       id: `npc-${Date.now()}-${i}-${rng.nextInt(1000, 9999)}`,
       persona: {
         type,
+        faction,
         name: `${rng.pick(namePrefixes)} ${rng.pick(nameSuffixes)}`,
         aggression: type === 'trader' ? rng.nextFloat(0.05, 0.25) : type === 'raider' ? rng.nextFloat(0.6, 0.95) : rng.nextFloat(0.3, 0.7),
         caution: type === 'trader' ? rng.nextFloat(0.5, 0.9) : type === 'raider' ? rng.nextFloat(0.1, 0.5) : rng.nextFloat(0.4, 0.8),

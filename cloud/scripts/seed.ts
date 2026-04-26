@@ -55,6 +55,9 @@ for (const sector of sectors) {
         ore: { price: port.trades.find(t => t.commodity === 'ore')?.basePrice ?? 100, supply: port.inventory.ore },
         organics: { price: port.trades.find(t => t.commodity === 'organics')?.basePrice ?? 50, supply: port.inventory.organics },
         equipment: { price: port.trades.find(t => t.commodity === 'equipment')?.basePrice ?? 200, supply: port.inventory.equipment },
+        ...(sector.danger === 'dangerous' || sector.danger === 'caution'
+          ? { melange: { price: Math.round(4000 + Math.random() * 2000), supply: Math.round(15 + Math.random() * 60) } }
+          : {}),
       }
     : {};
 

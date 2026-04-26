@@ -19,6 +19,7 @@ interface NPCRow {
 interface Persona {
   name: string;
   type: 'trader' | 'raider' | 'patrol';
+  faction?: 'choam' | 'fremen' | 'sardaukar' | 'guild' | 'independent';
 }
 
 interface ShipJson {
@@ -104,28 +105,72 @@ export async function runNPCTick(db: D1Database, galaxyId: number): Promise<Tick
     const actionRoll = Math.random();
 
     if (persona.type === 'raider') {
-      // Raiders: 60% move, 30% attack if target present, 10% idle
-      if (actionRoll < 0.6) {
-        // Move toward dangerous sector
-        const dangerous = currentSector.connections.filter(id => {
-          const s = sectors.get(id);
-          return s && s.danger === 'dangerous';
-        });
-        const target = dangerous.length > 0
-          ? dangerous[Math.floor(Math.random() * dangerous.length)]
-          : currentSector.connections[Math.floor(Math.random() * currentSector.connections.length)];
-        if (target !== undefined) {
-          await moveNPC(db, galaxyId, npc.npc_id, target);
-          summary.moves++;
+      const isSardaukar = persona.faction === 'sardaukar';
+      const isFremen = persona.faction === 'fremen';
+
+      if (isSardaukar) {
+        // Sardaukar: 40% move aggressively, 50% attack anything, 10% idle
+        if (actionRoll < 0.4) {
+          const target = currentSector.connections[Math.floor(Math.random() * currentSector.connections.length)];
+          if (target !== undefined) {
+            await moveNPC(db, galaxyId, npc.npc_id, target);
+            summary.moves++;
+          }
+        } else if (actionRoll < 0.9) {
+          const victim = await findVictim(db, galaxyId, npc.current_sector, npc.npc_id);
+          if (victim) {
+            summary.combats++;
+            const result = await resolveNPCCombat(db, galaxyId, npc, victim, cargo, persona);
+            if (result.death) summary.deaths++;
+            if (result.news) summary.newsGenerated++;
+          }
         }
-      } else if (actionRoll < 0.9) {
-        // Attack random player or NPC in sector
-        const victim = await findVictim(db, galaxyId, npc.current_sector, npc.npc_id);
-        if (victim) {
-          summary.combats++;
-          const result = await resolveNPCCombat(db, galaxyId, npc, victim, cargo, persona);
-          if (result.death) summary.deaths++;
-          if (result.news) summary.newsGenerated++;
+      } else if (isFremen) {
+        // Fremen: 50% patrol sector, 30% attack Sardaukar only, 20% idle
+        if (actionRoll < 0.5) {
+          const dangerous = currentSector.connections.filter(id => {
+            const s = sectors.get(id);
+            return s && s.danger === 'dangerous';
+          });
+          const target = dangerous.length > 0
+            ? dangerous[Math.floor(Math.random() * dangerous.length)]
+            : currentSector.connections[Math.floor(Math.random() * currentSector.connections.length)];
+          if (target !== undefined) {
+            await moveNPC(db, galaxyId, npc.npc_id, target);
+            summary.moves++;
+          }
+        } else if (actionRoll < 0.8) {
+          // Attack Sardaukar specifically
+          const victim = await findSardaukar(db, galaxyId, npc.current_sector, npc.npc_id);
+          if (victim) {
+            summary.combats++;
+            const result = await resolveNPCCombat(db, galaxyId, npc, victim, cargo, persona);
+            if (result.death) summary.deaths++;
+            if (result.news) summary.newsGenerated++;
+          }
+        }
+      } else {
+        // Generic raider
+        if (actionRoll < 0.6) {
+          const dangerous = currentSector.connections.filter(id => {
+            const s = sectors.get(id);
+            return s && s.danger === 'dangerous';
+          });
+          const target = dangerous.length > 0
+            ? dangerous[Math.floor(Math.random() * dangerous.length)]
+            : currentSector.connections[Math.floor(Math.random() * currentSector.connections.length)];
+          if (target !== undefined) {
+            await moveNPC(db, galaxyId, npc.npc_id, target);
+            summary.moves++;
+          }
+        } else if (actionRoll < 0.9) {
+          const victim = await findVictim(db, galaxyId, npc.current_sector, npc.npc_id);
+          if (victim) {
+            summary.combats++;
+            const result = await resolveNPCCombat(db, galaxyId, npc, victim, cargo, persona);
+            if (result.death) summary.deaths++;
+            if (result.news) summary.newsGenerated++;
+          }
         }
       }
     } else if (persona.type === 'patrol') {
@@ -143,7 +188,7 @@ export async function runNPCTick(db: D1Database, galaxyId: number): Promise<Tick
           summary.moves++;
         }
       } else if (actionRoll < 0.9) {
-        const victim = await findRaider(db, galaxyId, npc.current_sector, npc.npc_id);
+        const victim = await findSardaukar(db, galaxyId, npc.current_sector, npc.npc_id);
         if (victim) {
           summary.combats++;
           const result = await resolveNPCCombat(db, galaxyId, npc, victim, cargo, persona);
@@ -161,9 +206,9 @@ export async function runNPCTick(db: D1Database, galaxyId: number): Promise<Tick
         }
       } else if (actionRoll < 0.9 && currentSector.hasPort) {
         // Simple trade: buy random commodity, sell random commodity
-        const commodities = ['ore', 'organics', 'equipment'];
+        const commodities = Object.keys(currentSector.inventory);
         const commodity = commodities[Math.floor(Math.random() * commodities.length)];
-        const inv = currentSector.inventory[commodity];
+        const inv = commodity ? currentSector.inventory[commodity] : undefined;
         if (inv && inv.supply > 10) {
           const quantity = Math.min(10, inv.supply);
           const cost = inv.price * quantity;
@@ -231,6 +276,14 @@ async function findRaider(db: D1Database, galaxyId: number, sectorId: number, ex
   return result ?? null;
 }
 
+async function findSardaukar(db: D1Database, galaxyId: number, sectorId: number, excludeNpcId: string): Promise<NPCRow | null> {
+  const result = await db
+    .prepare("SELECT * FROM npcs WHERE galaxy_id = ? AND current_sector = ? AND is_active = 1 AND npc_id != ? AND persona_json LIKE '%sardaukar%' ORDER BY RANDOM() LIMIT 1")
+    .bind(galaxyId, sectorId, excludeNpcId)
+    .first<NPCRow>();
+  return result ?? null;
+}
+
 interface CombatResult {
   death: boolean;
   news: boolean;
@@ -282,10 +335,10 @@ async function resolveNPCCombat(db: D1Database, galaxyId: number, attacker: NPCR
   if (defenderDied || attackerDied) {
     const defenderPersona: Persona = JSON.parse(defender.persona_json);
     const headline = defenderDied && attackerDied
-      ? `${attackerPersona.name} and ${defenderPersona.name} destroyed each other in sector ${attacker.current_sector}`
+      ? `${factionPrefix(attackerPersona)}${attackerPersona.name} and ${factionPrefix(defenderPersona)}${defenderPersona.name} destroyed each other in sector ${attacker.current_sector}`
       : defenderDied
-      ? `${attackerPersona.name} destroyed ${defenderPersona.name} in sector ${attacker.current_sector}`
-      : `${defenderPersona.name} destroyed ${attackerPersona.name} in sector ${attacker.current_sector}`;
+      ? `${factionPrefix(attackerPersona)}${attackerPersona.name} destroyed ${factionPrefix(defenderPersona)}${defenderPersona.name} in sector ${attacker.current_sector}`
+      : `${factionPrefix(defenderPersona)}${defenderPersona.name} destroyed ${factionPrefix(attackerPersona)}${attackerPersona.name} in sector ${attacker.current_sector}`;
 
     await db
       .prepare('INSERT INTO news (galaxy_id, headline, type, sector_id) VALUES (?, ?, ?, ?)')
@@ -323,4 +376,14 @@ export async function handleNPCTick(
   const galaxyId = body.galaxyId ?? 1;
   const summary = await runNPCTick(db, galaxyId);
   return json(summary);
+}
+
+function factionPrefix(persona: Persona): string {
+  switch (persona.faction) {
+    case 'fremen': return 'Fremen warrior ';
+    case 'sardaukar': return 'Sardaukar ';
+    case 'choam': return 'CHOAM ';
+    case 'guild': return 'Guild ';
+    default: return '';
+  }
 }
