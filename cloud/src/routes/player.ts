@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError } from '../utils/cors.js';
+import { getEntryEncounter, resolveFighterEncounter } from './fighters.js';
 
 /**
  * GET /api/player
@@ -172,6 +173,28 @@ export async function handleMoveShip(
   const connections: number[] = JSON.parse(currentSector.connections_json ?? '[]');
   if (!connections.includes(sectorId)) {
     return jsonError('Sector not connected', 403);
+  }
+
+  const encounter = await getEntryEncounter(db, auth.playerId, galaxyId, sectorId);
+
+  if (encounter) {
+    // If all hostiles are offensive, resolve immediately as attack
+    if (encounter.autoResolveOffensive) {
+      const outcome = await resolveFighterEncounter(db, auth.playerId, galaxyId, sectorId, 'attack');
+      if (!outcome.success) return jsonError(outcome.narrative, 400);
+
+      return json({
+        moved: outcome.moved,
+        encounterAutoResolved: true,
+        outcome,
+        ship: outcome.ship,
+      });
+    }
+
+    return json({
+      error: 'fighter_encounter_required',
+      ...encounter,
+    }, 409);
   }
 
   // Update position and decrement turns

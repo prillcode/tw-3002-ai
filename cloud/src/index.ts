@@ -24,6 +24,7 @@ import {
   handleDeployFighters,
   handleGetSectorFighters,
   handleRecallFighters,
+  handleResolveEncounter,
 } from './routes/fighters.js';
 
 export interface Env {
@@ -148,6 +149,9 @@ export default {
         }
         else if (path === '/api/fighters/recall' && method === 'POST') {
           response = await handleRecallFighters(auth, request, env.DB);
+        }
+        else if (path === '/api/fighters/encounter/resolve' && method === 'POST') {
+          response = await handleResolveEncounter(auth, request, env.DB);
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
           response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET);

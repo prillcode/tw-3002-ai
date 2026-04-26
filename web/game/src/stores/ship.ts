@@ -117,7 +117,7 @@ export const useShipStore = defineStore('ship', () => {
     }
   }
 
-  async function moveShip(galaxyId: number, sectorId: number) {
+  async function moveShip(galaxyId: number, sectorId: number): Promise<{ status: 'moved'; ship: any } | { status: 'encounter'; encounter: any } | { status: 'error'; error: string }> {
     const auth = useAuthStore();
     try {
       const res = await fetch(`${API_BASE}/api/player/ship/move`, {
@@ -126,16 +126,56 @@ export const useShipStore = defineStore('ship', () => {
         body: JSON.stringify({ galaxyId, sectorId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Move failed');
-      if (ship.value) {
-        ship.value.currentSector = sectorId;
-        ship.value.turns = Math.max(0, ship.value.turns - 1);
+
+      if (res.status === 409 && data?.encounterRequired) {
+        return { status: 'encounter', encounter: data };
       }
-      return true;
+
+      if (!res.ok) throw new Error(data.error || 'Move failed');
+
+      const nextShip = data.ship ?? data.outcome?.ship;
+      if (ship.value && nextShip) {
+        ship.value.currentSector = nextShip.current_sector;
+        ship.value.turns = nextShip.turns;
+        ship.value.hull = nextShip.hull;
+        ship.value.shield = nextShip.shield;
+        ship.value.credits = nextShip.credits;
+        ship.value.fighters = nextShip.fighters ?? ship.value.fighters;
+      }
+
+      return { status: 'moved', ship: nextShip };
     } catch (err: any) {
       message.value = err.message;
-      return false;
+      return { status: 'error', error: err.message };
     }
+  }
+
+  async function resolveFighterEncounter(
+    galaxyId: number,
+    targetSectorId: number,
+    action: 'attack' | 'retreat' | 'surrender' | 'pay_toll',
+  ) {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/fighters/encounter/resolve`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, targetSectorId, action }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Encounter resolution failed');
+
+    const nextShip = data.ship;
+    if (ship.value && nextShip) {
+      ship.value.currentSector = nextShip.current_sector;
+      ship.value.turns = nextShip.turns;
+      ship.value.hull = nextShip.hull;
+      ship.value.shield = nextShip.shield;
+      ship.value.credits = nextShip.credits;
+      ship.value.fighters = nextShip.fighters ?? ship.value.fighters;
+    }
+
+    return data;
   }
 
   async function loadStats(galaxyId: number) {
@@ -233,5 +273,6 @@ export const useShipStore = defineStore('ship', () => {
     buyFighters,
     deployFighters,
     recallFighters,
+    resolveFighterEncounter,
   };
 });

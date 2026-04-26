@@ -306,6 +306,14 @@
       @deployed="loadFighters(currentSector.id)"
     />
 
+    <FighterEncounterModal
+      v-if="activeEncounter"
+      :galaxy-id="galaxyId"
+      :encounter="activeEncounter"
+      @close="activeEncounter = null"
+      @resolved="handleEncounterResolved"
+    />
+
   <!-- Modals -->
   <Teleport to="body">
       <div v-if="ui.activeModal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -366,6 +374,7 @@ import { useUiStore } from '../stores/ui';
 import { useAuthStore } from '../stores/auth';
 import WarpOverlay from '../components/WarpOverlay.vue';
 import DeployFightersModal from '../components/DeployFightersModal.vue';
+import FighterEncounterModal from '../components/FighterEncounterModal.vue';
 
 const router = useRouter();
 const galaxy = useGalaxyStore();
@@ -382,6 +391,7 @@ const npcs = ref<Array<any>>([]);
 const news = ref<Array<any>>([]);
 const sectorFighters = ref<Array<{ ownerId: number; ownerName: string; count: number; mode: string; hostile: boolean }>>([]);
 const showDeployModal = ref(false);
+const activeEncounter = ref<any | null>(null);
 const recalling = ref(false);
 
 const currentSector = computed(() => galaxy.currentSector());
@@ -486,14 +496,33 @@ async function handleJump() {
   isWarping.value = true;
   await delay(800);
   jumping.value = true;
-  const success = await ship.moveShip(galaxyId, target);
-  if (success) {
-    galaxy.visit(target);
-    await loadSectorData(target);
+
+  const result = await ship.moveShip(galaxyId, target);
+
+  if (result.status === 'moved') {
+    if (ship.ship) {
+      galaxy.visit(ship.ship.currentSector);
+      await loadSectorData(ship.ship.currentSector);
+    }
     selectedNeighbor.value = null;
+  } else if (result.status === 'encounter') {
+    activeEncounter.value = result.encounter;
+    isWarping.value = false;
   }
+
   isWarping.value = false;
   jumping.value = false;
+}
+
+async function handleEncounterResolved(data: any) {
+  ship.message = data.narrative;
+  activeEncounter.value = null;
+  selectedNeighbor.value = null;
+
+  if (ship.ship) {
+    galaxy.visit(ship.ship.currentSector);
+    await loadSectorData(ship.ship.currentSector);
+  }
 }
 
 function handleQuit() {
@@ -508,6 +537,11 @@ function handleKey(e: KeyboardEvent) {
 
   if (showDeployModal.value) {
     if (e.key === 'Escape') showDeployModal.value = false;
+    return;
+  }
+
+  if (activeEncounter.value) {
+    if (e.key === 'Escape') activeEncounter.value = null;
     return;
   }
 
