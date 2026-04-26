@@ -1,8 +1,10 @@
 # TW-13 Roadmap: Fighter Deployment & Sector Control
 
-**Estimated Total:** 32-40 hours (4-5 focused sessions)
+**Estimated Total:** 28-34 hours (4 focused sessions)
 
 > **This is the leap from infrastructure to true TW2002 warfare.** Every phase adds a new defensive/offensive layer.
+> 
+> **No corporation mechanics.** Fighter ownership is individual only. Blockades are solo or ad-hoc — no corp sharing, no coordinated multi-player pools.
 
 ## Phase 1: Fighter Purchase & Deployment (6-8 hours)
 **Goal:** Players can buy and drop fighters in sectors
@@ -42,8 +44,8 @@
 
 ---
 
-## Phase 3: Ordered Combat Sequence (5-6 hours)
-**Goal:** TW2002-authentic combat order of events
+## Phase 3: Ordered Combat Sequence & Ship-to-Ship (5-6 hours)
+**Goal:** TW2002-authentic combat order of events, including ship-to-ship resolution
 
 **Deliverables:**
 - [ ] Sector entry order of events:
@@ -52,14 +54,15 @@
   3. Armid Mine detonation (Phase 4)
   4. Sector Q-Cannon fire (Phase 5)
   5. Fighter encounter (Phase 2)
-  6. Player ship combat (if both survive fighter encounter)
-- [ ] Player ship combat order (if fighters don't resolve the encounter):
-  1. Empty ships attack first
-  2. Player ships attack in sign-on order
-  3. Sector fighters resolved
+  6. **Ship-to-ship combat** (if both survive fighter encounter and both are players)
+- [ ] Ship-to-ship combat resolution:
+  - Trigger: two (or more) player ships occupy same sector with no deployed fighters, OR both survive fighter encounter
+  - Order: empty ships attack first → player ships attack in sign-on order → sector fighters resolved
+  - Uses existing `resolveDefeat()` pipeline from TW-05 for consequences (loot, respawn, news)
+  - Not a "duel" button — it's an automatic consequence of co-occupation after fighter resolution
 - [ ] Web client: display combat sequence step-by-step (operations log)
 
-**Success:** Combat feels authentic to TW2002 mechanics.
+**Success:** Combat feels authentic to TW2002 mechanics. Players know exactly what happened and why.
 
 ---
 
@@ -82,36 +85,23 @@
 
 **Deliverables:**
 - [ ] Blockade detection: sector info shows heavy fighter concentration
-- [ ] Blockade types (simplified from TW2002):
+- [ ] Blockade types (simplified from TW2002, solo-player focused):
   - **Scout Blockade:** light fig deployment around Stardock
-  - **Fortress Blockade:** overwhelming fig concentration
+  - **Fortress Blockade:** overwhelming fig concentration by a single player
 - [ ] Q-Cannon damage formulas (per `../lore-reference/strategy/combat.md`):
   - Sector Q-Cannon: `(TotalOre * SectPct) / 3`
   - Atmospheric Q-Cannon: `TotalOre * AtmoPct * 2`
 - [ ] Loot rebalance: raise player defeat loot from 25% → 50% (now that layers exist)
 - [ ] Offline protection: deployed fighters auto-defend; no more "offline = vulnerable"
 
-**Success:** Corps can lock down sectors. Solo players need strategy to bypass.
-
----
-
-## Phase 6: Corp Fighter Sharing (3-4 hours)
-**Goal:** Team-based fighter accounting
-
-**Deliverables:**
-- [ ] Corp fighter pools: corp members can contribute figs to shared sector defense
-- [ ] Corp fighter ownership tracking
-- [ ] Fighter inheritance: if member quits, corp retains figs
-- [ ] Web client: corp fighter management UI
-
-**Success:** Team play becomes viable for sector control.
+**Success:** Players can lock down sectors. Rivals need strategy (backdoors, mine sweepers, overwhelming force) to bypass.
 
 ---
 
 ## Phase Completion Order
-1 → 2 → 3 → 4 → 5 → 6
+1 → 2 → 3 → 4 → 5
 
-Phase 1-2 are the core (buy/deploy/encounter). Phases 3-4 add depth. Phase 5 is the strategic payoff (blockades). Phase 6 is social.
+Phase 1-2 are the core (buy/deploy/encounter). Phase 3 adds authentic sequencing and ship-to-ship. Phase 4 adds depth. Phase 5 is the strategic payoff (blockades).
 
 ---
 
@@ -119,15 +109,17 @@ Phase 1-2 are the core (buy/deploy/encounter). Phases 3-4 add depth. Phase 5 is 
 - Players can buy and deploy fighters
 - Sector entry triggers fighter encounters
 - Combat follows TW2002 order of events
+- Ship-to-ship combat resolves when fighters don't settle the encounter
 - Mines add secondary defenses
-- Blockades are possible
+- Blockades are possible for individual players
 - Loot rebalanced to 50%
 - Offline players are protected by deployed fighters
-- Corp-level fighter sharing works
 
 ---
 
 ## Notes
 - **This is the true TW2002 PvP experience.** Everything before this was scaffolding.
 - **Reference the Stardock manual constantly.** `../lore-reference/strategy/combat.md` and `../lore-reference/strategy/blockades.md` are your bibles.
-- **Fighter economy is the endgame.** The player who controls fighter production (via planets, TW-07) controls the galaxy.
+- **Fighter economy is the endgame.** The player who controls fighter production (via planets, TW-14) controls the galaxy.
+- **No corps.** Blockades are individual efforts. A single determined player with enough fighters can deny Stardock access.
+- **Ship-to-ship is automatic, not opt-in.** In TW2002, if you enter a sector with another player and no fighters mediate, combat happens. There's no "challenge" button.

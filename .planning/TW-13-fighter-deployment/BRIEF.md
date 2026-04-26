@@ -18,19 +18,21 @@ Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-ba
   - **Tolled** — intruder pays 5 credits per fighter or fights at 1:1
 - **Sector Entry Encounters:** When entering a sector with hostile fighters, resolve the encounter before normal sector actions
 - **Offline Protection:** Deployed fighters auto-defend offline players (replaces TW-05's "offline = vulnerable" rule)
-- **Blockades:** Coordinated fighter/mine deployment to deny access to Stardock or FedSpace
-- **Fighter Accounting:** Track who owns what fighters; corp-shared fighter pools
+- **Blockades:** Fighter/mine deployment to deny access to Stardock or FedSpace
+- **Fighter Accounting:** Track who owns what fighters (individual ownership only)
 - **Q-Cannon Damage:** Planetary atmospheric cannons fire on sector entry (if planet has citadel)
 - **Limpet & Armid Mines:** Mine deployment and detonation on sector entry
-- **Combat Sequence:** Ordered combat (empty ships → player ships by sign-on → sector fighters)
+- **Combat Sequence:** Ordered combat — nav hazard → limpets → armids → Q-cannons → fighters → ship-to-ship (if both survive)
+- **Ship-to-Ship Combat:** When two players occupy the same sector with no fighters deployed, or both survive fighter encounter, resolve ship-to-ship per TW2002 order (empty ships → player ships by sign-on)
 - **Loot Rebalance:** Raise player defeat loot from 25% to 50% credits (now that fighters provide defense)
 
 ## Out of Scope
-- Planetary shields & citadel advancement (TW-07)
+- Planetary shields & citadel advancement (TW-14)
 - Photon torpedoes (special weapon, future expansion)
-- Cloaking device failure after 24h (Phase 5 covers basic cloaking)
-- Full corporation mechanics (shared assets, corp banks) — TW-08 maybe
+- Cloaking device failure after 24h (basic cloaking is in scope; failure mechanics deferred)
+- **Corporation mechanics** — deliberately excluded per project direction (no player collusion features)
 - Terra Hazz blockades (requires nav-hazard fields, not in current engine)
+- Corp fighter sharing / shared pools
 
 ## Success Criteria
 1. Player can buy fighters at StarDock
@@ -43,11 +45,12 @@ Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-ba
 8. Blockade tactics are possible (Stardock denial via fig concentration)
 9. Combat follows ordered sequence per TW2002 manual
 10. Fighter ownership is tracked and visible in sector info
+11. Ship-to-ship combat resolves when two players occupy same sector without fighter mediation
 
 ## Dependencies
 - Blocked by: TW-05 (PvP infrastructure, shared player state, combat resolver)
 - Blocked by: TW-03 (NPC brain for fighter encounters, patrol behavior)
-- Blocks: TW-07 (planetary shields/citadels build on fighter systems)
+- Blocks: TW-14 (planetary shields/citadels build on fighter systems)
 - Related: `../lore-reference/strategy/combat.md`, `../lore-reference/strategy/blockades.md`
 
 ## References
