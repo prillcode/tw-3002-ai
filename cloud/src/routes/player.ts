@@ -105,8 +105,8 @@ export async function handleCreateShip(
     await db
       .prepare(
         `INSERT INTO player_ships
-         (player_id, galaxy_id, ship_name, class_id, credits, current_sector, hull, shield, turns, max_turns, cargo_json, upgrades_json)
-         VALUES (?, ?, ?, ?, 5000, 0, ?, 0, ?, ?, '{}', '{}')
+         (player_id, galaxy_id, ship_name, class_id, credits, current_sector, hull, shield, turns, max_turns, cargo_json, upgrades_json, fighters)
+         VALUES (?, ?, ?, ?, 5000, 0, ?, 0, ?, ?, '{}', '{}', 30)
          ON CONFLICT(player_id, galaxy_id) DO UPDATE SET
            ship_name = excluded.ship_name,
            class_id = excluded.class_id,

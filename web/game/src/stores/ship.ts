@@ -18,6 +18,7 @@ export interface ShipState {
   maxTurns: number;
   classId: string;
   currentSector: number;
+  fighters: number;
   upgrades: Record<string, number>;
   kills: number;
   deaths: number;
@@ -76,6 +77,7 @@ export const useShipStore = defineStore('ship', () => {
         maxTurns: s.max_turns,
         classId: s.class_id,
         currentSector: s.current_sector,
+        fighters: s.fighters ?? 0,
         upgrades: JSON.parse(s.upgrades_json || '{}'),
         kills: s.kills ?? 0,
         deaths: s.deaths ?? 0,
@@ -160,9 +162,76 @@ export const useShipStore = defineStore('ship', () => {
     }
   }
 
+  async function buyFighters(galaxyId: number, quantity: number) {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/fighters/buy`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, quantity }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to buy fighters');
+
+    if (ship.value) {
+      ship.value.credits = data.remainingCredits;
+      ship.value.fighters = data.shipFighters;
+    }
+
+    return data;
+  }
+
+  async function deployFighters(galaxyId: number, sectorId: number, quantity: number, mode: 'defensive' | 'offensive' | 'tolled') {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/fighters/deploy`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, sectorId, quantity, mode }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to deploy fighters');
+
+    if (ship.value) {
+      ship.value.fighters = data.remainingShipFighters;
+    }
+
+    return data;
+  }
+
+  async function recallFighters(galaxyId: number, sectorId: number, quantity?: number) {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/fighters/recall`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, sectorId, quantity }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to recall fighters');
+
+    if (ship.value) {
+      ship.value.fighters = data.shipFighters;
+    }
+
+    return data;
+  }
+
   function clearMessage() {
     message.value = null;
   }
 
-  return { ship, loading, error, message, stats, loadShip, createShip, moveShip, clearMessage, applyEffectiveStats, loadStats };
+  return {
+    ship,
+    loading,
+    error,
+    message,
+    stats,
+    loadShip,
+    createShip,
+    moveShip,
+    clearMessage,
+    applyEffectiveStats,
+    loadStats,
+    buyFighters,
+    deployFighters,
+    recallFighters,
+  };
 });

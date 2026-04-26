@@ -28,12 +28,15 @@ Current combat returns a single narrative paragraph. Expand to a turn-by-turn lo
 
 This gives players a sense of *how* the fight unfolded, not just the outcome.
 
-### 3. Fighter / Wing Deployment
-Add fighter squadrons as a ship system:
+### 3. Ship-Based Fighter / Wing Deployment
+> **Note:** Distinct from TW-13 (sector-based fighter deployment). This is about tactical fighter squadrons on your ship.
+
+Add fighter squadrons as a ship combat subsystem:
 - Fighters absorb damage before hull
 - Can be launched for extra damage (risk: if destroyed, they're gone)
 - Recharge/restock at StarDock or over time
 - Merchant gets cargo bays → fighter bays conversion? Or new ship module system.
+- In classic TW2002, starting ships carry 30 fighters for defense — this could be the seed mechanic.
 
 ### 4. Heat / Systems Management
 Track combat heat:
@@ -92,15 +95,74 @@ Add a mini tactical map to the combat screen showing relative positions:
 
 ---
 
-## Priority Order (Post-TW-05)
+## 🪐 Planets & Economy (Post-TW-14)
 
-1. **Comm Log** — Highest ROI. Replaces the janky message banner, adds history, improves game feel immediately.
-2. **Combat Stances** — Adds meaningful choice to combat without massive backend changes.
-3. **Operations Log** — Requires backend round-tracking, but makes combat feel much deeper.
-4. **Fighter/Wing System** — New ship subsystem. Requires schema changes + UI work.
-5. **Heat/Systems** — Most complex. Only after fighters are proven.
-6. **Orbital Tactical Display** — Purely cosmetic. Nice to have.
+Ideas that open up once planets and citadels exist:
+
+### Planet Visualizer
+- Show planet class as a visual card (M = blue/green, H = red/volcanic, O = oceanic)
+- Colonist population bar, production dials for FOE
+- Citadel level badge (⭐ to ⭐⭐⭐⭐⭐⭐)
+- Q-cannon charge indicator
+
+### Trade Route Heatmap
+- After enough player trade data, generate a heatmap of profitable routes
+- Visual overlay on sector map showing "hot" trade corridors
+- Danger overlay: sectors with high fighter losses highlighted in red
+
+### Planetary Invasion Cinematic
+- When attacking a planet with citadel, show a step-by-step cinematic:
+  - "Atmospheric cannons firing..." (hull damage number)
+  - "Shields holding at 60%..."
+  - "Planetary fighters scrambling..."
+  - Each step pauses briefly, building tension
 
 ---
 
-*Don't start any of this until TW-05 PvP is live and stable.*
+## 🚀 Ship Expansion Ideas (Post-TW-15)
+
+TW2002 has 20+ ship classes. We're at 3. Key unlocks to add:
+
+| Ship | When Unlocked | Role |
+|------|--------------|------|
+| Scout Marauder | Starter alt | Fast recon (2 turns/warp, 2:1 odds) |
+| Merchant Freighter | Early | Trade focus (65 holds, 2 turns/warp) |
+| Missile Frigate | Mid | Combat (5k figs, 1.3:1 odds) |
+| Imperial StarShip | +1000 alignment + Commission | Endgame (50k figs, TransWarp) |
+| Havoc GunStar | Late game | Tank (10k figs, 3k shields, TransWarp) |
+| Interdictor Cruiser | Very late | Blockade specialist (100k figs) |
+
+### Ship Unlock System
+- Some ships require alignment (ISS needs +1000 good)
+- Some require rank (Interdictor needs Admiral)
+- Some require credits only (Merchant Freighter)
+- Shipyard UI at StarDock showing locked/unlocked with requirements
+
+---
+
+## Priority Order (Post-TW-05 — Now Active)
+
+**Immediate (Formal Work Items):**
+1. **TW-13** — Sector fighter deployment (buy/deploy/encounter/blockade)
+2. **TW-14** — Planets & citadels (creation/production/defense)
+3. **TW-15** — Alignment system (good/evil paths, rob/steal, ISS)
+
+**UI/UX Polish (Can parallel with above):**
+4. **Comm Log** — Highest ROI idea. Replaces message banner, adds history.
+5. **Combat Stances** — Adds meaningful choice without massive backend changes.
+
+**Mid-term (After TW-15):**
+6. **Operations Log** — Round-by-round combat narrative.
+7. **Ship Expansion** — More classes, unlock system, shipyard UI.
+8. **Ship-Based Fighter/Wing System** — Tactical squadrons in ship combat.
+
+**Long-term / Maybe:**
+9. **Heat/Systems Management** — Complex resource layer.
+10. **Orbital Tactical Display** — Purely cosmetic.
+11. **Trade Route Heatmap** — Requires data accumulation.
+12. **Planetary Invasion Cinematic** — Visual polish.
+
+---
+
+*No corporation features.* Player collusion mechanics are deliberately excluded from all ideas.
+*CRT/scanline mode remains excluded.* Clean terminal aesthetic is the identity.

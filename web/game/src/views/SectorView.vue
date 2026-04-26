@@ -37,12 +37,14 @@
               <span class="text-terminal-cyan">SECTOR {{ currentSector.id }}</span>
               <span class="text-terminal-white"> — {{ currentSector.name.toUpperCase() }}</span>
             </h2>
-            <div class="flex items-center gap-3 mt-1 text-sm font-mono">
+            <div class="flex items-center gap-3 mt-1 text-sm font-mono flex-wrap">
               <span :class="dangerColor">{{ dangerIcon }}</span>
               <span v-if="currentSector.hasPort" class="text-terminal-yellow">
                 Port Class {{ currentSector.portClass }} ({{ currentSector.portName }})
               </span>
               <span v-if="currentSector.stardock" class="text-terminal-magenta font-bold">⚡ StarDock</span>
+              <span v-if="hostileFighterCount > 0" class="text-terminal-red">⚔ {{ hostileFighterCount.toLocaleString() }} hostile fighters</span>
+              <span v-if="ownDeployedFighters > 0" class="text-terminal-green">🛡 Your fighters: {{ ownDeployedFighters.toLocaleString() }} ({{ ownFighterMode }})</span>
             </div>
           </div>
         </div>
@@ -72,6 +74,10 @@
             <div class="flex justify-between">
               <span class="text-terminal-muted">Turns</span>
               <span :class="turnsColor">{{ ship.ship.turns }}/{{ ship.ship.maxTurns }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-terminal-muted">Fighters</span>
+              <span class="text-terminal-yellow">{{ (ship.ship.fighters ?? 0).toLocaleString() }} / {{ ownDeployedFighters.toLocaleString() }} deployed</span>
             </div>
             <div v-if="ship.stats.kills > 0 || ship.stats.deaths > 0" class="flex justify-between">
               <span class="text-terminal-muted">K/D</span>
@@ -152,6 +158,21 @@
               class="w-full terminal-btn text-left"
             >
               🏆 Leaderboard [L]
+            </button>
+            <button
+              @click="showDeployModal = true"
+              :disabled="(ship.ship.fighters ?? 0) <= 0 || currentSector.danger === 'safe'"
+              class="w-full terminal-btn text-left disabled:opacity-50"
+            >
+              🚀 Deploy Fighters [F]
+            </button>
+            <button
+              v-if="ownDeployedFighters > 0"
+              @click="handleRecallAll"
+              :disabled="recalling"
+              class="w-full terminal-btn text-left"
+            >
+              ↩ Recall Fighters [R]
             </button>
           </div>
         </div>
@@ -277,6 +298,14 @@
     <!-- Warp Overlay -->
     <WarpOverlay :active="isWarping" :target-sector="warpTarget" />
 
+    <DeployFightersModal
+      v-if="showDeployModal && currentSector"
+      :galaxy-id="galaxyId"
+      :sector-id="currentSector.id"
+      @close="showDeployModal = false"
+      @deployed="loadFighters(currentSector.id)"
+    />
+
   <!-- Modals -->
   <Teleport to="body">
       <div v-if="ui.activeModal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -296,6 +325,8 @@
               <div><span class="text-terminal-cyan">D</span> <span class="text-terminal-muted">StarDock</span></div>
               <div><span class="text-terminal-cyan">N</span> <span class="text-terminal-muted">Navigation</span></div>
               <div><span class="text-terminal-cyan">L</span> <span class="text-terminal-muted">Leaderboard</span></div>
+              <div><span class="text-terminal-cyan">F</span> <span class="text-terminal-muted">Deploy Fighters</span></div>
+              <div><span class="text-terminal-cyan">R</span> <span class="text-terminal-muted">Recall Fighters</span></div>
               <div><span class="text-terminal-cyan">H</span> <span class="text-terminal-muted">Help</span></div>
               <div><span class="text-terminal-cyan">Esc</span> <span class="text-terminal-muted">Back</span></div>
             </div>
@@ -327,17 +358,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGalaxyStore } from '../stores/galaxy';
 import { useShipStore } from '../stores/ship';
 import { useUiStore } from '../stores/ui';
+import { useAuthStore } from '../stores/auth';
 import WarpOverlay from '../components/WarpOverlay.vue';
+import DeployFightersModal from '../components/DeployFightersModal.vue';
 
 const router = useRouter();
 const galaxy = useGalaxyStore();
 const ship = useShipStore();
 const ui = useUiStore();
+const auth = useAuthStore();
 
 const galaxyId = 1;
 const selectedNeighbor = ref<number | null>(null);
@@ -346,6 +380,9 @@ const isWarping = ref(false);
 const warpTarget = ref(0);
 const npcs = ref<Array<any>>([]);
 const news = ref<Array<any>>([]);
+const sectorFighters = ref<Array<{ ownerId: number; ownerName: string; count: number; mode: string; hostile: boolean }>>([]);
+const showDeployModal = ref(false);
+const recalling = ref(false);
 
 const currentSector = computed(() => galaxy.currentSector());
 const neighborList = computed(() => galaxy.neighbors());
@@ -433,6 +470,11 @@ const turnsColor = computed(() => {
   return 'text-terminal-white';
 });
 
+const ownFighters = computed(() => sectorFighters.value.filter(f => !f.hostile));
+const ownDeployedFighters = computed(() => ownFighters.value.reduce((sum, row) => sum + row.count, 0));
+const ownFighterMode = computed(() => ownFighters.value[0]?.mode ?? 'defensive');
+const hostileFighterCount = computed(() => sectorFighters.value.filter(f => f.hostile).reduce((sum, row) => sum + row.count, 0));
+
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -463,10 +505,17 @@ function handleQuit() {
 // Keyboard shortcuts
 function handleKey(e: KeyboardEvent) {
   if (isWarping.value) return;
+
+  if (showDeployModal.value) {
+    if (e.key === 'Escape') showDeployModal.value = false;
+    return;
+  }
+
   if (ui.activeModal) {
     if (e.key === 'Escape') ui.closeModal();
     return;
   }
+
   if (e.key === 'm' || e.key === 'M') {
     if (currentSector.value?.hasPort) {
       router.push(`/galaxy/${galaxyId}/market`);
@@ -477,9 +526,47 @@ function handleKey(e: KeyboardEvent) {
       router.push(`/galaxy/${galaxyId}/stardock`);
     }
   }
+  if (e.key === 'f' || e.key === 'F') {
+    if ((ship.ship?.fighters ?? 0) > 0 && currentSector.value?.danger !== 'safe') {
+      showDeployModal.value = true;
+    }
+  }
+  if (e.key === 'r' || e.key === 'R') {
+    if (ownDeployedFighters.value > 0) {
+      handleRecallAll();
+    }
+  }
   if (e.key === 'n' || e.key === 'N') router.push(`/galaxy/${galaxyId}/nav`);
   if (e.key === 'h' || e.key === 'H' || e.key === '?') ui.openModal('help');
   if (e.key === 'l' || e.key === 'L') router.push(`/galaxy/${galaxyId}/leaderboard`);
+}
+
+async function loadFighters(sectorId: number) {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/fighters/sector?galaxyId=${galaxyId}&sectorId=${sectorId}`, {
+      headers: auth.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load fighters');
+    sectorFighters.value = data.fighters || [];
+  } catch {
+    sectorFighters.value = [];
+  }
+}
+
+async function handleRecallAll() {
+  if (!currentSector.value || recalling.value) return;
+
+  recalling.value = true;
+  try {
+    await ship.recallFighters(galaxyId, currentSector.value.id);
+    await loadFighters(currentSector.value.id);
+    ship.message = `↩ Recalled fighters to ship`;
+  } catch (err: any) {
+    ship.message = err.message;
+  } finally {
+    recalling.value = false;
+  }
 }
 
 async function loadSectorData(sectorId: number) {
@@ -490,6 +577,9 @@ async function loadSectorData(sectorId: number) {
       persona: JSON.parse(n.persona_json || '{}'),
     }));
   }
+
+  await loadFighters(sectorId);
+
   // Load news
   try {
     const newsRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/news?galaxyId=${galaxyId}&limit=5`);
@@ -510,5 +600,9 @@ onMounted(async () => {
     await loadSectorData(ship.ship.currentSector);
   }
   window.addEventListener('keydown', handleKey);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKey);
 });
 </script>

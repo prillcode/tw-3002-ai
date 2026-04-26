@@ -19,6 +19,12 @@ import {
 } from './routes/combat.js';
 import { handleNPCTick, runNPCTick } from './routes/npc.js';
 import { handleGetNews, handleAddNews, handleLeaderboard } from './routes/news.js';
+import {
+  handleBuyFighters,
+  handleDeployFighters,
+  handleGetSectorFighters,
+  handleRecallFighters,
+} from './routes/fighters.js';
 
 export interface Env {
   DB: D1Database;
@@ -130,6 +136,18 @@ export default {
         }
         else if (path === '/api/insurance/status' && method === 'GET') {
           response = await handleInsuranceStatus(auth, url.searchParams.get('galaxyId'), env.DB);
+        }
+        else if (path === '/api/fighters/buy' && method === 'POST') {
+          response = await handleBuyFighters(auth, request, env.DB);
+        }
+        else if (path === '/api/fighters/deploy' && method === 'POST') {
+          response = await handleDeployFighters(auth, request, env.DB);
+        }
+        else if (path === '/api/fighters/sector' && method === 'GET') {
+          response = await handleGetSectorFighters(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+        }
+        else if (path === '/api/fighters/recall' && method === 'POST') {
+          response = await handleRecallFighters(auth, request, env.DB);
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
           response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET);

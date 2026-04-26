@@ -55,6 +55,31 @@
           <span class="text-terminal-cyan font-mono font-bold">{{ ship.ship.credits.toLocaleString() }} cr</span>
         </div>
 
+        <!-- Fighter Bay -->
+        <div class="mt-4 pt-4 border-t border-void-700">
+          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🚀 Fighter Bay</h3>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-terminal-muted font-mono text-xs">Carried Fighters:</span>
+            <span class="text-terminal-yellow font-mono text-sm">{{ (ship.ship?.fighters ?? 0).toLocaleString() }}</span>
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <input
+              v-model.number="fighterQuantity"
+              type="number"
+              min="1"
+              class="flex-1 bg-void-900 border border-void-700 rounded px-2 py-1 text-terminal-white font-mono text-sm"
+            />
+            <span class="text-terminal-muted font-mono text-xs">x 100 cr</span>
+          </div>
+          <button
+            @click="buyFighters"
+            :disabled="buyingFighters || fighterQuantity <= 0 || (ship.ship?.credits ?? 0) < fighterQuantity * 100"
+            class="w-full terminal-btn disabled:opacity-50"
+          >
+            {{ buyingFighters ? 'Purchasing...' : `Buy Fighters (${(fighterQuantity * 100).toLocaleString()} cr)` }}
+          </button>
+        </div>
+
         <!-- Insurance -->
         <div class="mt-4 pt-4 border-t border-void-700">
           <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Ship Insurance</h3>
@@ -107,6 +132,8 @@ const galaxyId = 1;
 const selectedIndex = ref(0);
 const message = ref<string | null>(null);
 const purchasing = ref(false);
+const buyingFighters = ref(false);
+const fighterQuantity = ref(10);
 const insuring = ref(false);
 
 const insuranceCost = computed(() => {
@@ -158,6 +185,21 @@ async function purchase() {
     message.value = err.message;
   } finally {
     purchasing.value = false;
+  }
+}
+
+async function buyFighters() {
+  if (!ship.ship || fighterQuantity.value <= 0) return;
+  buyingFighters.value = true;
+  message.value = null;
+
+  try {
+    const data = await ship.buyFighters(galaxyId, fighterQuantity.value);
+    message.value = `🚀 Purchased ${data.quantity.toLocaleString()} fighters`;
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    buyingFighters.value = false;
   }
 }
 
