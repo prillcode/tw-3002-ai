@@ -2,7 +2,7 @@
 
 **Estimated Total:** 16-20 hours (2-3 focused sessions)
 
-> **Pivot Note:** Ship-to-ship PvP dueling was removed from scope after reviewing the Stardock Modern Manual. True TW2002 combat is fighter-based sector control (TW-06). TW-05 now builds the reusable infrastructure that TW-06 will plug into.
+> **Pivot Note:** Ship-to-ship PvP dueling was removed from scope after reviewing the Stardock Modern Manual. True TW2002 combat is fighter-based sector control (TW-13). TW-05 now builds the reusable infrastructure that TW-13 will plug into.
 
 ## Phase 1: Loot, Respawn & Kill Tracking (4-5 hours)
 **Goal:** Define and implement the consequences of PvP death
@@ -87,7 +87,7 @@ Respawn: Sol Prime (FedSpace)
 - [ ] New player check: net worth < 10k OR account age < 24h = invulnerable
 - [ ] FedSpace check: no PvP possible in safe sectors (enforced at all entry points)
 - [ ] Self-attack prevention
-- [ ] Offline vulnerability: offline players are vulnerable unless in FedSpace or under new-player protection (TW-06 fighters will provide offline defense)
+- [ ] Offline vulnerability: offline players are vulnerable unless in FedSpace or under new-player protection (TW-13 fighters will provide offline defense)
 - [ ] Admin tools: reset wanted status, inspect kill logs, ban griefers
 - [ ] Ship insurance at StarDock (pay 5% net worth to reduce death penalty from 25% → 5%)
 
@@ -111,12 +111,12 @@ Phase 1 is core consequences. Phases 2-3 add ecosystem awareness. Phase 4 is soc
 - New players are protected
 - FedSpace is safe
 - Insurance reduces risk for cautious players
-- All infrastructure is ready for TW-06 fighter-based combat
+- All infrastructure is ready for TW-13 fighter-based combat
 
 ---
 
 ## Notes
-- **No ship-to-ship dueling endpoints.** The first player-visible PvP will be fighter encounters in TW-06.
-- **Loot is intentionally conservative (25%).** Will raise to 50% after TW-06 fighter deployment gives players defensive layers.
+- **No ship-to-ship dueling endpoints.** The first player-visible PvP will be fighter encounters in TW-13.
+- **Loot is intentionally conservative (25%).** Will raise to 50% after TW-13 fighter deployment gives players defensive layers.
 - **Insurance is the soft-protection.** Players who hate risk can buy their way to safety.
 - **Bounty system is the hard-protection.** It doesn't stop griefing, it makes griefers into content.

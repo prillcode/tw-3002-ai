@@ -1,4 +1,4 @@
-# TW-06 Roadmap: Fighter Deployment & Sector Control
+# TW-13 Roadmap: Fighter Deployment & Sector Control
 
 **Estimated Total:** 32-40 hours (4-5 focused sessions)
 

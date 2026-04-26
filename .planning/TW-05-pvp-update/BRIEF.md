@@ -6,7 +6,7 @@
 - **Scope:** PvP Infrastructure — Loot, Respawn, Bounty, Notifications, Leaderboards, Protections
 
 ## Objective
-Build the backend infrastructure that makes cutthroat PvP possible in TradeWars 3002 AI — without yet implementing the actual combat mechanics. The true TW2002 PvP experience is fighter-based sector control (TW-06). TW-05 is the foundation: loot calculation, respawn logic, bounty systems, kill tracking, news generation, notifications, and leaderboards.
+Build the backend infrastructure that makes cutthroat PvP possible in TradeWars 3002 AI — without yet implementing the actual combat mechanics. The true TW2002 PvP experience is fighter-based sector control (TW-13). TW-05 is the foundation: loot calculation, respawn logic, bounty systems, kill tracking, news generation, notifications, and leaderboards.
 
 > **Design Pivot:** After reviewing the Stardock Modern Manual, we determined that "ship-to-ship dueling" is not authentic TW2002 combat and would not be reused once fighters are introduced. Ship dueling has been removed from scope. See `ROADMAP.md` for details.
 
@@ -22,8 +22,8 @@ Build the backend infrastructure that makes cutthroat PvP possible in TradeWars 
 
 ## Out of Scope
 - **Ship-to-ship PvP combat endpoints** — removed. Not authentic TW2002, not reusable.
-- **Fighter deployment & sector control** — TW-06
-- **Sector blockades** — TW-06
+- **Fighter deployment & sector control** — TW-13
+- **Sector blockades** — TW-13
 - **Mines, photon torpedoes, Q-Cannons** — TW-06/TW-07
 - **Player corporations / alliances** — TW-08+
 - **Complex bounty hunting economy** — simple wanted count only
@@ -40,11 +40,11 @@ Build the backend infrastructure that makes cutthroat PvP possible in TradeWars 
 7. FedSpace sectors are safe
 8. Discord/in-game notifications work for PvP events
 9. Leaderboards display top players by kills and net worth
-10. All infrastructure is ready for TW-06 fighter-based combat to plug into
+10. All infrastructure is ready for TW-13 fighter-based combat to plug into
 
 ## Dependencies
 - Blocked by: TW-04 (cloud infrastructure for shared player state)
-- Blocks: TW-06 (fighter deployment needs kill tracking, loot, respawn, news, bounty)
+- Blocks: TW-13 (fighter deployment needs kill tracking, loot, respawn, news, bounty)
 - Related: TW-03 (NPC brain for bounty hunter NPCs)
 
 ## References

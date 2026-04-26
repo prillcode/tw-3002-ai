@@ -9,7 +9,7 @@
 
 ## Overview
 
-TW-05 builds the backend infrastructure that makes competitive PvP possible in TW 3002 AI. Notably, **this work item contains no player-visible combat mechanics** — those are deferred to TW-06 (Fighter Deployment & Sector Control). Instead, TW-05 creates the shared systems that any defeat event (NPC, fighter, or future PvP) will use.
+TW-05 builds the backend infrastructure that makes competitive PvP possible in TW 3002 AI. Notably, **this work item contains no player-visible combat mechanics** — those are deferred to TW-13 (Fighter Deployment & Sector Control). Instead, TW-05 creates the shared systems that any defeat event (NPC, fighter, or future PvP) will use.
 
 **Design pivot during execution:** After reviewing the Stardock Modern Manual, we determined that "ship-to-ship dueling" is not authentic TW2002 combat and would not be reused once fighters are introduced. Ship dueling was removed from scope. TW-05 now builds purely reusable infrastructure.
 
@@ -19,7 +19,7 @@ TW-05 builds the backend infrastructure that makes competitive PvP possible in T
 
 ### Backend
 - **`resolveDefeat()`** — Central pipeline in `cloud/src/routes/combat.ts`
-  - Called by any system that defeats a player (NPC combat now, fighter encounters in TW-06)
+  - Called by any system that defeats a player (NPC combat now, fighter encounters in TW-13)
   - Calculates loot: 25% credits + 10% cargo (conservative until defensive layers exist)
   - Insurance check: if active, reduces penalty to 5%
   - Respawns player in nearest FedSpace sector
@@ -147,8 +147,8 @@ TW-05 builds the backend infrastructure that makes competitive PvP possible in T
 
 ## Design Decisions
 
-1. **No ship dueling** — Removed from scope. True TW2002 PvP is fighter-based (TW-06).
-2. **Conservative loot (25%)** — Will raise to 50% after TW-06 fighters provide defense.
+1. **No ship dueling** — Removed from scope. True TW2002 PvP is fighter-based (TW-13).
+2. **Conservative loot (25%)** — Will raise to 50% after TW-13 fighters provide defense.
 3. **Central `resolveDefeat()`** — Any defeat event (NPC, fighter, future PvP) calls one pipeline.
 4. **Insurance as soft-protection** — Players who hate risk can buy safety. Bounty system is hard-protection.
 5. **Digest on login** — Async-friendly; no real-time notifications needed for turn-based game.
@@ -174,5 +174,5 @@ TW-05 builds the backend infrastructure that makes competitive PvP possible in T
 
 ## What's Next
 
-- **TW-06: Fighter Deployment & Sector Control** — First player-visible PvP. Buy/deploy fighters, sector entry encounters, ordered combat sequence.
+- **TW-13: Fighter Deployment & Sector Control** — First player-visible PvP. Buy/deploy fighters, sector entry encounters, ordered combat sequence.
 - **TW-11: Email & Player Polish** — SMTP magic links, Discord webhooks, player settings (including PvP toggle).

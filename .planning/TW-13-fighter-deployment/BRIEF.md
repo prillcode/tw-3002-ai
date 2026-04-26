@@ -1,14 +1,14 @@
-# TW-06: Fighter Deployment & Sector Control
+# TW-13: Fighter Deployment & Sector Control
 
 ## Work Identity
-- **ID:** TW-06
+- **ID:** TW-13
 - **Type:** Major Feature
 - **Scope:** Fighters, Sector Control, Blockades, True TW2002-Style PvP
 
 ## Objective
 Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-based sector control**. Players buy and deploy fighters in sectors to defend territory, block access to key locations (Stardock, FedSpace), and attack intruders. This is the first player-visible combat layer — strategic territorial warfare.
 
-> **This is the true TW2002 PvP experience.** TW-05 built the infrastructure (loot, respawn, bounty, news, leaderboards). TW-06 is where players first experience competitive combat.
+> **This is the true TW2002 PvP experience.** TW-05 built the infrastructure (loot, respawn, bounty, news, leaderboards). TW-13 is where players first experience competitive combat.
 
 ## In Scope
 - **Fighter Purchase:** Buy fighters at StarDock or Class 0 ports
