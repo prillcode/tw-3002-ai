@@ -2,7 +2,7 @@
 
 **Estimated Total:** 32-40 hours (4-5 focused sessions)
 
-> **This is the leap from ship dueling to true TW2002 warfare.** Every phase adds a new defensive/offensive layer.
+> **This is the leap from infrastructure to true TW2002 warfare.** Every phase adds a new defensive/offensive layer.
 
 ## Phase 1: Fighter Purchase & Deployment (6-8 hours)
 **Goal:** Players can buy and drop fighters in sectors
@@ -52,8 +52,8 @@
   3. Armid Mine detonation (Phase 4)
   4. Sector Q-Cannon fire (Phase 5)
   5. Fighter encounter (Phase 2)
-  6. Ship-to-ship combat (TW-05)
-- [ ] Ship-to-ship combat order:
+  6. Player ship combat (if both survive fighter encounter)
+- [ ] Player ship combat order (if fighters don't resolve the encounter):
   1. Empty ships attack first
   2. Player ships attack in sign-on order
   3. Sector fighters resolved
@@ -88,7 +88,7 @@
 - [ ] Q-Cannon damage formulas (per `../lore-reference/strategy/combat.md`):
   - Sector Q-Cannon: `(TotalOre * SectPct) / 3`
   - Atmospheric Q-Cannon: `TotalOre * AtmoPct * 2`
-- [ ] Loot rebalance: raise ship-to-ship loot from 25% → 50% (now that layers exist)
+- [ ] Loot rebalance: raise player defeat loot from 25% → 50% (now that layers exist)
 - [ ] Offline protection: deployed fighters auto-defend; no more "offline = vulnerable"
 
 **Success:** Corps can lock down sectors. Solo players need strategy to bypass.

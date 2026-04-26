@@ -6,9 +6,9 @@
 - **Scope:** Fighters, Sector Control, Blockades, True TW2002-Style PvP
 
 ## Objective
-Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-based sector control**. Players buy and deploy fighters in sectors to defend territory, block access to key locations (Stardock, FedSpace), and attack intruders. This transforms PvP from simple ship dueling into strategic territorial warfare.
+Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-based sector control**. Players buy and deploy fighters in sectors to defend territory, block access to key locations (Stardock, FedSpace), and attack intruders. This is the first player-visible combat layer — strategic territorial warfare.
 
-> **This is the true TW2002 PvP experience.** TW-05's ship-to-ship dueling was a proof-of-concept. TW-06 is where the game gets its teeth.
+> **This is the true TW2002 PvP experience.** TW-05 built the infrastructure (loot, respawn, bounty, news, leaderboards). TW-06 is where players first experience competitive combat.
 
 ## In Scope
 - **Fighter Purchase:** Buy fighters at StarDock or Class 0 ports
@@ -23,7 +23,7 @@ Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-ba
 - **Q-Cannon Damage:** Planetary atmospheric cannons fire on sector entry (if planet has citadel)
 - **Limpet & Armid Mines:** Mine deployment and detonation on sector entry
 - **Combat Sequence:** Ordered combat (empty ships → player ships by sign-on → sector fighters)
-- **Loot Rebalance:** Raise ship-to-ship loot from 25% to 50% credits (now that fighters provide defense)
+- **Loot Rebalance:** Raise player defeat loot from 25% to 50% credits (now that fighters provide defense)
 
 ## Out of Scope
 - Planetary shields & citadel advancement (TW-07)
@@ -39,7 +39,7 @@ Implement the core PvP mechanic that made TradeWars 2002 legendary: **fighter-ba
 4. Defensive fighters challenge at 1:1 (attack/retreat/surrender)
 5. Offensive fighters attack at 2:1 with 1.25× force
 6. Offline players with deployed fighters are protected (auto-resolve)
-7. Ship-to-ship loot raised to 50% (fighters provide defense layer)
+7. Player defeat loot raised to 50% (fighters provide defense layer)
 8. Blockade tactics are possible (Stardock denial via fig concentration)
 9. Combat follows ordered sequence per TW2002 manual
 10. Fighter ownership is tracked and visible in sector info
