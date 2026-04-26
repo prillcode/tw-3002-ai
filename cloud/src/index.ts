@@ -40,7 +40,7 @@ export default {
     try {
       // Health check (no auth)
       if (path === '/health') {
-        response = json({ status: 'ok', version: '0.5.0' });
+        response = json({ status: 'ok', version: '0.5.5' });
       }
 
       // Auth routes (no auth required)
