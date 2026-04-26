@@ -19,6 +19,9 @@ export interface ShipState {
   classId: string;
   currentSector: number;
   fighters: number;
+  limpets: number;
+  armids: number;
+  limpetAttached: number;
   upgrades: Record<string, number>;
   kills: number;
   deaths: number;
@@ -78,6 +81,9 @@ export const useShipStore = defineStore('ship', () => {
         classId: s.class_id,
         currentSector: s.current_sector,
         fighters: s.fighters ?? 0,
+        limpets: s.limpets ?? 0,
+        armids: s.armids ?? 0,
+        limpetAttached: s.limpet_attached ?? 0,
         upgrades: JSON.parse(s.upgrades_json || '{}'),
         kills: s.kills ?? 0,
         deaths: s.deaths ?? 0,
@@ -141,6 +147,9 @@ export const useShipStore = defineStore('ship', () => {
         ship.value.shield = nextShip.shield;
         ship.value.credits = nextShip.credits;
         ship.value.fighters = nextShip.fighters ?? ship.value.fighters;
+        ship.value.limpets = nextShip.limpets ?? ship.value.limpets;
+        ship.value.armids = nextShip.armids ?? ship.value.armids;
+        ship.value.limpetAttached = nextShip.limpet_attached ?? ship.value.limpetAttached;
       }
 
       return { status: 'moved', ship: nextShip, operations: data.operations, outcome: data.outcome };
@@ -173,6 +182,9 @@ export const useShipStore = defineStore('ship', () => {
       ship.value.shield = nextShip.shield;
       ship.value.credits = nextShip.credits;
       ship.value.fighters = nextShip.fighters ?? ship.value.fighters;
+      ship.value.limpets = nextShip.limpets ?? ship.value.limpets;
+      ship.value.armids = nextShip.armids ?? ship.value.armids;
+      ship.value.limpetAttached = nextShip.limpet_attached ?? ship.value.limpetAttached;
     }
 
     return data;
@@ -237,6 +249,61 @@ export const useShipStore = defineStore('ship', () => {
     return data;
   }
 
+  async function buyMines(galaxyId: number, type: 'limpet' | 'armid', quantity: number) {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/mines/buy`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, type, quantity }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to buy mines');
+
+    if (ship.value) {
+      ship.value.credits = data.remainingCredits;
+      ship.value.limpets = data.shipLimpets ?? ship.value.limpets;
+      ship.value.armids = data.shipArmids ?? ship.value.armids;
+    }
+
+    return data;
+  }
+
+  async function deployMines(galaxyId: number, sectorId: number, type: 'limpet' | 'armid', quantity: number) {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/mines/deploy`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, sectorId, type, quantity }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to deploy mines');
+
+    if (ship.value) {
+      if (type === 'limpet') ship.value.limpets = Math.max(0, ship.value.limpets - quantity);
+      else ship.value.armids = Math.max(0, ship.value.armids - quantity);
+    }
+
+    return data;
+  }
+
+  async function clearLimpets(galaxyId: number, sectorId: number) {
+    const auth = useAuthStore();
+    const res = await fetch(`${API_BASE}/api/mines/clear-limpets`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, sectorId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to clear limpets');
+
+    if (ship.value) {
+      ship.value.credits = data.remainingCredits;
+      ship.value.limpetAttached = 0;
+    }
+
+    return data;
+  }
+
   async function recallFighters(galaxyId: number, sectorId: number, quantity?: number) {
     const auth = useAuthStore();
     const res = await fetch(`${API_BASE}/api/fighters/recall`, {
@@ -274,5 +341,8 @@ export const useShipStore = defineStore('ship', () => {
     deployFighters,
     recallFighters,
     resolveFighterEncounter,
+    buyMines,
+    deployMines,
+    clearLimpets,
   };
 });

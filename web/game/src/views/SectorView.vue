@@ -44,6 +44,8 @@
               </span>
               <span v-if="currentSector.stardock" class="text-terminal-magenta font-bold">⚡ StarDock</span>
               <span v-if="hostileFighterCount > 0" class="text-terminal-red">⚔ {{ hostileFighterCount.toLocaleString() }} hostile fighters</span>
+              <span v-if="hostileMineEstimate > 0" class="text-terminal-red">💣 ~{{ hostileMineEstimate.toLocaleString() }} hostile mines</span>
+              <span v-if="currentSector.blockadeLevel && currentSector.blockadeLevel !== 'none'" class="text-terminal-yellow">⚠ {{ String(currentSector.blockadeLevel).toUpperCase() }} BLOCKADE</span>
               <span v-if="ownDeployedFighters > 0" class="text-terminal-green">🛡 Your fighters: {{ ownDeployedFighters.toLocaleString() }} ({{ ownFighterMode }})</span>
             </div>
           </div>
@@ -78,6 +80,14 @@
             <div class="flex justify-between">
               <span class="text-terminal-muted">Fighters</span>
               <span class="text-terminal-yellow">{{ (ship.ship.fighters ?? 0).toLocaleString() }} / {{ ownDeployedFighters.toLocaleString() }} deployed</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-terminal-muted">Mines</span>
+              <span class="text-terminal-yellow">L {{ ship.ship.limpets }} / A {{ ship.ship.armids }}</span>
+            </div>
+            <div v-if="ship.ship.limpetAttached > 0" class="flex justify-between">
+              <span class="text-terminal-muted">Limpets Attached</span>
+              <span class="text-terminal-red">{{ ship.ship.limpetAttached }}</span>
             </div>
             <div v-if="ship.stats.kills > 0 || ship.stats.deaths > 0" class="flex justify-between">
               <span class="text-terminal-muted">K/D</span>
@@ -114,6 +124,7 @@
               <span class="text-terminal-muted">{{ n.name }}</span>
               <span v-if="n.hasPort" class="text-terminal-yellow ml-auto">P{{ n.portClass }}</span>
               <span v-if="n.stardock" class="text-terminal-magenta ml-auto">⚡</span>
+              <span v-if="n.blockadeLevel && n.blockadeLevel !== 'none'" class="text-terminal-red ml-auto">⚠</span>
             </button>
           </div>
           <button
@@ -174,6 +185,45 @@
             >
               ↩ Recall Fighters [R]
             </button>
+            <button
+              @click="handleDeployMine('limpet')"
+              :disabled="ship.ship.limpets <= 0 || currentSector.danger === 'safe'"
+              class="w-full terminal-btn text-left disabled:opacity-50"
+            >
+              🧲 Deploy Limpets [1]
+            </button>
+            <button
+              @click="handleDeployMine('armid')"
+              :disabled="ship.ship.armids <= 0 || currentSector.danger === 'safe'"
+              class="w-full terminal-btn text-left disabled:opacity-50"
+            >
+              💥 Deploy Armids [2]
+            </button>
+            <button
+              v-if="!currentSector.stardock && currentSector.danger !== 'safe' && (ship.ship?.credits ?? 0) >= 80000 && (sectorPlanets.length ?? 0) < 5"
+              @click="handleCreatePlanet"
+              :disabled="creatingPlanet"
+              class="w-full terminal-btn text-left"
+            >
+              🌍 Launch Genesis Torpedo [G]
+            </button>
+          </div>
+
+          <!-- Planets in sector -->
+          <div v-if="sectorPlanets.length > 0" class="mt-4 border-t border-terminal-cyan/20 pt-3">
+            <h3 class="font-mono font-bold text-terminal-cyan mb-2 text-xs">🌍 PLANETS ({{ sectorPlanets.length }})</h3>
+            <div class="space-y-1">
+              <button
+                v-for="p in sectorPlanets"
+                :key="p.id"
+                @click="selectedPlanet = p"
+                class="w-full text-left px-2 py-1 rounded hover:bg-void-800 font-mono text-xs"
+              >
+                <span :class="p.isOwn ? 'text-terminal-green' : 'text-terminal-muted'">{{ p.className }}</span>
+                <span class="text-terminal-muted ml-2">{{ p.colonists?.toLocaleString() }} col</span>
+                <span v-if="p.citadelLevel > 0" class="text-terminal-magenta ml-2">L{{ p.citadelLevel }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -331,6 +381,14 @@
       @resolved="handleEncounterResolved"
     />
 
+    <PlanetModal
+      v-if="selectedPlanet"
+      :planet="selectedPlanet"
+      :galaxy-id="galaxyId"
+      @close="selectedPlanet = null"
+      @refresh="currentSector && loadPlanets(currentSector.id)"
+    />
+
   <!-- Modals -->
   <Teleport to="body">
       <div v-if="ui.activeModal" class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
@@ -352,6 +410,8 @@
               <div><span class="text-terminal-cyan">L</span> <span class="text-terminal-muted">Leaderboard</span></div>
               <div><span class="text-terminal-cyan">F</span> <span class="text-terminal-muted">Deploy Fighters</span></div>
               <div><span class="text-terminal-cyan">R</span> <span class="text-terminal-muted">Recall Fighters</span></div>
+              <div><span class="text-terminal-cyan">1</span> <span class="text-terminal-muted">Deploy Limpets</span></div>
+              <div><span class="text-terminal-cyan">2</span> <span class="text-terminal-muted">Deploy Armids</span></div>
               <div><span class="text-terminal-cyan">H</span> <span class="text-terminal-muted">Help</span></div>
               <div><span class="text-terminal-cyan">Esc</span> <span class="text-terminal-muted">Back</span></div>
             </div>
@@ -392,6 +452,7 @@ import { useAuthStore } from '../stores/auth';
 import WarpOverlay from '../components/WarpOverlay.vue';
 import DeployFightersModal from '../components/DeployFightersModal.vue';
 import FighterEncounterModal from '../components/FighterEncounterModal.vue';
+import PlanetModal from '../components/PlanetModal.vue';
 
 const router = useRouter();
 const galaxy = useGalaxyStore();
@@ -407,9 +468,13 @@ const warpTarget = ref(0);
 const npcs = ref<Array<any>>([]);
 const news = ref<Array<any>>([]);
 const sectorFighters = ref<Array<{ ownerId: number; ownerName: string; count: number; mode: string; hostile: boolean }>>([]);
+const sectorMines = ref<Array<{ ownerId: number; hostile: boolean; limpets?: number; armids?: number; hostileEstimate?: number }>>([]);
 const showDeployModal = ref(false);
 const activeEncounter = ref<any | null>(null);
 const operationLog = ref<Array<{ step: string; status: string; details?: Record<string, unknown> }>>([]);
+const sectorPlanets = ref<Array<{ id: number; className: string; colonists?: number; citadelLevel: number; isOwn: boolean }>>([]);
+const selectedPlanet = ref<any | null>(null);
+const creatingPlanet = ref(false);
 const recalling = ref(false);
 
 const currentSector = computed(() => galaxy.currentSector());
@@ -502,6 +567,7 @@ const ownFighters = computed(() => sectorFighters.value.filter(f => !f.hostile))
 const ownDeployedFighters = computed(() => ownFighters.value.reduce((sum, row) => sum + row.count, 0));
 const ownFighterMode = computed(() => ownFighters.value[0]?.mode ?? 'defensive');
 const hostileFighterCount = computed(() => sectorFighters.value.filter(f => f.hostile).reduce((sum, row) => sum + row.count, 0));
+const hostileMineEstimate = computed(() => sectorMines.value.filter(m => m.hostile).reduce((sum, row) => sum + (row.hostileEstimate ?? 0), 0));
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -557,6 +623,45 @@ function handleQuit() {
 }
 
 // Keyboard shortcuts
+async function loadPlanets(sectorId: number) {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/planets/sector?galaxyId=${galaxyId}&sectorId=${sectorId}`, {
+      headers: auth.getHeaders(),
+    });
+    const data = await res.json();
+    sectorPlanets.value = data.planets || [];
+  } catch {
+    sectorPlanets.value = [];
+  }
+}
+
+async function handleCreatePlanet() {
+  if (!currentSector.value) return;
+  creatingPlanet.value = true;
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/planets/create`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({
+        galaxyId,
+        sectorId: currentSector.value.id,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create planet');
+
+    // Refresh planets and ship credits
+    await loadPlanets(currentSector.value.id);
+    if (ship.ship) ship.ship.credits = data.remainingCredits;
+
+    ship.message = `🌍 Planet created: ${data.className} (${data.class})`;
+  } catch (err: any) {
+    ship.message = err.message;
+  } finally {
+    creatingPlanet.value = false;
+  }
+}
+
 function handleKey(e: KeyboardEvent) {
   if (isWarping.value) return;
 
@@ -595,6 +700,9 @@ function handleKey(e: KeyboardEvent) {
       handleRecallAll();
     }
   }
+  if (e.key === '1') handleDeployMine('limpet');
+  if (e.key === '2') handleDeployMine('armid');
+  if (e.key === 'g' || e.key === 'G') handleCreatePlanet();
   if (e.key === 'n' || e.key === 'N') router.push(`/galaxy/${galaxyId}/nav`);
   if (e.key === 'h' || e.key === 'H' || e.key === '?') ui.openModal('help');
   if (e.key === 'l' || e.key === 'L') router.push(`/galaxy/${galaxyId}/leaderboard`);
@@ -610,6 +718,47 @@ async function loadFighters(sectorId: number) {
     sectorFighters.value = data.fighters || [];
   } catch {
     sectorFighters.value = [];
+  }
+}
+
+async function loadMines(sectorId: number) {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/mines/sector?galaxyId=${galaxyId}&sectorId=${sectorId}`, {
+      headers: auth.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load mines');
+    sectorMines.value = data.mines || [];
+  } catch {
+    sectorMines.value = [];
+  }
+}
+
+async function handleDeployMine(type: 'limpet' | 'armid') {
+  if (!currentSector.value || !ship.ship) return;
+  if (currentSector.value.danger === 'safe') {
+    ship.message = 'Cannot deploy mines in FedSpace';
+    return;
+  }
+
+  const stock = type === 'limpet' ? ship.ship.limpets : ship.ship.armids;
+  if (stock <= 0) return;
+
+  const input = prompt(`Deploy how many ${type} mines? (max ${stock})`, '1');
+  if (!input) return;
+
+  const qty = Number(input);
+  if (!Number.isInteger(qty) || qty <= 0 || qty > stock) {
+    ship.message = `Invalid quantity for ${type} mines`;
+    return;
+  }
+
+  try {
+    await ship.deployMines(galaxyId, currentSector.value.id, type, qty);
+    await loadMines(currentSector.value.id);
+    ship.message = `💣 Deployed ${qty} ${type} mines`;
+  } catch (err: any) {
+    ship.message = err.message;
   }
 }
 
@@ -638,6 +787,8 @@ async function loadSectorData(sectorId: number) {
   }
 
   await loadFighters(sectorId);
+  await loadMines(sectorId);
+  await loadPlanets(sectorId);
 
   // Load news
   try {

@@ -1,5 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { json, jsonError } from '../utils/cors.js';
+import { getBlockadeMetadataForSector } from './mines.js';
 
 /**
  * GET /api/galaxy
@@ -45,11 +46,40 @@ export async function handleGetSectors(galaxyId: string, db: D1Database): Promis
   if (isNaN(id)) return jsonError('Invalid galaxy id');
 
   const result = await db
-    .prepare('SELECT sector_index, name, danger, port_class, port_name, connections_json, stardock FROM sectors WHERE galaxy_id = ? ORDER BY sector_index')
+    .prepare(
+      `SELECT s.sector_index, s.name, s.danger, s.port_class, s.port_name, s.connections_json, s.stardock,
+              COALESCE(f.total_fighters, 0) as fighter_total,
+              COALESCE(m.total_limpets, 0) as limpet_total,
+              COALESCE(m.total_armids, 0) as armid_total
+       FROM sectors s
+       LEFT JOIN (
+         SELECT galaxy_id, sector_index, SUM(count) as total_fighters
+         FROM sector_fighters
+         GROUP BY galaxy_id, sector_index
+       ) f ON f.galaxy_id = s.galaxy_id AND f.sector_index = s.sector_index
+       LEFT JOIN (
+         SELECT galaxy_id, sector_index, SUM(limpet_count) as total_limpets, SUM(armid_count) as total_armids
+         FROM sector_mines
+         GROUP BY galaxy_id, sector_index
+       ) m ON m.galaxy_id = s.galaxy_id AND m.sector_index = s.sector_index
+       WHERE s.galaxy_id = ?
+       ORDER BY s.sector_index`
+    )
     .bind(id)
-    .all();
+    .all<any>();
 
-  return json({ sectors: result.results ?? [] });
+  const sectors = (result.results ?? []).map((row) => {
+    const blockadeScore = (row.fighter_total ?? 0) + (row.limpet_total ?? 0) * 2 + (row.armid_total ?? 0) * 5;
+    const blockadeLevel = blockadeScore >= 5000 ? 'fortress' : blockadeScore >= 2000 ? 'active' : blockadeScore >= 500 ? 'light' : 'none';
+    return {
+      ...row,
+      blockade_score: blockadeScore,
+      blockade_level: blockadeLevel,
+      hostile_defense_estimate: (row.fighter_total ?? 0) + (row.limpet_total ?? 0) + (row.armid_total ?? 0),
+    };
+  });
+
+  return json({ sectors });
 }
 
 /**
@@ -81,5 +111,15 @@ export async function handleGetSector(
     .bind(gId, sId)
     .all();
 
-  return json({ sector, npcs: npcs.results ?? [] });
+  const blockade = await getBlockadeMetadataForSector(db, gId, sId);
+
+  return json({
+    sector: {
+      ...sector,
+      blockade_level: blockade.blockadeLevel,
+      blockade_score: blockade.blockadeScore,
+      hostile_defense_estimate: blockade.hostileDefenseEstimate,
+    },
+    npcs: npcs.results ?? [],
+  });
 }

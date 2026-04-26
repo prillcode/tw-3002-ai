@@ -4,7 +4,7 @@ import { json, jsonError } from '../utils/cors.js';
 
 // ─── Constants ───────────────────────────────────────────
 
-const LOOT_CREDITS_PCT = 0.25; // 25% for first pass (raise to 0.50 after TW-06)
+const LOOT_CREDITS_PCT = 0.50; // TW-13 layered defenses active (fighters + mines)
 const LOOT_CARGO_PCT = 0.10;
 const NEW_PLAYER_CREDITS_MAX = 10_000;
 const NEW_PLAYER_HOURS_MAX = 24;

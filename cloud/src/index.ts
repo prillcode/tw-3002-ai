@@ -26,6 +26,19 @@ import {
   handleRecallFighters,
   handleResolveEncounter,
 } from './routes/fighters.js';
+import {
+  handleCreatePlanet,
+  handleGetSectorPlanets,
+  handleGetPlanet,
+  handleColonize,
+  handleProductionTick,
+} from './routes/planets.js';
+import {
+  handleBuyMines,
+  handleDeployMines,
+  handleGetSectorMines,
+  handleClearLimpets,
+} from './routes/mines.js';
 
 export interface Env {
   DB: D1Database;
@@ -152,6 +165,32 @@ export default {
         }
         else if (path === '/api/fighters/encounter/resolve' && method === 'POST') {
           response = await handleResolveEncounter(auth, request, env.DB);
+        }
+        // Planet routes
+        else if (path === '/api/planets/create' && method === 'POST') {
+          response = await handleCreatePlanet(auth, request, env.DB);
+        }
+        else if (path === '/api/planets/sector' && method === 'GET') {
+          response = await handleGetSectorPlanets(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+        }
+        else if (path === '/api/planets/colonize' && method === 'POST') {
+          response = await handleColonize(auth, request, env.DB);
+        }
+        else if (path.startsWith('/api/planets/') && method === 'GET') {
+          const planetId = path.split('/').pop()!;
+          response = await handleGetPlanet(auth, planetId, env.DB);
+        }
+        else if (path === '/api/mines/buy' && method === 'POST') {
+          response = await handleBuyMines(auth, request, env.DB);
+        }
+        else if (path === '/api/mines/deploy' && method === 'POST') {
+          response = await handleDeployMines(auth, request, env.DB);
+        }
+        else if (path === '/api/mines/sector' && method === 'GET') {
+          response = await handleGetSectorMines(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+        }
+        else if (path === '/api/mines/clear-limpets' && method === 'POST') {
+          response = await handleClearLimpets(auth, request, env.DB);
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
           response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET);

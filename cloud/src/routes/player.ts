@@ -8,6 +8,7 @@ import {
   resolveShipToShipAfterEntry,
   type OperationStep,
 } from './fighters.js';
+import { applyMineEntryEffects } from './mines.js';
 
 /**
  * GET /api/player
@@ -182,6 +183,20 @@ export async function handleMoveShip(
   }
 
   const operations: OperationStep[] = baseEntryOperations();
+
+  const mineEffects = await applyMineEntryEffects(db, auth.playerId, galaxyId, sectorId);
+  for (const mineOp of mineEffects.operations) {
+    const idx = operations.findIndex((op) => op.step === mineOp.step);
+    if (idx >= 0) operations[idx] = mineOp;
+    else operations.push(mineOp);
+  }
+
+  if (mineEffects.destroyed) {
+    operations.push({ step: 'fighters', status: 'no_op', details: { reason: 'ship_destroyed_by_mines' } });
+    operations.push({ step: 'ship_to_ship', status: 'no_op', details: { reason: 'ship_destroyed_by_mines' } });
+    return json({ ship: mineEffects.ship, moved: false, operations, destroyedByMines: true });
+  }
+
   const encounter = await getEntryEncounter(db, auth.playerId, galaxyId, sectorId);
 
   if (encounter) {

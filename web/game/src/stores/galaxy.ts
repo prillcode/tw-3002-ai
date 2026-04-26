@@ -13,6 +13,9 @@ export interface Sector {
   portName?: string;
   connections: number[];
   stardock: boolean;
+  blockadeLevel?: 'none' | 'light' | 'active' | 'fortress';
+  blockadeScore?: number;
+  hostileDefenseEstimate?: number;
 }
 
 export interface Galaxy {
@@ -55,6 +58,9 @@ export const useGalaxyStore = defineStore('galaxy', () => {
           portName: row.port_name,
           connections: conns,
           stardock: row.stardock === 1,
+          blockadeLevel: row.blockade_level ?? 'none',
+          blockadeScore: row.blockade_score ?? 0,
+          hostileDefenseEstimate: row.hostile_defense_estimate ?? 0,
         });
         for (const to of conns) {
           connections.push({ from: id, to });
@@ -84,6 +90,11 @@ export const useGalaxyStore = defineStore('galaxy', () => {
       const sector = galaxy.value?.sectors.get(sectorId);
       if (sector && data.sector?.port_inventory_json) {
         (sector as any).inventory = JSON.parse(data.sector.port_inventory_json);
+      }
+      if (sector && data.sector) {
+        sector.blockadeLevel = data.sector.blockade_level ?? 'none';
+        sector.blockadeScore = data.sector.blockade_score ?? 0;
+        sector.hostileDefenseEstimate = data.sector.hostile_defense_estimate ?? 0;
       }
       return data;
     } catch (err: any) {

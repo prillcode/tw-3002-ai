@@ -80,6 +80,51 @@
           </button>
         </div>
 
+        <!-- Mine Bay -->
+        <div class="mt-4 pt-4 border-t border-void-700">
+          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">💣 Mine Bay</h3>
+          <div class="grid grid-cols-2 gap-2 mb-2 text-xs font-mono">
+            <div class="text-terminal-muted">Limpets:</div>
+            <div class="text-terminal-yellow text-right">{{ (ship.ship?.limpets ?? 0).toLocaleString() }}</div>
+            <div class="text-terminal-muted">Armids:</div>
+            <div class="text-terminal-yellow text-right">{{ (ship.ship?.armids ?? 0).toLocaleString() }}</div>
+            <div class="text-terminal-muted">Attached:</div>
+            <div class="text-right" :class="(ship.ship?.limpetAttached ?? 0) > 0 ? 'text-terminal-red' : 'text-terminal-muted'">
+              {{ (ship.ship?.limpetAttached ?? 0).toLocaleString() }}
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 mb-2">
+            <input v-model.number="limpetQuantity" type="number" min="1" class="flex-1 bg-void-900 border border-void-700 rounded px-2 py-1 text-terminal-white font-mono text-sm" />
+            <button
+              @click="buyMines('limpet')"
+              :disabled="buyingLimpets || limpetQuantity <= 0 || (ship.ship?.credits ?? 0) < limpetQuantity * 300"
+              class="terminal-btn text-xs disabled:opacity-50"
+            >
+              {{ buyingLimpets ? '...' : `Buy Limpets (${(limpetQuantity * 300).toLocaleString()} cr)` }}
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2 mb-2">
+            <input v-model.number="armidQuantity" type="number" min="1" class="flex-1 bg-void-900 border border-void-700 rounded px-2 py-1 text-terminal-white font-mono text-sm" />
+            <button
+              @click="buyMines('armid')"
+              :disabled="buyingArmids || armidQuantity <= 0 || (ship.ship?.credits ?? 0) < armidQuantity * 500"
+              class="terminal-btn text-xs disabled:opacity-50"
+            >
+              {{ buyingArmids ? '...' : `Buy Armids (${(armidQuantity * 500).toLocaleString()} cr)` }}
+            </button>
+          </div>
+
+          <button
+            @click="clearLimpets"
+            :disabled="clearingLimpets || (ship.ship?.limpetAttached ?? 0) <= 0"
+            class="w-full terminal-btn disabled:opacity-50"
+          >
+            {{ clearingLimpets ? 'Clearing...' : `Clear Attached Limpets (${((ship.ship?.limpetAttached ?? 0) * 5000).toLocaleString()} cr)` }}
+          </button>
+        </div>
+
         <!-- Insurance -->
         <div class="mt-4 pt-4 border-t border-void-700">
           <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Ship Insurance</h3>
@@ -134,6 +179,11 @@ const message = ref<string | null>(null);
 const purchasing = ref(false);
 const buyingFighters = ref(false);
 const fighterQuantity = ref(10);
+const buyingLimpets = ref(false);
+const buyingArmids = ref(false);
+const clearingLimpets = ref(false);
+const limpetQuantity = ref(5);
+const armidQuantity = ref(3);
 const insuring = ref(false);
 
 const insuranceCost = computed(() => {
@@ -200,6 +250,43 @@ async function buyFighters() {
     message.value = err.message;
   } finally {
     buyingFighters.value = false;
+  }
+}
+
+async function buyMines(type: 'limpet' | 'armid') {
+  if (!ship.ship) return;
+
+  const quantity = type === 'limpet' ? limpetQuantity.value : armidQuantity.value;
+  if (quantity <= 0) return;
+
+  if (type === 'limpet') buyingLimpets.value = true;
+  else buyingArmids.value = true;
+
+  message.value = null;
+
+  try {
+    const data = await ship.buyMines(galaxyId, type, quantity);
+    message.value = `💣 Purchased ${data.quantity.toLocaleString()} ${type} mines`;
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    if (type === 'limpet') buyingLimpets.value = false;
+    else buyingArmids.value = false;
+  }
+}
+
+async function clearLimpets() {
+  if (!ship.ship || (ship.ship.limpetAttached ?? 0) <= 0) return;
+  clearingLimpets.value = true;
+  message.value = null;
+
+  try {
+    const data = await ship.clearLimpets(galaxyId, ship.ship.currentSector);
+    message.value = `🧹 Cleared ${data.removed} attached limpets`;
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    clearingLimpets.value = false;
   }
 }
 
