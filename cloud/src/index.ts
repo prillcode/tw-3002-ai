@@ -9,6 +9,14 @@ import { handleRegister, handleVerify } from './routes/auth.js';
 import { handleListGalaxies, handleGetGalaxy, handleGetSectors, handleGetSector } from './routes/galaxy.js';
 import { handleGetPlayer, handleGetShip, handleCreateShip, handleMoveShip } from './routes/player.js';
 import { handleTrade, handleCombat, handleUpgrade } from './routes/action.js';
+import {
+  handlePlayerStats,
+  handleBountyBoard,
+  handleBountyStatus,
+  handleDigest,
+  handleInsuranceBuy,
+  handleInsuranceStatus,
+} from './routes/combat.js';
 import { handleNPCTick, runNPCTick } from './routes/npc.js';
 import { handleGetNews, handleAddNews, handleLeaderboard } from './routes/news.js';
 
@@ -67,7 +75,7 @@ export default {
 
       // Leaderboard (no auth)
       else if (path === '/api/leaderboard' && method === 'GET') {
-        response = await handleLeaderboard(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
+        response = await handleLeaderboard(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), url.searchParams.get('sort'), env.DB);
       }
 
       // News (read is public, write is auth-gated)
@@ -104,6 +112,24 @@ export default {
         }
         else if (path === '/api/action/upgrade' && method === 'POST') {
           response = await handleUpgrade(auth, request, env.DB);
+        }
+        else if (path === '/api/player/stats' && method === 'GET') {
+          response = await handlePlayerStats(auth, url.searchParams.get('galaxyId'), env.DB);
+        }
+        else if (path === '/api/bounty/board' && method === 'GET') {
+          response = await handleBountyBoard(url.searchParams.get('galaxyId'), env.DB);
+        }
+        else if (path === '/api/bounty/status' && method === 'GET') {
+          response = await handleBountyStatus(auth, env.DB);
+        }
+        else if (path === '/api/notifications/digest' && method === 'GET') {
+          response = await handleDigest(auth, url.searchParams.get('galaxyId'), env.DB);
+        }
+        else if (path === '/api/insurance/buy' && method === 'POST') {
+          response = await handleInsuranceBuy(auth, request, env.DB);
+        }
+        else if (path === '/api/insurance/status' && method === 'GET') {
+          response = await handleInsuranceStatus(auth, url.searchParams.get('galaxyId'), env.DB);
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
           response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET);

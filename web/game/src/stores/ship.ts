@@ -19,6 +19,12 @@ export interface ShipState {
   classId: string;
   currentSector: number;
   upgrades: Record<string, number>;
+  kills: number;
+  deaths: number;
+  reputation: number;
+  netWorth: number;
+  insuranceActive: boolean;
+  insuranceExpires: string | null;
 }
 
 export const useShipStore = defineStore('ship', () => {
@@ -26,6 +32,7 @@ export const useShipStore = defineStore('ship', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const message = ref<string | null>(null);
+  const stats = ref({ kills: 0, deaths: 0, kdr: 0, wanted: false, wantedKillCount: 0, netWorth: 0, reputation: 0, insuranceActive: false, insuranceExpires: null as string | null });
 
   function applyEffectiveStats() {
     if (!ship.value) return;
@@ -70,6 +77,12 @@ export const useShipStore = defineStore('ship', () => {
         classId: s.class_id,
         currentSector: s.current_sector,
         upgrades: JSON.parse(s.upgrades_json || '{}'),
+        kills: s.kills ?? 0,
+        deaths: s.deaths ?? 0,
+        reputation: s.reputation ?? 0,
+        netWorth: s.net_worth ?? s.credits,
+        insuranceActive: s.insurance_expires ? new Date(s.insurance_expires) > new Date() : false,
+        insuranceExpires: s.insurance_expires ?? null,
       };
       applyEffectiveStats();
       if (data.ship.regenerated > 0) {
@@ -123,9 +136,33 @@ export const useShipStore = defineStore('ship', () => {
     }
   }
 
+  async function loadStats(galaxyId: number) {
+    const auth = useAuthStore();
+    try {
+      const res = await fetch(`${API_BASE}/api/player/stats?galaxyId=${galaxyId}`, {
+        headers: auth.getHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      stats.value = {
+        kills: data.kills ?? 0,
+        deaths: data.deaths ?? 0,
+        kdr: data.kdr ?? 0,
+        wanted: data.wanted ?? false,
+        wantedKillCount: data.wantedKillCount ?? 0,
+        netWorth: data.netWorth ?? 0,
+        reputation: data.reputation ?? 0,
+        insuranceActive: data.insuranceActive ?? false,
+        insuranceExpires: data.insuranceExpires ?? null,
+      };
+    } catch {
+      // silently fail
+    }
+  }
+
   function clearMessage() {
     message.value = null;
   }
 
-  return { ship, loading, error, message, loadShip, createShip, moveShip, clearMessage, applyEffectiveStats };
+  return { ship, loading, error, message, stats, loadShip, createShip, moveShip, clearMessage, applyEffectiveStats, loadStats };
 });

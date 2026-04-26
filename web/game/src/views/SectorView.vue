@@ -73,6 +73,18 @@
               <span class="text-terminal-muted">Turns</span>
               <span :class="turnsColor">{{ ship.ship.turns }}/{{ ship.ship.maxTurns }}</span>
             </div>
+            <div v-if="ship.stats.kills > 0 || ship.stats.deaths > 0" class="flex justify-between">
+              <span class="text-terminal-muted">K/D</span>
+              <span class="text-terminal-yellow">{{ ship.stats.kills }}/{{ ship.stats.deaths }}</span>
+            </div>
+            <div v-if="ship.stats.wanted" class="flex justify-between">
+              <span class="text-terminal-muted">Status</span>
+              <span class="text-terminal-red font-bold">☠ WANTED ({{ ship.stats.wantedKillCount }})</span>
+            </div>
+            <div v-if="ship.stats.insuranceActive" class="flex justify-between">
+              <span class="text-terminal-muted">Insurance</span>
+              <span class="text-terminal-green">✓ Active</span>
+            </div>
           </div>
         </div>
 
@@ -491,6 +503,7 @@ async function loadSectorData(sectorId: number) {
 onMounted(async () => {
   await galaxy.loadGalaxy(galaxyId);
   await ship.loadShip(galaxyId);
+  ship.loadStats(galaxyId);
   if (ship.ship) {
     galaxy.currentSectorId = ship.ship.currentSector;
     galaxy.visit(ship.ship.currentSector);

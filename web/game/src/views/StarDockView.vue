@@ -55,6 +55,28 @@
           <span class="text-terminal-cyan font-mono font-bold">{{ ship.ship.credits.toLocaleString() }} cr</span>
         </div>
 
+        <!-- Insurance -->
+        <div class="mt-4 pt-4 border-t border-void-700">
+          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Ship Insurance</h3>
+          <div v-if="ship.ship?.insuranceActive" class="text-terminal-green font-mono text-xs mb-2">
+            ✓ Active — expires {{ formatDate(ship.ship.insuranceExpires) }}
+          </div>
+          <div v-else class="text-terminal-muted font-mono text-xs mb-2">
+            No active insurance. Death penalty: 25% credits lost.
+          </div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-terminal-muted font-mono text-xs">Cost (5% net worth):</span>
+            <span class="text-terminal-yellow font-mono text-sm">{{ insuranceCost.toLocaleString() }} cr</span>
+          </div>
+          <button
+            @click="buyInsurance"
+            :disabled="insuring || ship.ship?.insuranceActive || ship.ship?.credits < insuranceCost"
+            class="w-full terminal-btn disabled:opacity-50"
+          >
+            {{ insuring ? 'Processing...' : ship.ship?.insuranceActive ? 'Already Insured' : 'Buy Insurance (7 days)' }}
+          </button>
+        </div>
+
         <div v-if="message" class="mb-4 text-terminal-yellow font-mono text-sm">{{ message }}</div>
 
         <button
@@ -85,6 +107,16 @@ const galaxyId = 1;
 const selectedIndex = ref(0);
 const message = ref<string | null>(null);
 const purchasing = ref(false);
+const insuring = ref(false);
+
+const insuranceCost = computed(() => {
+  return Math.floor((ship.ship?.netWorth ?? ship.ship?.credits ?? 0) * 0.05);
+});
+
+function formatDate(iso: string | null) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString();
+}
 
 const owned = computed(() => getOwnedUpgrades(ship.ship?.upgrades ?? {}));
 const available = computed(() => getAvailableUpgrades(ship.ship?.upgrades ?? {}));
@@ -126,6 +158,35 @@ async function purchase() {
     message.value = err.message;
   } finally {
     purchasing.value = false;
+  }
+}
+
+async function buyInsurance() {
+  if (!ship.ship) return;
+  insuring.value = true;
+  message.value = null;
+
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/insurance/buy`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({
+        galaxyId,
+        sectorId: ship.ship.currentSector,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Insurance purchase failed');
+
+    ship.ship.credits = data.remainingCredits;
+    ship.ship.insuranceActive = true;
+    ship.ship.insuranceExpires = data.expires;
+
+    message.value = `🛡 Insurance purchased! Expires ${formatDate(data.expires)}`;
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    insuring.value = false;
   }
 }
 

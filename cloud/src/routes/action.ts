@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError } from '../utils/cors.js';
 import { UPGRADE_CATALOG, computeEffectiveStats } from '../upgrades.js';
+import { resolveDefeat } from './combat.js';
 
 /**
  * POST /api/action/trade
@@ -200,17 +201,7 @@ export async function handleCombat(
 
   // Apply results
   if (result.destroyed) {
-    const fedSpace = await db
-      .prepare('SELECT sector_index FROM sectors WHERE galaxy_id = ? AND danger = "safe" ORDER BY sector_index LIMIT 1')
-      .bind(galaxyId)
-      .first<{ sector_index: number }>();
-
-    await db
-      .prepare(
-        'UPDATE player_ships SET credits = floor(credits * 0.9), hull = max_turns, shield = 0, cargo_json = "{}", current_sector = ?, deaths = deaths + 1, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?'
-      )
-      .bind(fedSpace?.sector_index ?? 0, auth.playerId, galaxyId)
-      .run();
+    await resolveDefeat(db, galaxyId, auth.playerId, sectorId, null, 'npc');
   } else {
     await db
       .prepare(

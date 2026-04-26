@@ -65,6 +65,16 @@
           </button>
         </div>
 
+        <!-- Digest -->
+        <div v-if="digest && (digest.deaths > 0 || digest.news.length > 0)" class="mt-4 terminal-panel p-3 border-terminal-yellow/50">
+          <p class="text-terminal-yellow font-mono text-xs font-bold mb-1">📡 While you were away...</p>
+          <p v-if="digest.deaths > 0" class="text-terminal-red font-mono text-xs">💥 {{ digest.deaths }} death(s)</p>
+          <p v-if="digest.kills > 0" class="text-terminal-green font-mono text-xs">⚔ {{ digest.kills }} kill(s)</p>
+          <p v-for="(item, i) in digest.news.slice(0, 3)" :key="i" class="text-terminal-muted font-mono text-xs">
+            • {{ item.headline }}
+          </p>
+        </div>
+
         <p v-if="auth.error || ship.error" class="mt-4 text-terminal-red text-sm font-mono text-center">
           {{ auth.error || ship.error }}
         </p>
@@ -86,6 +96,12 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useShipStore } from '../stores/ship';
 
+interface DigestData {
+  kills: number;
+  deaths: number;
+  news: Array<any>;
+}
+
 const router = useRouter();
 const auth = useAuthStore();
 const ship = useShipStore();
@@ -94,6 +110,7 @@ const email = ref('');
 const shipName = ref('');
 const selectedClass = ref('merchant');
 const needsShip = ref(false);
+const digest = ref<DigestData | null>(null);
 
 const shipClasses = [
   { id: 'merchant', name: 'Merchant', desc: '120 cargo, 80 turns' },
@@ -103,13 +120,29 @@ const shipClasses = [
 
 const GALAXY_ID = 1;
 
+async function fetchDigest() {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/notifications/digest?galaxyId=${GALAXY_ID}`, {
+      headers: auth.getHeaders(),
+    });
+    if (res.ok) {
+      digest.value = await res.json();
+    }
+  } catch {
+    digest.value = null;
+  }
+}
+
 async function handleRegister() {
   if (!email.value.trim()) return;
   await auth.register(email.value.trim());
   if (auth.isAuthenticated) {
     await ship.loadShip(GALAXY_ID);
-    if (ship.ship) {
+    await fetchDigest();
+    if (ship.ship && !digest.value?.deaths) {
       router.push(`/galaxy/${GALAXY_ID}`);
+    } else if (ship.ship) {
+      // Show digest, then user clicks to continue
     } else {
       needsShip.value = true;
     }
@@ -120,16 +153,20 @@ async function handleCreateShip() {
   if (!shipName.value.trim()) return;
   await ship.createShip(GALAXY_ID, shipName.value.trim(), selectedClass.value);
   if (ship.ship) {
-    router.push(`/galaxy/${GALAXY_ID}`);
+    await fetchDigest();
+    if (!digest.value?.deaths) {
+      router.push(`/galaxy/${GALAXY_ID}`);
+    }
   }
 }
 
 watch(() => auth.isAuthenticated, (val) => {
   if (val) {
-    ship.loadShip(GALAXY_ID).then(() => {
-      if (ship.ship) {
+    ship.loadShip(GALAXY_ID).then(async () => {
+      await fetchDigest();
+      if (ship.ship && !digest.value?.deaths) {
         router.push(`/galaxy/${GALAXY_ID}`);
-      } else {
+      } else if (!ship.ship) {
         needsShip.value = true;
       }
     });

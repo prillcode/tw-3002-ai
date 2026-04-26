@@ -66,6 +66,7 @@ export async function handleAddNews(request: Request, db: D1Database): Promise<R
 export async function handleLeaderboard(
   galaxyId: string | null,
   limit: string | null,
+  sort: string | null,
   db: D1Database
 ): Promise<Response> {
   if (!galaxyId) return jsonError('galaxyId query param required');
@@ -75,6 +76,27 @@ export async function handleLeaderboard(
 
   const count = Math.min(parseInt(limit ?? '10', 10), 100);
 
+  let orderBy = 'ps.net_worth DESC';
+  if (sort === 'kills') orderBy = 'ps.kills DESC';
+  else if (sort === 'deaths') orderBy = 'ps.deaths DESC';
+  else if (sort === 'wanted') {
+    // wanted = players with most kills in last 24h
+    const result = await db
+      .prepare(
+        `SELECT ps.ship_name, ps.class_id, ps.net_worth, ps.kills, ps.deaths,
+                p.display_name, p.email,
+                (SELECT COUNT(*) FROM pvp_kills pk WHERE pk.killer_player_id = ps.player_id AND pk.timestamp > datetime('now', '-24 hours')) as recent_kills
+         FROM player_ships ps
+         JOIN players p ON ps.player_id = p.id
+         WHERE ps.galaxy_id = ?
+         ORDER BY recent_kills DESC
+         LIMIT ?`
+      )
+      .bind(gId, count)
+      .all();
+    return json({ leaderboard: result.results ?? [] });
+  }
+
   const result = await db
     .prepare(
       `SELECT ps.ship_name, ps.class_id, ps.net_worth, ps.kills, ps.deaths,
@@ -82,7 +104,7 @@ export async function handleLeaderboard(
        FROM player_ships ps
        JOIN players p ON ps.player_id = p.id
        WHERE ps.galaxy_id = ?
-       ORDER BY ps.net_worth DESC
+       ORDER BY ${orderBy}
        LIMIT ?`
     )
     .bind(gId, count)

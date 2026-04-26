@@ -89,7 +89,7 @@
         </div>
 
         <button @click="goBack" class="w-full terminal-btn-primary">
-          {{ result?.destroyed ? 'Respawn in FedSpace' : 'Return to Sector' }}
+          {{ result?.destroyed ? 'Continue' : 'Return to Sector' }}
         </button>
       </template>
 
@@ -161,22 +161,8 @@ async function executeCombat() {
     narrative.value = data.narrative || 'The encounter ends in silence.';
     resolved.value = true;
 
-    // Apply results to ship state
-    if (data.result.destroyed) {
-      ship.ship.credits = Math.floor(ship.ship.credits * 0.9);
-      ship.ship.hull = ship.ship.maxHull;
-      ship.ship.shield = 0;
-      ship.ship.cargo = { ore: 0, organics: 0, equipment: 0 };
-      // Note: actual respawn sector is set by server, we'd need to reload ship
-    } else {
-      ship.ship.hull = data.result.playerHullRemaining;
-      ship.ship.shield = ship.ship.maxShield;
-      if (data.result.won) {
-        ship.ship.credits += data.result.creditsGained;
-      } else if (data.result.bribed) {
-        ship.ship.credits -= data.result.creditsLost;
-      }
-    }
+    // Reload ship state from server (handles respawn, loot, insurance, etc.)
+    await ship.loadShip(galaxyId);
   } catch (err: any) {
     message.value = err.message;
   } finally {
