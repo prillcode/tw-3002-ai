@@ -136,12 +136,6 @@
               🧭 Show Navigation [N]
             </button>
             <button
-              @click="ui.openModal('help')"
-              class="w-full terminal-btn text-left"
-            >
-              ❓ Help [H]
-            </button>
-            <button
               @click="$router.push(`/galaxy/${galaxyId}/leaderboard`)"
               class="w-full terminal-btn text-left"
             >
