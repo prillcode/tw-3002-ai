@@ -73,6 +73,9 @@
           <p v-for="(item, i) in digest.news.slice(0, 3)" :key="i" class="text-terminal-muted font-mono text-xs">
             • {{ item.headline }}
           </p>
+          <button @click="router.push(`/galaxy/${GALAXY_ID}`)" class="w-full mt-2 terminal-btn-primary text-xs">
+            Enter Galaxy →
+          </button>
         </div>
 
         <p v-if="auth.error || ship.error" class="mt-4 text-terminal-red text-sm font-mono text-center">
