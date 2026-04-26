@@ -125,6 +125,14 @@
           </button>
         </div>
 
+        <!-- Genesis Torpedo -->
+        <div class="mt-4 pt-4 border-t border-void-700">
+          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🌍 Genesis Torpedo</h3>
+          <div class="text-xs font-mono text-terminal-muted mb-2">Create a planet in any non-protected sector. Planet class is randomized.</div>
+          <div class="text-xs font-mono text-terminal-yellow mb-2">Cost: 80,000 cr</div>
+          <div class="text-xs font-mono text-terminal-muted">Visit a sector and press [G] to launch.</div>
+        </div>
+
         <!-- Insurance -->
         <div class="mt-4 pt-4 border-t border-void-700">
           <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Ship Insurance</h3>
