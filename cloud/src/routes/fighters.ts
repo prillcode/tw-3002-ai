@@ -20,7 +20,7 @@ export function baseEntryOperations(): OperationStep[] {
     { step: 'nav_hazard', status: 'skipped_not_implemented' },
     { step: 'limpet_mines', status: 'no_op', details: { note: 'resolved during entry attempt' } },
     { step: 'armid_mines', status: 'no_op', details: { note: 'resolved during entry attempt' } },
-    { step: 'q_cannon', status: 'skipped_not_implemented' },
+    { step: 'q_cannon', status: 'no_op', details: { note: 'resolved during entry attempt' } },
   ];
 }
 

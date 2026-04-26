@@ -1,6 +1,6 @@
-# 13-05 Summary — Blockades, Loot Rebalance, Q-Cannon Staging
+# 13-05 Summary — Blockades, Loot Rebalance, Q-Cannon Integration
 
-Status: ✅ Completed (Q-cannon integration staged)
+Status: ✅ Completed
 Date: 2026-04-26
 
 ## What shipped
@@ -24,9 +24,15 @@ Date: 2026-04-26
   - `LOOT_CREDITS_PCT = 0.50` in `cloud/src/routes/combat.ts`
 - Insurance and new-player protections remain active.
 
-## Deferred in this phase
-- Q-cannon damage execution is deferred until TW-14 planetary/citadel cannon data is available.
-- Q-cannon step remains represented in operation logs as sequencing placeholder.
+### Q-cannon integration
+- Wired TW-14 `computeQCannonDamage()` into sector-entry pipeline.
+- Added hostile-planet sector cannon pass (`applyQCannonEntryEffects`) after mines and before fighter encounter.
+- Q-cannon damage now appears in operation logs with:
+  - hostile planet count
+  - total damage
+  - shield absorb + hull damage
+  - per-planet damage breakdown
+- Q-cannon destruction routes through `resolveDefeat()`.
 
 ## Verification run
 - `cd cloud && npm run typecheck` ✅

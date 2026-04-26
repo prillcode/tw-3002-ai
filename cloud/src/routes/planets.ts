@@ -5,6 +5,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { json, jsonError } from '../utils/cors.js';
 import { verifyToken, type AuthContext } from '../utils/auth.js';
+import { resolveDefeat } from './combat.js';
 
 // ─── Planet class configuration ────────────────────────────────────
 
@@ -817,6 +818,137 @@ export function computeQCannonDamage(planet: { fuel: number; organics: number; e
   }
 
   return { sectDamage, atmoDamage };
+}
+
+/**
+ * Apply sector Q-cannon fire from hostile planets when a player attempts entry.
+ */
+export async function applyQCannonEntryEffects(
+  db: D1Database,
+  playerId: number,
+  galaxyId: number,
+  targetSectorId: number,
+): Promise<{
+  operation: { step: 'q_cannon'; status: 'resolved' | 'skipped_no_hostiles' | 'no_op'; details?: Record<string, unknown> };
+  destroyed: boolean;
+  ship: Record<string, unknown> | null;
+}> {
+  const ship = await db
+    .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(playerId, galaxyId)
+    .first<any>();
+
+  if (!ship) {
+    return {
+      operation: { step: 'q_cannon', status: 'no_op', details: { reason: 'ship_not_found' } },
+      destroyed: false,
+      ship: null,
+    };
+  }
+
+  const hostilePlanets = await db
+    .prepare(
+      `SELECT id, owner_id, fuel, organics, equipment, citadel_level, sect_cannon_pct, atmo_cannon_pct
+       FROM planets
+       WHERE galaxy_id = ? AND sector_index = ? AND owner_id != ? AND citadel_level >= 3 AND sect_cannon_pct > 0`
+    )
+    .bind(galaxyId, targetSectorId, playerId)
+    .all<{
+      id: number;
+      owner_id: number;
+      fuel: number;
+      organics: number;
+      equipment: number;
+      citadel_level: number;
+      sect_cannon_pct: number;
+      atmo_cannon_pct: number;
+    }>();
+
+  const planets = hostilePlanets.results ?? [];
+  if (planets.length === 0) {
+    return {
+      operation: { step: 'q_cannon', status: 'skipped_no_hostiles' },
+      destroyed: false,
+      ship,
+    };
+  }
+
+  const damageBreakdown = planets.map((p) => ({
+    planetId: p.id,
+    ownerId: p.owner_id,
+    ...computeQCannonDamage(p),
+  }));
+
+  const totalDamage = damageBreakdown.reduce((sum, d) => sum + d.sectDamage, 0);
+  if (totalDamage <= 0) {
+    return {
+      operation: {
+        step: 'q_cannon',
+        status: 'skipped_no_hostiles',
+        details: { hostilePlanets: planets.length, reason: 'zero_damage' },
+      },
+      destroyed: false,
+      ship,
+    };
+  }
+
+  const shieldAbsorb = Math.min(ship.shield ?? 0, totalDamage);
+  const hullDamage = Math.max(0, totalDamage - shieldAbsorb);
+  const nextShield = Math.max(0, (ship.shield ?? 0) - shieldAbsorb);
+  const nextHull = Math.max(0, (ship.hull ?? 0) - hullDamage);
+
+  await db
+    .prepare('UPDATE player_ships SET shield = ?, hull = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+    .bind(nextShield, nextHull, playerId, galaxyId)
+    .run();
+
+  if (nextHull <= 0) {
+    await resolveDefeat(db, galaxyId, playerId, targetSectorId, null, 'fighter');
+    const respawned = await db
+      .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+      .bind(playerId, galaxyId)
+      .first();
+
+    return {
+      operation: {
+        step: 'q_cannon',
+        status: 'resolved',
+        details: {
+          hostilePlanets: planets.length,
+          totalDamage,
+          shieldAbsorb,
+          hullDamage,
+          destroyed: true,
+          damageBreakdown,
+        },
+      },
+      destroyed: true,
+      ship: respawned,
+    };
+  }
+
+  const updated = await db
+    .prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(playerId, galaxyId)
+    .first();
+
+  return {
+    operation: {
+      step: 'q_cannon',
+      status: 'resolved',
+      details: {
+        hostilePlanets: planets.length,
+        totalDamage,
+        shieldAbsorb,
+        hullDamage,
+        hullRemaining: nextHull,
+        shieldRemaining: nextShield,
+        damageBreakdown,
+      },
+    },
+    destroyed: false,
+    ship: updated,
+  };
 }
 
 // Export class config for use by other routes

@@ -9,6 +9,7 @@ import {
   type OperationStep,
 } from './fighters.js';
 import { applyMineEntryEffects } from './mines.js';
+import { applyQCannonEntryEffects } from './planets.js';
 
 /**
  * GET /api/player
@@ -192,9 +193,23 @@ export async function handleMoveShip(
   }
 
   if (mineEffects.destroyed) {
+    const qIdx = operations.findIndex((op) => op.step === 'q_cannon');
+    if (qIdx >= 0) operations[qIdx] = { step: 'q_cannon', status: 'no_op', details: { reason: 'ship_destroyed_by_mines' } };
+
     operations.push({ step: 'fighters', status: 'no_op', details: { reason: 'ship_destroyed_by_mines' } });
     operations.push({ step: 'ship_to_ship', status: 'no_op', details: { reason: 'ship_destroyed_by_mines' } });
     return json({ ship: mineEffects.ship, moved: false, operations, destroyedByMines: true });
+  }
+
+  const qCannonEffects = await applyQCannonEntryEffects(db, auth.playerId, galaxyId, sectorId);
+  const qIdx = operations.findIndex((op) => op.step === 'q_cannon');
+  if (qIdx >= 0) operations[qIdx] = qCannonEffects.operation;
+  else operations.push(qCannonEffects.operation);
+
+  if (qCannonEffects.destroyed) {
+    operations.push({ step: 'fighters', status: 'no_op', details: { reason: 'ship_destroyed_by_q_cannon' } });
+    operations.push({ step: 'ship_to_ship', status: 'no_op', details: { reason: 'ship_destroyed_by_q_cannon' } });
+    return json({ ship: qCannonEffects.ship, moved: false, operations, destroyedByQCannon: true });
   }
 
   const encounter = await getEntryEncounter(db, auth.playerId, galaxyId, sectorId);
