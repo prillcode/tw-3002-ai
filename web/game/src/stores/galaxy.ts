@@ -94,7 +94,10 @@ export const useGalaxyStore = defineStore('galaxy', () => {
 
   function visit(sectorId: number) {
     currentSectorId.value = sectorId;
-    visitedIds.value.push(sectorId);
+    // Only record if it's a new sector (not a remount after sub-page navigation)
+    if (visitedIds.value.length === 0 || visitedIds.value[visitedIds.value.length - 1] !== sectorId) {
+      visitedIds.value.push(sectorId);
+    }
   }
 
   const currentSector = () => galaxy.value?.sectors.get(currentSectorId.value) ?? null;
