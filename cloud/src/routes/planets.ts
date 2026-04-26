@@ -451,5 +451,373 @@ export async function handleProductionTick(db: D1Database, galaxyId: number): Pr
   return { planetsProcessed, totalFuel, totalOrg, totalEq, totalFighters };
 }
 
+// ─── Citadel advancement costs per class per level ────────────────────
+// Source: lore-reference/core/planets.md — Citadel Advancement Requirements
+// Each entry: { colonists, fuel, organics, equipment, days }
+// "days" is real-world days of construction time (we map to ticks)
+
+interface CitadelLevelCost {
+  colonists: number; // minimum colonists required
+  fuel: number;
+  organics: number;
+  equipment: number;
+  ticks: number; // construction ticks (1 tick per cron run)
+}
+
+const CITADEL_COSTS: Record<string, CitadelLevelCost[]> = {
+  M: [
+    { colonists: 1_000, fuel: 300, organics: 200, equipment: 250, ticks: 4 },
+    { colonists: 2_000, fuel: 200, organics: 50,  equipment: 250, ticks: 4 },
+    { colonists: 4_000, fuel: 500, organics: 250, equipment: 500, ticks: 5 },
+    { colonists: 6_000, fuel: 1_000, organics: 1_200, equipment: 1_000, ticks: 10 },
+    { colonists: 6_000, fuel: 300, organics: 400, equipment: 1_000, ticks: 5 },
+    { colonists: 6_000, fuel: 1_000, organics: 1_200, equipment: 2_000, ticks: 15 },
+  ],
+  K: [
+    { colonists: 1_000, fuel: 400, organics: 300, equipment: 600, ticks: 6 },
+    { colonists: 2_400, fuel: 300, organics: 80,  equipment: 400, ticks: 5 },
+    { colonists: 4_400, fuel: 600, organics: 400, equipment: 650, ticks: 8 },
+    { colonists: 7_000, fuel: 700, organics: 900, equipment: 800, ticks: 5 },
+    { colonists: 8_000, fuel: 800, organics: 400, equipment: 1_000, ticks: 4 },
+    { colonists: 7_000, fuel: 700, organics: 900, equipment: 1_600, ticks: 8 },
+  ],
+  O: [
+    { colonists: 1_400, fuel: 500, organics: 200, equipment: 400, ticks: 6 },
+    { colonists: 2_400, fuel: 200, organics: 50,  equipment: 300, ticks: 5 },
+    { colonists: 4_400, fuel: 600, organics: 400, equipment: 650, ticks: 8 },
+    { colonists: 7_000, fuel: 700, organics: 900, equipment: 800, ticks: 5 },
+    { colonists: 8_000, fuel: 300, organics: 400, equipment: 1_000, ticks: 4 },
+    { colonists: 7_000, fuel: 700, organics: 900, equipment: 1_600, ticks: 8 },
+  ],
+  L: [
+    { colonists: 400,   fuel: 150, organics: 100, equipment: 150, ticks: 2 },
+    { colonists: 1_400, fuel: 200, organics: 50,  equipment: 250, ticks: 5 },
+    { colonists: 3_600, fuel: 600, organics: 250, equipment: 700, ticks: 5 },
+    { colonists: 5_600, fuel: 1_000, organics: 1_200, equipment: 1_000, ticks: 8 },
+    { colonists: 7_000, fuel: 300, organics: 400, equipment: 1_000, ticks: 5 },
+    { colonists: 5_600, fuel: 1_000, organics: 1_200, equipment: 2_000, ticks: 12 },
+  ],
+  C: [
+    { colonists: 1_000, fuel: 400, organics: 300, equipment: 600, ticks: 5 },
+    { colonists: 2_400, fuel: 300, organics: 80,  equipment: 400, ticks: 5 },
+    { colonists: 4_400, fuel: 600, organics: 400, equipment: 650, ticks: 7 },
+    { colonists: 6_600, fuel: 700, organics: 900, equipment: 700, ticks: 5 },
+    { colonists: 9_000, fuel: 300, organics: 400, equipment: 1_000, ticks: 4 },
+    { colonists: 6_600, fuel: 700, organics: 900, equipment: 1_400, ticks: 8 },
+  ],
+  H: [
+    { colonists: 800,   fuel: 500, organics: 300, equipment: 600, ticks: 4 },
+    { colonists: 1_600, fuel: 300, organics: 100, equipment: 400, ticks: 5 },
+    { colonists: 4_400, fuel: 1_200, organics: 400, equipment: 1_500, ticks: 8 },
+    { colonists: 7_000, fuel: 2_000, organics: 2_000, equipment: 2_500, ticks: 12 },
+    { colonists: 10_000, fuel: 3_000, organics: 1_200, equipment: 2_000, ticks: 5 },
+    { colonists: 7_000, fuel: 2_000, organics: 2_000, equipment: 5_000, ticks: 18 },
+  ],
+  U: [
+    { colonists: 3_000, fuel: 1_200, organics: 400, equipment: 2_500, ticks: 8 },
+    { colonists: 3_000, fuel: 300,   organics: 100, equipment: 400,   ticks: 4 },
+    { colonists: 8_000, fuel: 500,   organics: 500, equipment: 2_000, ticks: 5 },
+    { colonists: 6_000, fuel: 500,   organics: 200, equipment: 600,   ticks: 5 },
+    { colonists: 8_000, fuel: 200,   organics: 200, equipment: 600,   ticks: 4 },
+    { colonists: 6_000, fuel: 500,   organics: 200, equipment: 1_200, ticks: 8 },
+  ],
+};
+
+// Citadel level descriptions
+const CITADEL_LEVELS = [
+  { level: 0, name: 'None', description: 'No defenses. Planet is exposed.' },
+  { level: 1, name: 'Bunker', description: 'Basic shelter. Fighters can be deployed from planet.' },
+  { level: 2, name: 'Barracks', description: 'Colonist quarters expanded. Improved fighter garrison.' },
+  { level: 3, name: 'Fortress', description: 'Sector cannon installed. Planet fires on hostiles entering sector.' },
+  { level: 4, name: 'Citadel', description: 'Production boost. Planetary trading unlocked. Atmospheric cannon.' },
+  { level: 5, name: 'Stronghold', description: 'Reinforced defenses. Enhanced cannon range and damage.' },
+  { level: 6, name: 'Interdictor', description: 'Maximum fortification. Q-cannon at full power. Interdiction field.' },
+];
+
+/**
+ * GET /api/planets/citadel-costs?planetId=
+ * Get the cost to advance a planet's citadel to the next level.
+ */
+export async function handleGetCitadelCosts(auth: AuthContext, planetId: string, db: D1Database): Promise<Response> {
+  const planet = await db
+    .prepare('SELECT id, class, citadel_level, colonists, fuel, organics, equipment, owner_id FROM planets WHERE id = ?')
+    .bind(Number(planetId))
+    .first<{ id: number; class: string; citadel_level: number; colonists: number; fuel: number; organics: number; equipment: number; owner_id: number }>();
+
+  if (!planet) return jsonError('Planet not found', 404);
+
+  const currentLevel = planet.citadel_level;
+  if (currentLevel >= 6) {
+    return json({ currentLevel, nextLevel: null, maxLevel: true, message: 'Citadel at maximum level' });
+  }
+
+  const costs = CITADEL_COSTS[planet.class];
+  if (!costs) return jsonError('Unknown planet class', 500);
+
+  const nextCost = costs[currentLevel]; // index 0 = upgrade from 0→1
+  const currentInfo = CITADEL_LEVELS[currentLevel];
+  const nextInfo = CITADEL_LEVELS[currentLevel + 1];
+
+  const canAfford = planet.fuel >= nextCost.fuel
+    && planet.organics >= nextCost.organics
+    && planet.equipment >= nextCost.equipment
+    && planet.colonists >= nextCost.colonists;
+
+  return json({
+    planetId: planet.id,
+    currentLevel,
+    currentName: currentInfo.name,
+    nextLevel: currentLevel + 1,
+    nextName: nextInfo.name,
+    nextDescription: nextInfo.description,
+    requirements: {
+      colonists: nextCost.colonists,
+      fuel: nextCost.fuel,
+      organics: nextCost.organics,
+      equipment: nextCost.equipment,
+      constructionTicks: nextCost.ticks,
+    },
+    currentResources: {
+      colonists: planet.colonists,
+      fuel: planet.fuel,
+      organics: planet.organics,
+      equipment: planet.equipment,
+    },
+    canAfford,
+    isOwn: planet.owner_id === auth.playerId,
+  });
+}
+
+/**
+ * POST /api/planets/citadel/advance
+ * Advance a planet's citadel to the next level. Deducts resources from planet.
+ */
+export async function handleAdvanceCitadel(auth: AuthContext, request: Request, db: D1Database): Promise<Response> {
+  let body: { planetId?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const { planetId } = body;
+  if (!planetId) return jsonError('planetId required');
+
+  const planet = await db
+    .prepare('SELECT * FROM planets WHERE id = ?')
+    .bind(planetId)
+    .first<{
+      id: number; owner_id: number; class: string; citadel_level: number;
+      colonists: number; fuel: number; organics: number; equipment: number;
+    }>();
+
+  if (!planet) return jsonError('Planet not found', 404);
+  if (planet.owner_id !== auth.playerId) return jsonError('Not your planet', 403);
+  if (planet.citadel_level >= 6) return jsonError('Citadel already at maximum level', 403);
+
+  const costs = CITADEL_COSTS[planet.class];
+  if (!costs) return jsonError('Unknown planet class', 500);
+
+  const nextCost = costs[planet.citadel_level];
+
+  // Check colonist minimum
+  if (planet.colonists < nextCost.colonists) {
+    return jsonError(`Need ${nextCost.colonists.toLocaleString()} colonists (have ${planet.colonists.toLocaleString()})`, 403);
+  }
+
+  // Check resources
+  if (planet.fuel < nextCost.fuel) return jsonError(`Need ${nextCost.fuel.toLocaleString()} fuel (have ${planet.fuel.toLocaleString()})`, 403);
+  if (planet.organics < nextCost.organics) return jsonError(`Need ${nextCost.organics.toLocaleString()} organics (have ${planet.organics.toLocaleString()})`, 403);
+  if (planet.equipment < nextCost.equipment) return jsonError(`Need ${nextCost.equipment.toLocaleString()} equipment (have ${planet.equipment.toLocaleString()})`, 403);
+
+  // Deduct resources and advance
+  const newLevel = planet.citadel_level + 1;
+  await db
+    .prepare('UPDATE planets SET citadel_level = ?, fuel = fuel - ?, organics = organics - ?, equipment = equipment - ?, updated_at = datetime("now") WHERE id = ?')
+    .bind(newLevel, nextCost.fuel, nextCost.organics, nextCost.equipment, planet.id)
+    .run();
+
+  const levelInfo = CITADEL_LEVELS[newLevel];
+
+  return json({
+    success: true,
+    planetId: planet.id,
+    newLevel,
+    levelName: levelInfo.name,
+    description: levelInfo.description,
+    resourcesConsumed: {
+      fuel: nextCost.fuel,
+      organics: nextCost.organics,
+      equipment: nextCost.equipment,
+    },
+    remainingResources: {
+      fuel: planet.fuel - nextCost.fuel,
+      organics: planet.organics - nextCost.organics,
+      equipment: planet.equipment - nextCost.equipment,
+    },
+  });
+}
+
+/**
+ * POST /api/planets/qcannon
+ * Configure Q-cannon settings (requires citadel level 3+ for sector, 4+ for atmospheric).
+ */
+export async function handleConfigureQCannon(auth: AuthContext, request: Request, db: D1Database): Promise<Response> {
+  let body: { planetId?: number; sectPct?: number; atmoPct?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const { planetId, sectPct, atmoPct } = body;
+  if (!planetId) return jsonError('planetId required');
+
+  const planet = await db
+    .prepare('SELECT id, owner_id, citadel_level FROM planets WHERE id = ?')
+    .bind(planetId)
+    .first<{ id: number; owner_id: number; citadel_level: number }>();
+
+  if (!planet) return jsonError('Planet not found', 404);
+  if (planet.owner_id !== auth.playerId) return jsonError('Not your planet', 403);
+
+  const updates: string[] = [];
+  const values: number[] = [];
+
+  if (sectPct !== undefined) {
+    if (planet.citadel_level < 3) return jsonError('Sector cannon requires Citadel level 3', 403);
+    const pct = Math.max(0, Math.min(100, Math.floor(sectPct)));
+    updates.push('sect_cannon_pct = ?');
+    values.push(pct);
+  }
+
+  if (atmoPct !== undefined) {
+    if (planet.citadel_level < 4) return jsonError('Atmospheric cannon requires Citadel level 4', 403);
+    const pct = Math.max(0, Math.min(100, Math.floor(atmoPct)));
+    updates.push('atmo_cannon_pct = ?');
+    values.push(pct);
+  }
+
+  if (updates.length === 0) return jsonError('No settings provided');
+
+  values.push(planet.id);
+  await db
+    .prepare(`UPDATE planets SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`)
+    .bind(...values)
+    .run();
+
+  return json({
+    success: true,
+    planetId: planet.id,
+    sectCannonPct: sectPct !== undefined ? Math.max(0, Math.min(100, sectPct)) : undefined,
+    atmoCannonPct: atmoPct !== undefined ? Math.max(0, Math.min(100, atmoPct)) : undefined,
+  });
+}
+
+/**
+ * POST /api/planets/transport
+ * Move resources between ship cargo and planet storage.
+ */
+export async function handlePlanetTransport(auth: AuthContext, request: Request, db: D1Database): Promise<Response> {
+  let body: { planetId?: number; direction?: 'deposit' | 'withdraw'; fuel?: number; organics?: number; equipment?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const { planetId, direction, fuel, organics, equipment } = body;
+  if (!planetId || !direction) return jsonError('planetId and direction (deposit/withdraw) required');
+  if (direction !== 'deposit' && direction !== 'withdraw') return jsonError('direction must be deposit or withdraw');
+
+  const totalQty = (fuel || 0) + (organics || 0) + (equipment || 0);
+  if (totalQty <= 0) return jsonError('Must specify at least one resource > 0');
+
+  const planet = await db
+    .prepare('SELECT * FROM planets WHERE id = ?')
+    .bind(planetId)
+    .first<{
+      id: number; owner_id: number; fuel: number; organics: number; equipment: number;
+    }>();
+
+  if (!planet) return jsonError('Planet not found', 404);
+  if (planet.owner_id !== auth.playerId) return jsonError('Not your planet', 403);
+
+  // Get player's ship cargo
+  const ship = await db
+    .prepare('SELECT id, cargo_json FROM player_ships WHERE player_id = ?')
+    .bind(auth.playerId)
+    .first<{ id: number; cargo_json: string }>();
+
+  if (!ship) return jsonError('No ship found', 404);
+
+  const cargo = JSON.parse(ship.cargo_json || '{}') as Record<string, number>;
+
+  const dFuel = fuel || 0;
+  const dOrg = organics || 0;
+  const dEq = equipment || 0;
+
+  if (direction === 'deposit') {
+    // Check ship has enough
+    if ((cargo.fuel || 0) < dFuel) return jsonError(`Not enough fuel in cargo (have ${cargo.fuel || 0})`);
+    if ((cargo.organics || 0) < dOrg) return jsonError(`Not enough organics in cargo (have ${cargo.organics || 0})`);
+    if ((cargo.equipment || 0) < dEq) return jsonError(`Not enough equipment in cargo (have ${cargo.equipment || 0})`);
+
+    cargo.fuel = (cargo.fuel || 0) - dFuel;
+    cargo.organics = (cargo.organics || 0) - dOrg;
+    cargo.equipment = (cargo.equipment || 0) - dEq;
+
+    await db.batch([
+      db.prepare('UPDATE planets SET fuel = fuel + ?, organics = organics + ?, equipment = equipment + ?, updated_at = datetime("now") WHERE id = ?')
+        .bind(dFuel, dOrg, dEq, planet.id),
+      db.prepare('UPDATE player_ships SET cargo_json = ? WHERE id = ?')
+        .bind(JSON.stringify(cargo), ship.id),
+    ]);
+  } else {
+    // Check planet has enough
+    if (planet.fuel < dFuel) return jsonError(`Planet only has ${planet.fuel} fuel`);
+    if (planet.organics < dOrg) return jsonError(`Planet only has ${planet.organics} organics`);
+    if (planet.equipment < dEq) return jsonError(`Planet only has ${planet.equipment} equipment`);
+
+    cargo.fuel = (cargo.fuel || 0) + dFuel;
+    cargo.organics = (cargo.organics || 0) + dOrg;
+    cargo.equipment = (cargo.equipment || 0) + dEq;
+
+    await db.batch([
+      db.prepare('UPDATE planets SET fuel = fuel - ?, organics = organics - ?, equipment = equipment - ?, updated_at = datetime("now") WHERE id = ?')
+        .bind(dFuel, dOrg, dEq, planet.id),
+      db.prepare('UPDATE player_ships SET cargo_json = ? WHERE id = ?')
+        .bind(JSON.stringify(cargo), ship.id),
+    ]);
+  }
+
+  return json({
+    success: true,
+    direction,
+    moved: { fuel: dFuel, organics: dOrg, equipment: dEq },
+  });
+}
+
+/**
+ * Compute Q-cannon damage for a planet.
+ * Sector cannon: (TotalOre * SectPct) / 3
+ * Atmospheric cannon: TotalOre * AtmoPct * 2
+ */
+export function computeQCannonDamage(planet: { fuel: number; organics: number; equipment: number; sect_cannon_pct: number; atmo_cannon_pct: number; citadel_level: number }): { sectDamage: number; atmoDamage: number } {
+  const totalOre = planet.fuel + planet.organics + planet.equipment;
+
+  let sectDamage = 0;
+  if (planet.citadel_level >= 3 && planet.sect_cannon_pct > 0) {
+    sectDamage = Math.floor((totalOre * planet.sect_cannon_pct) / 300);
+  }
+
+  let atmoDamage = 0;
+  if (planet.citadel_level >= 4 && planet.atmo_cannon_pct > 0) {
+    atmoDamage = Math.floor(totalOre * planet.atmo_cannon_pct * 2 / 100);
+  }
+
+  return { sectDamage, atmoDamage };
+}
+
 // Export class config for use by other routes
-export { PLANET_CLASSES, GENESIS_TORPEDO_COST, MAX_PLANETS_PER_SECTOR, computeProduction };
+export { PLANET_CLASSES, GENESIS_TORPEDO_COST, MAX_PLANETS_PER_SECTOR, computeProduction, CITADEL_COSTS, CITADEL_LEVELS };

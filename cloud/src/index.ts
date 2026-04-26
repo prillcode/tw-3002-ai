@@ -32,6 +32,10 @@ import {
   handleGetPlanet,
   handleColonize,
   handleProductionTick,
+  handleGetCitadelCosts,
+  handleAdvanceCitadel,
+  handleConfigureQCannon,
+  handlePlanetTransport,
 } from './routes/planets.js';
 import {
   handleBuyMines,
@@ -175,6 +179,18 @@ export default {
         }
         else if (path === '/api/planets/colonize' && method === 'POST') {
           response = await handleColonize(auth, request, env.DB);
+        }
+        else if (path === '/api/planets/citadel/advance' && method === 'POST') {
+          response = await handleAdvanceCitadel(auth, request, env.DB);
+        }
+        else if (path === '/api/planets/qcannon' && method === 'POST') {
+          response = await handleConfigureQCannon(auth, request, env.DB);
+        }
+        else if (path === '/api/planets/transport' && method === 'POST') {
+          response = await handlePlanetTransport(auth, request, env.DB);
+        }
+        else if (path === '/api/planets/citadel-costs' && method === 'GET') {
+          response = await handleGetCitadelCosts(auth, url.searchParams.get('planetId') ?? '', env.DB);
         }
         else if (path.startsWith('/api/planets/') && method === 'GET') {
           const planetId = path.split('/').pop()!;
