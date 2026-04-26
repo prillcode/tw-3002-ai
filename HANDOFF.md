@@ -39,15 +39,19 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ## What's Next — Priority Order
 
-### 🎯 P1 — Next Features
+### 🔥 P0 — Quick Fixes
 
 1. **Combat doesn't remove dead NPC** — After winning combat, the defeated raider still shows in the sector list until you jump away. Easy fix: remove it from `npcs.value` locally after a win in `CombatView.vue`.
 
 2. **Destroyed player respawn** — After ship destruction, the web client doesn't reload ship data from server, so the respawn sector might be wrong visually until refresh. Call `ship.loadShip(galaxyId)` after a destroyed combat result.
 
-3. **TW-05 PvP Combat** — Big feature. Needs server endpoints (`/api/action/pvp/attack`, `/api/action/pvp/resolve`, `/api/action/pvp/status`) and web client UI. See `.planning/TW-05-pvp-update/phases/05-01-PLAN.md`.
+### 🎯 P1 — Next Features
 
-4. **Web client settings** — Sound toggle, animation toggle, colorblind mode, font size. Add a gear icon or `S` key.
+3. **TW-05 PvP Infrastructure** — Aggressive pivot: no ship-to-ship dueling. Build the reusable backend: loot pipeline, respawn logic, kill tracking, bounty/wanted system, news generation, notifications, leaderboards, protections. See `.planning/TW-05-pvp-update/phases/05-01-PLAN.md`.
+
+4. **TW-06 Fighter Deployment** — True TW2002 PvP. Buy/deploy fighters in sectors (defensive/offensive/tolled). Sector entry encounters. Blockades. Mines. Q-Cannons. See `.planning/TW-06-fighter-deployment/phases/06-01-PLAN.md`.
+
+5. **Web client settings** — Sound toggle, animation toggle, colorblind mode, font size. Add a gear icon or `S` key.
 
 ### 📝 P2 — Polish & Backlog
 
@@ -88,9 +92,10 @@ cd cloud && npx wrangler deploy
 
 - `web/game/src/views/CombatView.vue` — **remove dead NPC from npcs.value after win**
 - `web/game/src/views/CombatView.vue` — **reload ship data after destruction**
-- `cloud/src/routes/action.ts` — **PvP endpoints go here**
-- `cloud/src/routes/player.ts` — **PvP status endpoint goes here**
-- `.planning/TW-05-pvp-update/phases/05-01-PLAN.md` — **PvP plan**
+- `cloud/src/routes/action.ts` — **loot/respawn pipeline goes here**
+- `cloud/src/routes/player.ts` — **stats endpoint goes here**
+- `.planning/TW-05-pvp-update/phases/05-01-PLAN.md` — **loot/respawn/kill tracking plan**
+- `.planning/TW-06-fighter-deployment/phases/06-01-PLAN.md` — **fighter deployment plan**
 
 ---
 
