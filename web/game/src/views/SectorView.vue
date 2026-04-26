@@ -129,6 +129,24 @@
             >
               ⚡ Enter StarDock [D]
             </button>
+            <button
+              @click="$router.push(`/galaxy/${galaxyId}/nav`)"
+              class="w-full terminal-btn text-left"
+            >
+              🧭 Show Navigation [N]
+            </button>
+            <button
+              @click="ui.openModal('help')"
+              class="w-full terminal-btn text-left"
+            >
+              ❓ Help [H]
+            </button>
+            <button
+              @click="$router.push(`/galaxy/${galaxyId}/leaderboard`)"
+              class="w-full terminal-btn text-left"
+            >
+              🏆 Leaderboard [L]
+            </button>
           </div>
         </div>
       </div>
