@@ -134,6 +134,7 @@
               <span :class="neighborDangerColor(n.danger)">{{ neighborDangerIcon(n.danger) }}</span>
               <span class="inline-block w-8">{{ n.id }}</span>
               <span class="text-terminal-muted">{{ n.name }}</span>
+              <span v-if="nextHopSectorId === n.id" class="text-terminal-cyan">← NEXT</span>
               <span v-if="n.hasPort" class="text-terminal-yellow ml-auto">P{{ n.portClass }}</span>
               <span v-if="n.stardock" class="text-terminal-magenta ml-auto">⚡</span>
               <span v-if="n.blockadeLevel && n.blockadeLevel !== 'none'" class="text-terminal-red ml-auto">⚠</span>
@@ -181,6 +182,12 @@
               class="w-full terminal-btn text-left"
             >
               🏆 Leaderboard [L]
+            </button>
+            <button
+              @click="routeToNearestStarDock"
+              class="w-full terminal-btn text-left"
+            >
+              🧭 Route to Nearest StarDock [K]
             </button>
             <button
               @click="showDeployModal = true"
@@ -294,6 +301,21 @@
             </svg>
           </div>
         </div>
+        <div class="mt-2 mb-3 text-xs font-mono text-center">
+          <button @click="routeToNearestStarDock" class="terminal-btn text-xs">🧭 Show shortest route to nearest StarDock [K]</button>
+          <div v-if="starDockRoute" class="mt-2 text-terminal-muted space-y-1">
+            <p>
+              Nearest StarDock: <span class="text-terminal-magenta">{{ starDockRoute.targetSectorId }}</span>
+              · Hops: <span class="text-terminal-cyan">{{ starDockRoute.hops }}</span>
+            </p>
+            <p v-if="starDockRoute.hops === 0" class="text-terminal-green">You are currently dockside.</p>
+            <p v-else>
+              Next hop: <span class="text-terminal-cyan">{{ nextHopSectorId ?? '—' }}</span>
+            </p>
+            <p class="break-words">Path: {{ starDockRoute.path.join(' → ') }}</p>
+          </div>
+        </div>
+
         <div class="flex flex-wrap gap-3 justify-center text-xs font-mono text-terminal-muted">
           <span><span class="text-terminal-cyan">★</span> You</span>
           <span><span class="text-terminal-yellow">●</span> Port</span>
@@ -416,6 +438,7 @@
               <div><span class="text-terminal-cyan">D</span> <span class="text-terminal-muted">StarDock</span></div>
               <div><span class="text-terminal-cyan">N</span> <span class="text-terminal-muted">Navigation</span></div>
               <div><span class="text-terminal-cyan">L</span> <span class="text-terminal-muted">Leaderboard</span></div>
+              <div><span class="text-terminal-cyan">K</span> <span class="text-terminal-muted">Nearest StarDock Route</span></div>
               <div><span class="text-terminal-cyan">F</span> <span class="text-terminal-muted">Deploy Fighters</span></div>
               <div><span class="text-terminal-cyan">R</span> <span class="text-terminal-muted">Recall Fighters</span></div>
               <div><span class="text-terminal-cyan">1</span> <span class="text-terminal-muted">Deploy Limpets</span></div>
@@ -453,7 +476,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGalaxyStore } from '../stores/galaxy';
+import { useGalaxyStore, type SectorRoute } from '../stores/galaxy';
 import { useShipStore } from '../stores/ship';
 import { useUiStore } from '../stores/ui';
 import { useAuthStore } from '../stores/auth';
@@ -484,6 +507,7 @@ const sectorPlanets = ref<Array<{ id: number; className: string; colonists?: num
 const selectedPlanet = ref<any | null>(null);
 const creatingPlanet = ref(false);
 const recalling = ref(false);
+const starDockRoute = ref<SectorRoute | null>(null);
 
 const currentSector = computed(() => galaxy.currentSector());
 const neighborList = computed(() => galaxy.neighbors());
@@ -618,6 +642,10 @@ const ownDeployedFighters = computed(() => ownFighters.value.reduce((sum, row) =
 const ownFighterMode = computed(() => ownFighters.value[0]?.mode ?? 'defensive');
 const hostileFighterCount = computed(() => sectorFighters.value.filter(f => f.hostile).reduce((sum, row) => sum + row.count, 0));
 const hostileMineEstimate = computed(() => sectorMines.value.filter(m => m.hostile).reduce((sum, row) => sum + (row.hostileEstimate ?? 0), 0));
+const nextHopSectorId = computed(() => {
+  const path = starDockRoute.value?.path ?? [];
+  return path.length >= 2 ? path[1] : null;
+});
 
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -669,6 +697,25 @@ async function handleEncounterResolved(data: any) {
 function handleQuit() {
   if (confirm('Quit the game?')) {
     router.push('/');
+  }
+}
+
+function routeToNearestStarDock() {
+  const from = ship.ship?.currentSector ?? currentSector.value?.id;
+  if (!from) return;
+
+  const route = galaxy.nearestStardockRoute(from);
+  starDockRoute.value = route;
+
+  if (!route) {
+    ship.message = 'No reachable StarDock route found from this sector.';
+    return;
+  }
+
+  if (route.hops === 0) {
+    ship.message = `⚡ You are already at StarDock (Sector ${route.targetSectorId}).`;
+  } else {
+    ship.message = `🧭 Nearest StarDock: ${route.targetSectorId} (${route.hops} hops). Next: ${route.path[1]}`;
   }
 }
 
@@ -754,6 +801,7 @@ function handleKey(e: KeyboardEvent) {
   if (e.key === '2') handleDeployMine('armid');
   if (e.key === 'g' || e.key === 'G') handleCreatePlanet();
   if (e.key === 'n' || e.key === 'N') router.push(`/galaxy/${galaxyId}/nav`);
+  if (e.key === 'k' || e.key === 'K') routeToNearestStarDock();
   if (e.key === 'h' || e.key === 'H' || e.key === '?') ui.openModal('help');
   if (e.key === 'l' || e.key === 'L') router.push(`/galaxy/${galaxyId}/leaderboard`);
 }
@@ -848,6 +896,10 @@ async function loadSectorData(sectorId: number) {
   } catch {
     news.value = [];
   }
+
+  if (starDockRoute.value) {
+    routeToNearestStarDock();
+  }
 }
 
 onMounted(async () => {
@@ -858,6 +910,7 @@ onMounted(async () => {
     galaxy.currentSectorId = ship.ship.currentSector;
     galaxy.visit(ship.ship.currentSector);
     await loadSectorData(ship.ship.currentSector);
+    routeToNearestStarDock();
   }
   window.addEventListener('keydown', handleKey);
 });

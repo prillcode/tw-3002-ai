@@ -26,6 +26,12 @@ export interface Galaxy {
   stardocks: number[];
 }
 
+export interface SectorRoute {
+  targetSectorId: number;
+  hops: number;
+  path: number[];
+}
+
 export const useGalaxyStore = defineStore('galaxy', () => {
   const galaxy = ref<Galaxy | null>(null);
   const currentSectorId = ref<number>(0);
@@ -121,8 +127,58 @@ export const useGalaxyStore = defineStore('galaxy', () => {
       .filter((s): s is Sector => s !== undefined);
   };
 
+  function shortestPath(fromSectorId: number, goalSectorIds: number[]): SectorRoute | null {
+    if (!galaxy.value || goalSectorIds.length === 0) return null;
+    if (goalSectorIds.includes(fromSectorId)) {
+      return { targetSectorId: fromSectorId, hops: 0, path: [fromSectorId] };
+    }
+
+    const goalSet = new Set(goalSectorIds);
+    const queue: number[] = [fromSectorId];
+    const visited = new Set<number>([fromSectorId]);
+    const cameFrom = new Map<number, number>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const sector = galaxy.value.sectors.get(current);
+      if (!sector) continue;
+
+      for (const next of sector.connections) {
+        if (visited.has(next)) continue;
+        visited.add(next);
+        cameFrom.set(next, current);
+
+        if (goalSet.has(next)) {
+          const path: number[] = [next];
+          let cursor = next;
+          while (cameFrom.has(cursor)) {
+            cursor = cameFrom.get(cursor)!;
+            path.push(cursor);
+            if (cursor === fromSectorId) break;
+          }
+          path.reverse();
+          return {
+            targetSectorId: next,
+            hops: Math.max(0, path.length - 1),
+            path,
+          };
+        }
+
+        queue.push(next);
+      }
+    }
+
+    return null;
+  }
+
+  function nearestStardockRoute(fromSectorId: number): SectorRoute | null {
+    if (!galaxy.value) return null;
+    return shortestPath(fromSectorId, galaxy.value.stardocks);
+  }
+
   return {
     galaxy, currentSectorId, loading, error, visitedIds,
     loadGalaxy, loadSector, visit, currentSector, neighbors,
+    shortestPath, nearestStardockRoute,
   };
 });
