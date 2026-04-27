@@ -134,7 +134,7 @@
               <span :class="neighborDangerColor(n.danger)">{{ neighborDangerIcon(n.danger) }}</span>
               <span class="inline-block w-8">{{ n.id }}</span>
               <span class="text-terminal-muted">{{ n.name }}</span>
-              <span v-if="nextHopSectorId === n.id" class="text-terminal-cyan">← NEXT</span>
+              <span v-if="showStarDockRoute && nextHopSectorId === n.id" class="text-terminal-cyan">← NEXT</span>
               <span v-if="n.hasPort" class="text-terminal-yellow ml-auto">P{{ n.portClass }}</span>
               <span v-if="n.stardock" class="text-terminal-magenta ml-auto">⚡</span>
               <span v-if="n.blockadeLevel && n.blockadeLevel !== 'none'" class="text-terminal-red ml-auto">⚠</span>
@@ -302,8 +302,10 @@
           </div>
         </div>
         <div class="mt-2 mb-3 text-xs font-mono text-center">
-          <button @click="routeToNearestStarDock" class="terminal-btn text-xs">🧭 Show shortest route to nearest StarDock [K]</button>
-          <div v-if="starDockRoute" class="mt-2 text-terminal-muted space-y-1">
+          <button @click="routeToNearestStarDock" class="terminal-btn text-xs">
+            {{ showStarDockRoute ? '🧭 Hide StarDock route [K]' : '🧭 Show shortest route to nearest StarDock [K]' }}
+          </button>
+          <div v-if="showStarDockRoute && starDockRoute" class="mt-2 text-terminal-muted space-y-1">
             <p>
               Nearest StarDock: <span class="text-terminal-magenta">{{ starDockRoute.targetSectorId }}</span>
               · Hops: <span class="text-terminal-cyan">{{ starDockRoute.hops }}</span>
@@ -508,6 +510,7 @@ const selectedPlanet = ref<any | null>(null);
 const creatingPlanet = ref(false);
 const recalling = ref(false);
 const starDockRoute = ref<SectorRoute | null>(null);
+const showStarDockRoute = ref(false);
 
 const currentSector = computed(() => galaxy.currentSector());
 const neighborList = computed(() => galaxy.neighbors());
@@ -643,6 +646,7 @@ const ownFighterMode = computed(() => ownFighters.value[0]?.mode ?? 'defensive')
 const hostileFighterCount = computed(() => sectorFighters.value.filter(f => f.hostile).reduce((sum, row) => sum + row.count, 0));
 const hostileMineEstimate = computed(() => sectorMines.value.filter(m => m.hostile).reduce((sum, row) => sum + (row.hostileEstimate ?? 0), 0));
 const nextHopSectorId = computed(() => {
+  if (!showStarDockRoute.value) return null;
   const path = starDockRoute.value?.path ?? [];
   return path.length >= 2 ? path[1] : null;
 });
@@ -701,6 +705,12 @@ function handleQuit() {
 }
 
 function routeToNearestStarDock() {
+  if (showStarDockRoute.value) {
+    showStarDockRoute.value = false;
+    ship.message = '🧭 StarDock route guidance hidden.';
+    return;
+  }
+
   const from = ship.ship?.currentSector ?? currentSector.value?.id;
   if (!from) return;
 
@@ -708,10 +718,12 @@ function routeToNearestStarDock() {
   starDockRoute.value = route;
 
   if (!route) {
+    showStarDockRoute.value = false;
     ship.message = 'No reachable StarDock route found from this sector.';
     return;
   }
 
+  showStarDockRoute.value = true;
   if (route.hops === 0) {
     ship.message = `⚡ You are already at StarDock (Sector ${route.targetSectorId}).`;
   } else {
@@ -897,8 +909,11 @@ async function loadSectorData(sectorId: number) {
     news.value = [];
   }
 
-  if (starDockRoute.value) {
-    routeToNearestStarDock();
+  if (showStarDockRoute.value) {
+    const from = ship.ship?.currentSector ?? currentSector.value?.id;
+    if (from) {
+      starDockRoute.value = galaxy.nearestStardockRoute(from);
+    }
   }
 }
 
@@ -910,7 +925,6 @@ onMounted(async () => {
     galaxy.currentSectorId = ship.ship.currentSector;
     galaxy.visit(ship.ship.currentSector);
     await loadSectorData(ship.ship.currentSector);
-    routeToNearestStarDock();
   }
   window.addEventListener('keydown', handleKey);
 });
