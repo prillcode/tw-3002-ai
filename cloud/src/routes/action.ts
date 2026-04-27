@@ -3,6 +3,7 @@ import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError } from '../utils/cors.js';
 import { UPGRADE_CATALOG, computeEffectiveStats } from '../upgrades.js';
 import { resolveDefeat } from './combat.js';
+import { applyAlignmentAndExperience } from '../utils/alignment.js';
 
 /**
  * POST /api/action/trade
@@ -92,7 +93,12 @@ export async function handleTrade(
       .bind(JSON.stringify(inventory), galaxyId, sectorId)
       .run();
 
-    return json({ success: true, action: 'buy', commodity, quantity, cost, remainingCredits: ship.credits - cost });
+    const expGain = Math.floor(cost / 20000);
+    if (expGain > 0) {
+      await applyAlignmentAndExperience(db, auth.playerId, galaxyId, { experienceDelta: expGain });
+    }
+
+    return json({ success: true, action: 'buy', commodity, quantity, cost, remainingCredits: ship.credits - cost, experienceGained: expGain });
   } else {
     // sell
     const owned = cargo[commodity] ?? 0;
@@ -116,7 +122,12 @@ export async function handleTrade(
       .bind(JSON.stringify(inventory), galaxyId, sectorId)
       .run();
 
-    return json({ success: true, action: 'sell', commodity, quantity, revenue, remainingCredits: ship.credits + revenue });
+    const expGain = Math.floor(revenue / 10000);
+    if (expGain > 0) {
+      await applyAlignmentAndExperience(db, auth.playerId, galaxyId, { experienceDelta: expGain });
+    }
+
+    return json({ success: true, action: 'sell', commodity, quantity, revenue, remainingCredits: ship.credits + revenue, experienceGained: expGain });
   }
 }
 
@@ -167,6 +178,8 @@ export async function handleCombat(
   const enemyHull = shipJson.hull ?? 60;
   const enemyShield = shipJson.shield ?? 0;
   const enemyDmg = shipJson.weaponDamage ?? 5;
+  const playerAlignment = Number((ship as any).alignment ?? 0);
+  const sardaukarFocused = enemyPersona.faction === 'sardaukar' && playerAlignment >= 0;
 
   let result: {
     won: boolean;
@@ -180,7 +193,7 @@ export async function handleCombat(
   };
 
   if (playerAction === 'flee') {
-    const fleeChance = 0.35;
+    const fleeChance = sardaukarFocused ? 0.12 : 0.35;
     const fled = Math.random() < fleeChance;
     if (fled) {
       result = { won: false, fled: true, bribed: false, playerHullRemaining: ship.hull as number, enemyHullRemaining: enemyHull, creditsGained: 0, creditsLost: 0, destroyed: false };
@@ -191,8 +204,14 @@ export async function handleCombat(
       result = { won: false, fled: false, bribed: false, playerHullRemaining: newHull, enemyHullRemaining: enemyHull, creditsGained: 0, creditsLost: 0, destroyed: newHull <= 0 };
     }
   } else if (playerAction === 'bribe') {
-    const bribeCost = Math.floor((ship.credits as number) * 0.1);
-    result = { won: false, fled: false, bribed: true, playerHullRemaining: ship.hull as number, enemyHullRemaining: enemyHull, creditsGained: 0, creditsLost: bribeCost, destroyed: false };
+    if (sardaukarFocused) {
+      const dmg = Math.max(1, enemyDmg + 3 - (ship.shield as number) * 0.5);
+      const newHull = Math.max(0, (ship.hull as number) - dmg);
+      result = { won: false, fled: false, bribed: false, playerHullRemaining: newHull, enemyHullRemaining: enemyHull, creditsGained: 0, creditsLost: 0, destroyed: newHull <= 0 };
+    } else {
+      const bribeCost = Math.floor((ship.credits as number) * 0.1);
+      result = { won: false, fled: false, bribed: true, playerHullRemaining: ship.hull as number, enemyHullRemaining: enemyHull, creditsGained: 0, creditsLost: bribeCost, destroyed: false };
+    }
   } else {
     // Attack
     const playerDmg = 10; // TODO: compute from upgrades
@@ -222,6 +241,19 @@ export async function handleCombat(
       .prepare('UPDATE npcs SET is_active = 0 WHERE galaxy_id = ? AND npc_id = ?')
       .bind(galaxyId, enemyNpcId)
       .run();
+
+    // Alignment + XP rewards/penalties based on faction identity
+    let alignmentDelta = 0;
+    if (enemyPersona.faction === 'sardaukar') alignmentDelta = 10;
+    else if (enemyPersona.faction === 'fremen') alignmentDelta = -6;
+    else if (enemyPersona.faction === 'choam' || enemyPersona.faction === 'guild') alignmentDelta = -10;
+    else alignmentDelta = -2;
+
+    const xpDelta = Math.max(5, Math.floor((enemyHull + enemyShield) / 4));
+    await applyAlignmentAndExperience(db, auth.playerId, galaxyId, {
+      alignmentDelta,
+      experienceDelta: xpDelta,
+    });
   }
 
   // Generate narrative

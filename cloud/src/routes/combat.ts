@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError } from '../utils/cors.js';
+import { applyAlignmentAndExperience, getFactionStanding, getRankInfo } from '../utils/alignment.js';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -54,6 +55,8 @@ export async function resolveDefeat(
       deaths: number;
       insurance_expires: string | null;
       created_at: string;
+      alignment: number;
+      experience: number;
     }>();
 
   if (!victim) {
@@ -126,6 +129,12 @@ export async function resolveDefeat(
       )
       .bind(lootCredits, attackerId, galaxyId)
       .run();
+
+    const victimAlignment = victim.alignment ?? 0;
+    const alignmentDelta = victimAlignment <= -100 ? 8 : victimAlignment >= 100 ? -8 : -2;
+    const xpDelta = Math.max(5, Math.floor(lootCredits / 2500) + 20);
+    await applyAlignmentAndExperience(db, attackerId, galaxyId, { alignmentDelta, experienceDelta: xpDelta });
+
     attackerLooted = true;
   }
 
@@ -229,7 +238,7 @@ export async function handlePlayerStats(
   if (isNaN(gId)) return jsonError('Invalid galaxy id');
 
   const ship = await db
-    .prepare('SELECT kills, deaths, reputation, wanted_kills, net_worth, insurance_expires FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .prepare('SELECT kills, deaths, reputation, wanted_kills, net_worth, insurance_expires, alignment, experience, rank, commissioned FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, gId)
     .first<{
       kills: number;
@@ -238,12 +247,18 @@ export async function handlePlayerStats(
       wanted_kills: number;
       net_worth: number;
       insurance_expires: string | null;
+      alignment: number;
+      experience: number;
+      rank: number;
+      commissioned: number;
     }>();
 
   if (!ship) return jsonError('No ship found', 404);
 
   const kdr = ship.deaths > 0 ? ship.kills / ship.deaths : ship.kills;
   const insuranceActive = ship.insurance_expires ? new Date(ship.insurance_expires) > new Date() : false;
+  const standing = getFactionStanding(ship.alignment ?? 0);
+  const rankInfo = getRankInfo(ship.experience ?? 0);
 
   // Check wanted status
   const recentKills = await db
@@ -263,6 +278,14 @@ export async function handlePlayerStats(
     netWorth: ship.net_worth,
     insuranceActive,
     insuranceExpires: ship.insurance_expires,
+    alignment: ship.alignment ?? 0,
+    alignmentLabel: standing.alignmentLabel,
+    factionStanding: standing.standing,
+    experience: ship.experience ?? 0,
+    rank: ship.rank ?? rankInfo.current.rank,
+    rankTitle: rankInfo.current.title,
+    nextRankExp: rankInfo.next?.minExperience ?? null,
+    commissioned: (ship.commissioned ?? 0) === 1,
   });
 }
 

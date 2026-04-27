@@ -10,6 +10,7 @@ import {
 } from './fighters.js';
 import { applyMineEntryEffects } from './mines.js';
 import { applyQCannonEntryEffects } from './planets.js';
+import { applyAlignmentAndExperience, getFactionStanding, getRankInfo } from '../utils/alignment.js';
 
 /**
  * GET /api/player
@@ -68,6 +69,153 @@ export async function handleGetShip(
   }
 
   return json({ ship: { ...ship, turns: newTurns, regenerated } });
+}
+
+/**
+ * GET /api/player/alignment?galaxyId=
+ */
+export async function handleGetAlignment(
+  auth: AuthContext,
+  galaxyId: string | null,
+  db: D1Database,
+): Promise<Response> {
+  if (!galaxyId) return jsonError('galaxyId query param required');
+
+  const gId = parseInt(galaxyId, 10);
+  if (Number.isNaN(gId)) return jsonError('Invalid galaxy id');
+
+  const ship = await db
+    .prepare('SELECT alignment, experience, rank, commissioned FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(auth.playerId, gId)
+    .first<{ alignment: number; experience: number; rank: number; commissioned: number }>();
+
+  if (!ship) return jsonError('No ship found in this galaxy', 404);
+
+  const standing = getFactionStanding(ship.alignment ?? 0);
+  const rankInfo = getRankInfo(ship.experience ?? 0);
+
+  return json({
+    alignment: ship.alignment ?? 0,
+    alignmentLabel: standing.alignmentLabel,
+    factionStanding: standing.standing,
+    experience: ship.experience ?? 0,
+    rank: ship.rank ?? rankInfo.current.rank,
+    rankTitle: rankInfo.current.title,
+    nextRankExp: rankInfo.next?.minExperience ?? null,
+    commissioned: (ship.commissioned ?? 0) === 1,
+    canRob: standing.canRob,
+    canBuyGuildNavigator: (ship.commissioned ?? 0) === 1,
+    fremenNeutral: standing.fremenNeutral,
+    sardaukarTarget: standing.sardaukarTarget,
+  });
+}
+
+/**
+ * POST /api/player/pay-taxes
+ * Body: { galaxyId, amount }
+ */
+export async function handlePayTaxes(
+  auth: AuthContext,
+  request: Request,
+  db: D1Database,
+): Promise<Response> {
+  let body: { galaxyId?: number; amount?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const galaxyId = body.galaxyId;
+  const amount = Math.floor(Number(body.amount ?? 0));
+  if (!galaxyId || amount <= 0) return jsonError('galaxyId and positive amount required');
+  if (amount < 1500) return jsonError('Minimum CHOAM tariff payment is 1,500 credits');
+
+  const ship = await db
+    .prepare('SELECT credits, current_sector FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(auth.playerId, galaxyId)
+    .first<{ credits: number; current_sector: number }>();
+
+  if (!ship) return jsonError('Ship not found', 404);
+  if (ship.credits < amount) return jsonError(`Need ${amount} credits (have ${ship.credits})`, 403);
+
+  const sector = await db
+    .prepare('SELECT danger FROM sectors WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(galaxyId, ship.current_sector)
+    .first<{ danger: string }>();
+
+  if (!sector || sector.danger !== 'safe') {
+    return jsonError('CHOAM tariffs can only be paid in CHOAM Protected Space', 403);
+  }
+
+  const alignmentGained = Math.max(1, Math.floor(amount / 1500));
+
+  await db
+    .prepare('UPDATE player_ships SET credits = credits - ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+    .bind(amount, auth.playerId, galaxyId)
+    .run();
+
+  const updated = await applyAlignmentAndExperience(db, auth.playerId, galaxyId, {
+    alignmentDelta: alignmentGained,
+    experienceDelta: Math.floor(amount / 5000),
+  });
+
+  return json({
+    success: true,
+    amountPaid: amount,
+    alignmentGained,
+    newAlignment: updated.alignment,
+    remainingCredits: ship.credits - amount,
+  });
+}
+
+/**
+ * POST /api/player/commission
+ * Body: { galaxyId }
+ */
+export async function handleRequestCommission(
+  auth: AuthContext,
+  request: Request,
+  db: D1Database,
+): Promise<Response> {
+  let body: { galaxyId?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const galaxyId = body.galaxyId;
+  if (!galaxyId) return jsonError('galaxyId required');
+
+  const ship = await db
+    .prepare('SELECT current_sector, alignment, commissioned FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(auth.playerId, galaxyId)
+    .first<{ current_sector: number; alignment: number; commissioned: number }>();
+
+  if (!ship) return jsonError('Ship not found', 404);
+  if ((ship.commissioned ?? 0) === 1) return jsonError('Already commissioned', 400);
+
+  const sector = await db
+    .prepare('SELECT stardock FROM sectors WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(galaxyId, ship.current_sector)
+    .first<{ stardock: number }>();
+
+  if (!sector || sector.stardock !== 1) return jsonError('Guild Commission can only be granted at StarDock', 403);
+  if ((ship.alignment ?? 0) < 1000) return jsonError('Need +1000 alignment for Guild Commission', 403);
+
+  const updated = await applyAlignmentAndExperience(db, auth.playerId, galaxyId, {
+    setCommissioned: true,
+    setAlignment: 1000,
+    experienceDelta: 100,
+  });
+
+  return json({
+    success: true,
+    commissioned: true,
+    alignment: updated.alignment,
+    rank: updated.rank,
+  });
 }
 
 /**

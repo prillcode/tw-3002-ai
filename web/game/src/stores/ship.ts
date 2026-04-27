@@ -36,7 +36,25 @@ export const useShipStore = defineStore('ship', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const message = ref<string | null>(null);
-  const stats = ref({ kills: 0, deaths: 0, kdr: 0, wanted: false, wantedKillCount: 0, netWorth: 0, reputation: 0, insuranceActive: false, insuranceExpires: null as string | null });
+  const stats = ref({
+    kills: 0,
+    deaths: 0,
+    kdr: 0,
+    wanted: false,
+    wantedKillCount: 0,
+    netWorth: 0,
+    reputation: 0,
+    insuranceActive: false,
+    insuranceExpires: null as string | null,
+    alignment: 0,
+    alignmentLabel: 'neutral' as 'good' | 'neutral' | 'evil',
+    factionStanding: 'Independent',
+    experience: 0,
+    rank: 1,
+    rankTitle: 'Private',
+    nextRankExp: 2 as number | null,
+    commissioned: false,
+  });
 
   function applyEffectiveStats() {
     if (!ship.value) return;
@@ -208,6 +226,14 @@ export const useShipStore = defineStore('ship', () => {
         reputation: data.reputation ?? 0,
         insuranceActive: data.insuranceActive ?? false,
         insuranceExpires: data.insuranceExpires ?? null,
+        alignment: data.alignment ?? 0,
+        alignmentLabel: data.alignmentLabel ?? 'neutral',
+        factionStanding: data.factionStanding ?? 'Independent',
+        experience: data.experience ?? 0,
+        rank: data.rank ?? 1,
+        rankTitle: data.rankTitle ?? 'Private',
+        nextRankExp: data.nextRankExp ?? null,
+        commissioned: data.commissioned ?? false,
       };
     } catch {
       // silently fail

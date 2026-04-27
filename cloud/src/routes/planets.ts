@@ -5,6 +5,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { json, jsonError } from '../utils/cors.js';
 import { verifyToken, type AuthContext } from '../utils/auth.js';
+import { applyAlignmentAndExperience } from '../utils/alignment.js';
 import { resolveDefeat } from './combat.js';
 
 // ─── Planet class configuration ────────────────────────────────────
@@ -226,6 +227,12 @@ export async function handleCreatePlanet(auth: AuthContext, request: Request, db
     .bind(galaxyId, sectorId)
     .run();
 
+  const alignmentGain = Math.floor(GENESIS_TORPEDO_COST / 2000);
+  await applyAlignmentAndExperience(db, auth.playerId, galaxyId, {
+    alignmentDelta: alignmentGain,
+    experienceDelta: 100,
+  });
+
   return json({
     success: true,
     planetId,
@@ -235,6 +242,8 @@ export async function handleCreatePlanet(auth: AuthContext, request: Request, db
     maxColonists: config.maxColonists,
     sectorId,
     remainingCredits: ship.credits - GENESIS_TORPEDO_COST,
+    alignmentGained: alignmentGain,
+    experienceGained: 100,
   });
 }
 
@@ -608,7 +617,7 @@ export async function handleAdvanceCitadel(auth: AuthContext, request: Request, 
     .prepare('SELECT * FROM planets WHERE id = ?')
     .bind(planetId)
     .first<{
-      id: number; owner_id: number; class: string; citadel_level: number;
+      id: number; galaxy_id: number; owner_id: number; class: string; citadel_level: number;
       colonists: number; fuel: number; organics: number; equipment: number;
     }>();
 
@@ -640,6 +649,11 @@ export async function handleAdvanceCitadel(auth: AuthContext, request: Request, 
 
   const levelInfo = CITADEL_LEVELS[newLevel];
 
+  await applyAlignmentAndExperience(db, auth.playerId, planet.galaxy_id, {
+    alignmentDelta: Math.max(1, Math.floor((nextCost.fuel + nextCost.organics + nextCost.equipment) / 2000)),
+    experienceDelta: 50,
+  });
+
   return json({
     success: true,
     planetId: planet.id,
@@ -656,6 +670,7 @@ export async function handleAdvanceCitadel(auth: AuthContext, request: Request, 
       organics: planet.organics - nextCost.organics,
       equipment: planet.equipment - nextCost.equipment,
     },
+    experienceGained: 50,
   });
 }
 

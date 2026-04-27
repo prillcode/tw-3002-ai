@@ -27,6 +27,7 @@ export function baseEntryOperations(): OperationStep[] {
 interface HostileFighterGroup {
   ownerId: number;
   ownerName: string;
+  ownerAlignment: number;
   count: number;
   mode: 'defensive' | 'offensive' | 'tolled';
 }
@@ -45,6 +46,7 @@ interface ShipSnapshot {
   max_turns: number;
   turns: number;
   current_sector: number;
+  alignment: number;
 }
 
 function asPositiveInt(value: unknown): number | null {
@@ -56,7 +58,7 @@ function asPositiveInt(value: unknown): number | null {
 async function getShip(db: D1Database, playerId: number, galaxyId: number): Promise<ShipSnapshot | null> {
   return db
     .prepare(
-      'SELECT player_id, galaxy_id, ship_name, class_id, credits, fighters, hull, shield, max_turns, turns, current_sector, created_at FROM player_ships WHERE player_id = ? AND galaxy_id = ?'
+      'SELECT player_id, galaxy_id, ship_name, class_id, credits, fighters, hull, shield, max_turns, turns, current_sector, alignment, created_at FROM player_ships WHERE player_id = ? AND galaxy_id = ?'
     )
     .bind(playerId, galaxyId)
     .first<ShipSnapshot>();
@@ -71,7 +73,8 @@ async function getHostileFighters(
   const rows = await db
     .prepare(
       `SELECT sf.owner_id, sf.count, sf.mode,
-              COALESCE(p.display_name, p.email, ps.ship_name, 'Unknown Pilot') as owner_name
+              COALESCE(p.display_name, p.email, ps.ship_name, 'Unknown Pilot') as owner_name,
+              COALESCE(ps.alignment, 0) as owner_alignment
        FROM sector_fighters sf
        LEFT JOIN players p ON p.id = sf.owner_id
        LEFT JOIN player_ships ps ON ps.player_id = sf.owner_id AND ps.galaxy_id = sf.galaxy_id
@@ -79,18 +82,30 @@ async function getHostileFighters(
        ORDER BY sf.count DESC`
     )
     .bind(galaxyId, sectorId, playerId)
-    .all<{ owner_id: number; owner_name: string; count: number; mode: 'defensive' | 'offensive' | 'tolled' }>();
+    .all<{ owner_id: number; owner_name: string; owner_alignment: number; count: number; mode: 'defensive' | 'offensive' | 'tolled' }>();
 
   return (rows.results ?? []).map((r) => ({
     ownerId: r.owner_id,
     ownerName: r.owner_name,
+    ownerAlignment: r.owner_alignment,
     count: r.count,
     mode: r.mode,
   }));
 }
 
-function buildEncounterPayload(hostiles: HostileFighterGroup[], targetSector: number, shipCredits: number) {
-  const tolledCount = hostiles.filter((h) => h.mode === 'tolled').reduce((sum, h) => sum + h.count, 0);
+function countTolledFighters(hostiles: HostileFighterGroup[], intruderAlignment: number): number {
+  return hostiles
+    .filter((h) => {
+      if (h.mode !== 'tolled') return false;
+      // Fremen neutrality approximation: evil-aligned intruders are not tolled by evil/fremen-aligned owners.
+      if (intruderAlignment <= -100 && h.ownerAlignment <= -100) return false;
+      return true;
+    })
+    .reduce((sum, h) => sum + h.count, 0);
+}
+
+function buildEncounterPayload(hostiles: HostileFighterGroup[], targetSector: number, shipCredits: number, intruderAlignment: number) {
+  const tolledCount = countTolledFighters(hostiles, intruderAlignment);
   const tollCredits = tolledCount * TOLL_PER_FIGHTER;
   const options: EncounterAction[] = ['attack', 'retreat', 'surrender'];
 
@@ -400,7 +415,8 @@ export async function resolveFighterEncounter(
 
   const totalHostile = hostiles.reduce((sum, h) => sum + h.count, 0);
   const hasOffensive = hostiles.some((h) => h.mode === 'offensive');
-  const tolledCount = hostiles.filter((h) => h.mode === 'tolled').reduce((sum, h) => sum + h.count, 0);
+  const rawTolledCount = hostiles.filter((h) => h.mode === 'tolled').reduce((sum, h) => sum + h.count, 0);
+  const tolledCount = countTolledFighters(hostiles, ship.alignment ?? 0);
   const tollDue = tolledCount * TOLL_PER_FIGHTER;
 
   if (action === 'retreat') {
@@ -442,6 +458,26 @@ export async function resolveFighterEncounter(
 
   if (action === 'pay_toll') {
     if (tolledCount <= 0) {
+      if (rawTolledCount > 0 && (ship.alignment ?? 0) <= -100) {
+        await setShipState(db, playerId, galaxyId, {
+          currentSector: targetSectorId,
+          turnsDelta: -1,
+          shield: ship.max_turns,
+        });
+
+        const updated = await db.prepare('SELECT * FROM player_ships WHERE player_id = ? AND galaxy_id = ?').bind(playerId, galaxyId).first();
+        return {
+          success: true,
+          outcome: 'entered',
+          moved: true,
+          targetSectorId,
+          narrative: 'Fremen-aligned fighters recognize you as a friend of the desert and do not demand toll.',
+          fighterLosses: { player: 0, hostile: 0 },
+          tollPaid: 0,
+          ship: updated,
+        };
+      }
+
       return {
         success: false,
         outcome: 'retreated',
@@ -553,7 +589,7 @@ export async function getEntryEncounter(
   if (hostiles.length === 0) return null;
 
   const hasDecisionMode = hostiles.some((h) => h.mode === 'defensive' || h.mode === 'tolled');
-  const payload = buildEncounterPayload(hostiles, targetSectorId, ship.credits);
+  const payload = buildEncounterPayload(hostiles, targetSectorId, ship.credits, ship.alignment ?? 0);
 
   return {
     ...payload,

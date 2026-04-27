@@ -93,6 +93,18 @@
               <span class="text-terminal-muted">K/D</span>
               <span class="text-terminal-yellow">{{ ship.stats.kills }}/{{ ship.stats.deaths }}</span>
             </div>
+            <div class="flex justify-between">
+              <span class="text-terminal-muted">Alignment</span>
+              <span :class="alignmentColor">{{ alignmentDisplay }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-terminal-muted">Standing</span>
+              <span class="text-terminal-cyan">{{ ship.stats.factionStanding }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-terminal-muted">Rank</span>
+              <span class="text-terminal-yellow">⭐ {{ ship.stats.rankTitle }}</span>
+            </div>
             <div v-if="ship.stats.wanted" class="flex justify-between">
               <span class="text-terminal-muted">Status</span>
               <span class="text-terminal-red font-bold">☠ CHOAM BOUNTY TARGET ({{ ship.stats.wantedKillCount }})</span>
@@ -580,6 +592,18 @@ const hullColor = computed(() => {
   if (ratio > 0.5) return 'text-terminal-green';
   if (ratio > 0.25) return 'text-terminal-yellow';
   return 'text-terminal-red';
+});
+
+const alignmentColor = computed(() => {
+  if (ship.stats.alignment > 0) return 'text-terminal-cyan';
+  if (ship.stats.alignment < 0) return 'text-terminal-red';
+  return 'text-terminal-muted';
+});
+
+const alignmentDisplay = computed(() => {
+  const value = ship.stats.alignment ?? 0;
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value} (${ship.stats.alignmentLabel})`;
 });
 
 const turnsColor = computed(() => {

@@ -7,7 +7,15 @@ import { corsHeaders, json, jsonError, applyCors } from './utils/cors.js';
 import { verifyToken, type AuthContext } from './utils/auth.js';
 import { handleRegister, handleVerify } from './routes/auth.js';
 import { handleListGalaxies, handleGetGalaxy, handleGetSectors, handleGetSector } from './routes/galaxy.js';
-import { handleGetPlayer, handleGetShip, handleCreateShip, handleMoveShip } from './routes/player.js';
+import {
+  handleGetPlayer,
+  handleGetShip,
+  handleCreateShip,
+  handleMoveShip,
+  handleGetAlignment,
+  handlePayTaxes,
+  handleRequestCommission,
+} from './routes/player.js';
 import { handleTrade, handleCombat, handleUpgrade } from './routes/action.js';
 import {
   handlePlayerStats,
@@ -127,6 +135,15 @@ export default {
         }
         else if (path === '/api/player/ship/move' && method === 'POST') {
           response = await handleMoveShip(auth, request, env.DB);
+        }
+        else if (path === '/api/player/alignment' && method === 'GET') {
+          response = await handleGetAlignment(auth, url.searchParams.get('galaxyId'), env.DB);
+        }
+        else if (path === '/api/player/pay-taxes' && method === 'POST') {
+          response = await handlePayTaxes(auth, request, env.DB);
+        }
+        else if (path === '/api/player/commission' && method === 'POST') {
+          response = await handleRequestCommission(auth, request, env.DB);
         }
         else if (path === '/api/action/trade' && method === 'POST') {
           response = await handleTrade(auth, request, env.DB);

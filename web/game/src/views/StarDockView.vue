@@ -133,6 +133,32 @@
           <div class="text-xs font-mono text-terminal-muted">Visit a sector and press [G] to launch.</div>
         </div>
 
+        <!-- CHOAM Alignment Services -->
+        <div class="mt-4 pt-4 border-t border-void-700">
+          <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🏛 CHOAM Alignment Services</h3>
+          <div class="text-xs font-mono text-terminal-muted mb-2">
+            Alignment: <span :class="ship.stats.alignment > 0 ? 'text-terminal-cyan' : ship.stats.alignment < 0 ? 'text-terminal-red' : 'text-terminal-muted'">{{ ship.stats.alignment > 0 ? '+' : '' }}{{ ship.stats.alignment }}</span>
+            · {{ ship.stats.factionStanding }}
+          </div>
+          <div class="flex items-center gap-2 mb-2">
+            <input v-model.number="taxAmount" type="number" min="1500" step="1500" class="flex-1 bg-void-900 border border-void-700 rounded px-2 py-1 text-terminal-white font-mono text-sm" />
+            <button
+              @click="payTaxes"
+              :disabled="payingTaxes || taxAmount < 1500 || (ship.ship?.credits ?? 0) < taxAmount"
+              class="terminal-btn text-xs disabled:opacity-50"
+            >
+              {{ payingTaxes ? '...' : `Pay Tariffs (+${Math.max(1, Math.floor(taxAmount / 1500))} align)` }}
+            </button>
+          </div>
+          <button
+            @click="requestCommission"
+            :disabled="commissioning || ship.stats.commissioned || (ship.stats.alignment ?? 0) < 1000"
+            class="w-full terminal-btn text-xs disabled:opacity-50"
+          >
+            {{ commissioning ? 'Processing...' : ship.stats.commissioned ? 'Guild Commission Granted' : 'Request Guild Commission (+1000 required)' }}
+          </button>
+        </div>
+
         <!-- Guild Protection Contract -->
         <div class="mt-4 pt-4 border-t border-void-700">
           <h3 class="font-mono font-bold text-terminal-cyan text-sm mb-2">🛡 Guild Protection Contract</h3>
@@ -171,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useShipStore } from '../stores/ship';
 import { useAuthStore } from '../stores/auth';
@@ -193,6 +219,9 @@ const clearingLimpets = ref(false);
 const limpetQuantity = ref(5);
 const armidQuantity = ref(3);
 const insuring = ref(false);
+const payingTaxes = ref(false);
+const commissioning = ref(false);
+const taxAmount = ref(1500);
 
 const insuranceCost = computed(() => {
   return Math.floor((ship.ship?.netWorth ?? ship.ship?.credits ?? 0) * 0.05);
@@ -298,6 +327,54 @@ async function clearLimpets() {
   }
 }
 
+async function payTaxes() {
+  if (!ship.ship) return;
+  payingTaxes.value = true;
+  message.value = null;
+
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/player/pay-taxes`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, amount: taxAmount.value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Tax payment failed');
+
+    ship.ship.credits = data.remainingCredits;
+    await ship.loadStats(galaxyId);
+
+    message.value = `🏛 Paid ${data.amountPaid.toLocaleString()} cr tariffs (+${data.alignmentGained} alignment)`;
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    payingTaxes.value = false;
+  }
+}
+
+async function requestCommission() {
+  if (!ship.ship) return;
+  commissioning.value = true;
+  message.value = null;
+
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/player/commission`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Commission request failed');
+
+    await ship.loadStats(galaxyId);
+    message.value = '⭐ Guild Commission granted by CHOAM';
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    commissioning.value = false;
+  }
+}
+
 async function buyInsurance() {
   if (!ship.ship) return;
   insuring.value = true;
@@ -337,6 +414,10 @@ function handleKey(e: KeyboardEvent) {
   if (e.key === 'ArrowDown') selectedIndex.value = Math.min(available.value.length - 1, selectedIndex.value + 1);
   if (e.key === 'Enter') purchase();
 }
+
+onMounted(() => {
+  ship.loadStats(galaxyId);
+});
 
 window.addEventListener('keydown', handleKey);
 onUnmounted(() => {
