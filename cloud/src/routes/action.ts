@@ -5,6 +5,66 @@ import { UPGRADE_CATALOG, computeEffectiveStats } from '../upgrades.js';
 import { resolveDefeat } from './combat.js';
 import { applyAlignmentAndExperience } from '../utils/alignment.js';
 
+interface CrimeStatus {
+  canRob: boolean;
+  alignment: number;
+  experience: number;
+  robLimit: number;
+  stealLimit: number;
+  bustBaseChance: number;
+}
+
+function getCrimeLimits(experience: number): { robLimit: number; stealLimit: number } {
+  return {
+    robLimit: Math.max(1500, 1500 + Math.floor(experience * 0.22)),
+    stealLimit: Math.max(10, 10 + Math.floor(experience / 120)),
+  };
+}
+
+function getBustChance(attempt: number, safeLimit: number): number {
+  const base = 1 / 50;
+  if (attempt <= safeLimit) return base;
+  const overRatio = (attempt - safeLimit) / Math.max(1, safeLimit);
+  return Math.min(0.9, base + overRatio * 0.25);
+}
+
+function estimatePortDisplayedCash(inventory: Record<string, { price: number; supply: number }>): number {
+  return Object.values(inventory).reduce((sum, item) => sum + Math.max(0, item.price * item.supply), 0);
+}
+
+function removeCargoUnits(cargo: Record<string, number>, units: number): Record<string, number> {
+  let remaining = Math.max(0, Math.floor(units));
+  const next = { ...cargo };
+  const keys = Object.keys(next).filter((k) => (next[k] ?? 0) > 0);
+  for (const key of keys) {
+    if (remaining <= 0) break;
+    const owned = next[key] ?? 0;
+    const take = Math.min(owned, remaining);
+    next[key] = owned - take;
+    if (next[key] <= 0) delete next[key];
+    remaining -= take;
+  }
+  return next;
+}
+
+async function getCrimeStatusForPlayer(db: D1Database, playerId: number, galaxyId: number): Promise<CrimeStatus | null> {
+  const ship = await db
+    .prepare('SELECT alignment, experience FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(playerId, galaxyId)
+    .first<{ alignment: number; experience: number }>();
+
+  if (!ship) return null;
+  const limits = getCrimeLimits(ship.experience ?? 0);
+  return {
+    canRob: (ship.alignment ?? 0) <= -100,
+    alignment: ship.alignment ?? 0,
+    experience: ship.experience ?? 0,
+    robLimit: limits.robLimit,
+    stealLimit: limits.stealLimit,
+    bustBaseChance: 1 / 50,
+  };
+}
+
 /**
  * POST /api/action/trade
  * Body: { galaxyId, sectorId, commodity, quantity, action: 'buy' | 'sell' }
@@ -129,6 +189,211 @@ export async function handleTrade(
 
     return json({ success: true, action: 'sell', commodity, quantity, revenue, remainingCredits: ship.credits + revenue, experienceGained: expGain });
   }
+}
+
+/**
+ * GET /api/port/crime-status?galaxyId=&sectorId=
+ */
+export async function handleCrimeStatus(
+  auth: AuthContext,
+  galaxyIdParam: string | null,
+  sectorIdParam: string | null,
+  db: D1Database
+): Promise<Response> {
+  const galaxyId = Number(galaxyIdParam);
+  const sectorId = Number(sectorIdParam);
+  if (!Number.isFinite(galaxyId) || !Number.isFinite(sectorId)) {
+    return jsonError('galaxyId and sectorId required', 400);
+  }
+
+  const sector = await db
+    .prepare('SELECT port_class FROM sectors WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(galaxyId, sectorId)
+    .first<{ port_class: number | null }>();
+  if (!sector || !sector.port_class) return jsonError('No port in this sector', 400);
+
+  const status = await getCrimeStatusForPlayer(db, auth.playerId, galaxyId);
+  if (!status) return jsonError('Ship not found', 404);
+
+  return json({ success: true, ...status });
+}
+
+/**
+ * POST /api/action/rob
+ * Body: { galaxyId, sectorId, amount }
+ */
+export async function handleRob(auth: AuthContext, request: Request, db: D1Database): Promise<Response> {
+  if (request.method !== 'POST') return jsonError('Method not allowed', 405);
+
+  let body: { galaxyId?: number; sectorId?: number; amount?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const { galaxyId, sectorId, amount } = body;
+  if (!galaxyId || sectorId === undefined || !amount || amount <= 0) {
+    return jsonError('galaxyId, sectorId, amount required', 400);
+  }
+
+  const ship = await db
+    .prepare('SELECT credits, cargo_json, current_sector, alignment, experience FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(auth.playerId, galaxyId)
+    .first<{ credits: number; cargo_json: string; current_sector: number; alignment: number; experience: number }>();
+  if (!ship) return jsonError('Ship not found', 404);
+  if (ship.current_sector !== sectorId) return jsonError('Not in target sector', 403);
+
+  const sector = await db
+    .prepare('SELECT port_class, port_inventory_json FROM sectors WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(galaxyId, sectorId)
+    .first<{ port_class: number | null; port_inventory_json: string }>();
+  if (!sector || !sector.port_class) return jsonError('No port in this sector', 400);
+  if ((ship.alignment ?? 0) > -100) return jsonError('Only Outlaws (alignment <= -100) can rob ports', 403);
+
+  const inventory: Record<string, { price: number; supply: number }> = JSON.parse(sector.port_inventory_json ?? '{}');
+  const displayedCash = estimatePortDisplayedCash(inventory);
+  const actualCash = Math.floor(displayedCash * 1.11);
+  const requested = Math.floor(amount);
+  const stolen = Math.max(0, Math.min(requested, actualCash));
+  if (stolen <= 0) return jsonError('Port has nothing worth stealing', 400);
+
+  const { robLimit } = getCrimeLimits(ship.experience ?? 0);
+  const bustChance = getBustChance(stolen, robLimit);
+  const busted = Math.random() < bustChance;
+
+  if (busted) {
+    const xpLoss = Math.max(1, Math.floor((ship.experience ?? 0) * 0.1));
+    const cargo = JSON.parse(ship.cargo_json ?? '{}') as Record<string, number>;
+    const totalCargo = Object.values(cargo).reduce((a, b) => a + b, 0);
+    const holdsLost = Math.min(totalCargo, Math.max(1, Math.floor(stolen / 1000)));
+    const penalizedCargo = removeCargoUnits(cargo, holdsLost);
+
+    await db
+      .prepare('UPDATE player_ships SET cargo_json = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+      .bind(JSON.stringify(penalizedCargo), auth.playerId, galaxyId)
+      .run();
+
+    await applyAlignmentAndExperience(db, auth.playerId, galaxyId, {
+      alignmentDelta: -20,
+      experienceDelta: -xpLoss,
+    });
+
+    await db
+      .prepare('INSERT INTO news (galaxy_id, headline, type, sector_id, player_id) VALUES (?, ?, ?, ?, ?)')
+      .bind(galaxyId, 'Port robbery busted by CHOAM security forces', 'crime', sectorId, auth.playerId)
+      .run();
+
+    return json({ success: true, busted: true, xpLost: xpLoss, holdsLost, bustChance });
+  }
+
+  await db
+    .prepare('UPDATE player_ships SET credits = credits + ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+    .bind(stolen, auth.playerId, galaxyId)
+    .run();
+
+  await db
+    .prepare('INSERT INTO news (galaxy_id, headline, type, sector_id, player_id) VALUES (?, ?, ?, ?, ?)')
+    .bind(galaxyId, `Port robbery successful: ${stolen.toLocaleString()} credits stolen`, 'crime', sectorId, auth.playerId)
+    .run();
+
+  return json({ success: true, busted: false, stolen, bustChance, safeLimit: robLimit, requested, displayedCash, actualCash });
+}
+
+/**
+ * POST /api/action/steal
+ * Body: { galaxyId, sectorId, commodity, quantity }
+ */
+export async function handleSteal(auth: AuthContext, request: Request, db: D1Database): Promise<Response> {
+  if (request.method !== 'POST') return jsonError('Method not allowed', 405);
+
+  let body: { galaxyId?: number; sectorId?: number; commodity?: string; quantity?: number };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('Invalid JSON body');
+  }
+
+  const { galaxyId, sectorId, commodity, quantity } = body;
+  if (!galaxyId || sectorId === undefined || !commodity || !quantity || quantity <= 0) {
+    return jsonError('galaxyId, sectorId, commodity, quantity required', 400);
+  }
+
+  const allowedCommodities = new Set(['ore', 'organics', 'equipment', 'melange']);
+  if (!allowedCommodities.has(commodity)) return jsonError('Invalid commodity', 400);
+
+  const ship = await db
+    .prepare('SELECT cargo_json, current_sector, alignment, experience, class_id, upgrades_json FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .bind(auth.playerId, galaxyId)
+    .first<{ cargo_json: string; current_sector: number; alignment: number; experience: number; class_id: string; upgrades_json: string }>();
+  if (!ship) return jsonError('Ship not found', 404);
+  if (ship.current_sector !== sectorId) return jsonError('Not in target sector', 403);
+  if ((ship.alignment ?? 0) > -100) return jsonError('Only Outlaws (alignment <= -100) can steal cargo', 403);
+
+  const sector = await db
+    .prepare('SELECT port_class, port_inventory_json FROM sectors WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(galaxyId, sectorId)
+    .first<{ port_class: number | null; port_inventory_json: string }>();
+  if (!sector || !sector.port_class) return jsonError('No port in this sector', 400);
+
+  const cargo = JSON.parse(ship.cargo_json ?? '{}') as Record<string, number>;
+  const totalCargo = Object.values(cargo).reduce((a, b) => a + b, 0);
+  const upgrades = JSON.parse(ship.upgrades_json ?? '{}') as Record<string, number>;
+  const maxCargo = computeEffectiveStats(ship.class_id, upgrades).maxCargo;
+  if (totalCargo + quantity > maxCargo) {
+    return jsonError(`Not enough cargo space (${maxCargo - totalCargo} free)`, 403);
+  }
+
+  const inventory: Record<string, { price: number; supply: number }> = JSON.parse(sector.port_inventory_json ?? '{}');
+  const item = inventory[commodity];
+  if (!item) return jsonError('Commodity not available at this port', 400);
+  if ((item.supply ?? 0) < quantity) return jsonError('Port insufficient supply', 403);
+
+  const { stealLimit } = getCrimeLimits(ship.experience ?? 0);
+  const bustChance = getBustChance(quantity, stealLimit);
+  const busted = Math.random() < bustChance;
+
+  if (busted) {
+    const xpLoss = Math.max(1, Math.floor((ship.experience ?? 0) * 0.1));
+    const holdsLost = Math.max(1, Math.floor(quantity / 2));
+    const penalizedCargo = removeCargoUnits(cargo, holdsLost);
+
+    await db
+      .prepare('UPDATE player_ships SET cargo_json = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+      .bind(JSON.stringify(penalizedCargo), auth.playerId, galaxyId)
+      .run();
+
+    await applyAlignmentAndExperience(db, auth.playerId, galaxyId, {
+      alignmentDelta: -15,
+      experienceDelta: -xpLoss,
+    });
+
+    await db
+      .prepare('INSERT INTO news (galaxy_id, headline, type, sector_id, player_id) VALUES (?, ?, ?, ?, ?)')
+      .bind(galaxyId, 'Cargo theft busted by dock authorities', 'crime', sectorId, auth.playerId)
+      .run();
+
+    return json({ success: true, busted: true, xpLost: xpLoss, holdsLost, bustChance });
+  }
+
+  cargo[commodity] = (cargo[commodity] ?? 0) + quantity;
+  item.supply -= quantity;
+
+  await db
+    .prepare('UPDATE player_ships SET cargo_json = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?')
+    .bind(JSON.stringify(cargo), auth.playerId, galaxyId)
+    .run();
+  await db
+    .prepare('UPDATE sectors SET port_inventory_json = ? WHERE galaxy_id = ? AND sector_index = ?')
+    .bind(JSON.stringify(inventory), galaxyId, sectorId)
+    .run();
+
+  await db
+    .prepare('INSERT INTO news (galaxy_id, headline, type, sector_id, player_id) VALUES (?, ?, ?, ?, ?)')
+    .bind(galaxyId, `Cargo theft successful: ${quantity} ${commodity} stolen`, 'crime', sectorId, auth.playerId)
+    .run();
+
+  return json({ success: true, busted: false, quantityStolen: quantity, commodity, bustChance, safeLimit: stealLimit });
 }
 
 /**

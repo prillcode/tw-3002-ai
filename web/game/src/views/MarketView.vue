@@ -85,6 +85,22 @@
         >
           {{ trading ? 'Processing...' : `${tradeMode === 'buy' ? 'Buy' : 'Sell'} ${quantity} ${selectedCommodity}` }}
         </button>
+
+        <div v-if="crimeStatus" class="mt-4 terminal-panel bg-void-900 p-3">
+          <div class="font-mono text-xs text-terminal-muted mb-2">
+            CRIME STATUS · Align {{ crimeStatus.alignment }} · Base bust {{ Math.round(crimeStatus.bustBaseChance * 100) }}%
+          </div>
+          <div v-if="crimeStatus.canRob" class="space-y-2">
+            <div class="text-xs font-mono text-terminal-red">Outlaw operations unlocked (alignment ≤ -100)</div>
+            <div class="flex gap-2">
+              <button @click="executeRob" :disabled="trading" class="flex-1 terminal-btn">Rob Credits (limit {{ crimeStatus.robLimit }})</button>
+              <button @click="executeSteal" :disabled="trading" class="flex-1 terminal-btn">Steal Cargo (limit {{ crimeStatus.stealLimit }})</button>
+            </div>
+          </div>
+          <div v-else class="text-xs font-mono text-terminal-muted">
+            Rob/Steal locked. Reach alignment -100 or lower.
+          </div>
+        </div>
       </template>
     </div>
   </div>
@@ -109,6 +125,7 @@ const message = ref<string | null>(null);
 const trading = ref(false);
 
 const inventory = ref<Record<string, { price: number; supply: number }> | null>(null);
+const crimeStatus = ref<{ canRob: boolean; alignment: number; experience: number; robLimit: number; stealLimit: number; bustBaseChance: number } | null>(null);
 const selectedCommodity = ref('ore');
 const tradeMode = ref<'buy' | 'sell'>('buy');
 const quantity = ref(1);
@@ -157,6 +174,12 @@ async function loadInventory() {
     } else {
       inventory.value = null;
     }
+
+    const statusRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/port/crime-status?galaxyId=${galaxyId}&sectorId=${currentSector.value.id}`, {
+      headers: auth.getHeaders(),
+    });
+    const statusData = await statusRes.json();
+    crimeStatus.value = statusRes.ok ? statusData : null;
   } catch (err: any) {
     error.value = err.message;
   } finally {
@@ -222,6 +245,73 @@ async function executeTrade() {
 
     message.value = `${tradeMode.value === 'buy' ? 'Bought' : 'Sold'} ${quantity.value} ${selectedCommodity.value} for ${tradeMode.value === 'buy' ? data.cost : data.revenue} cr`;
     quantity.value = 1;
+    await loadInventory();
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    trading.value = false;
+  }
+}
+
+async function executeRob() {
+  if (!currentSector.value || !crimeStatus.value) return;
+  trading.value = true;
+  message.value = null;
+  try {
+    const amount = Math.max(1, Math.floor(totalPrice.value || crimeStatus.value.robLimit));
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/action/rob`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({ galaxyId, sectorId: currentSector.value.id, amount }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Rob failed');
+
+    if (data.busted) {
+      message.value = `🚨 Busted rob attempt. -${data.xpLost} XP, lost ${data.holdsLost} cargo holds.`;
+    } else {
+      if (ship.ship) ship.ship.credits += data.stolen;
+      message.value = `💰 Rob success: stole ${data.stolen} credits.`;
+    }
+
+    await ship.loadStats(galaxyId);
+    await loadInventory();
+  } catch (err: any) {
+    message.value = err.message;
+  } finally {
+    trading.value = false;
+  }
+}
+
+async function executeSteal() {
+  if (!currentSector.value || !crimeStatus.value || !selectedCommodity.value) return;
+  trading.value = true;
+  message.value = null;
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/action/steal`, {
+      method: 'POST',
+      headers: auth.getHeaders(),
+      body: JSON.stringify({
+        galaxyId,
+        sectorId: currentSector.value.id,
+        commodity: selectedCommodity.value,
+        quantity: quantity.value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Steal failed');
+
+    if (data.busted) {
+      message.value = `🚨 Busted theft. -${data.xpLost} XP, lost ${data.holdsLost} cargo holds.`;
+    } else {
+      if (ship.ship) {
+        const key = selectedCommodity.value as keyof typeof ship.ship.cargo;
+        (ship.ship.cargo as any)[key] = ((ship.ship.cargo as any)[key] ?? 0) + quantity.value;
+      }
+      message.value = `📦 Theft success: stole ${quantity.value} ${selectedCommodity.value}.`;
+    }
+
+    await ship.loadStats(galaxyId);
     await loadInventory();
   } catch (err: any) {
     message.value = err.message;

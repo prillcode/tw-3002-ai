@@ -16,7 +16,7 @@ import {
   handlePayTaxes,
   handleRequestCommission,
 } from './routes/player.js';
-import { handleTrade, handleCombat, handleUpgrade } from './routes/action.js';
+import { handleTrade, handleCombat, handleUpgrade, handleCrimeStatus, handleRob, handleSteal } from './routes/action.js';
 import {
   handlePlayerStats,
   handleBountyBoard,
@@ -150,6 +150,15 @@ export default {
         }
         else if (path === '/api/action/combat' && method === 'POST') {
           response = await handleCombat(auth, request, env.DB);
+        }
+        else if (path === '/api/action/rob' && method === 'POST') {
+          response = await handleRob(auth, request, env.DB);
+        }
+        else if (path === '/api/action/steal' && method === 'POST') {
+          response = await handleSteal(auth, request, env.DB);
+        }
+        else if (path === '/api/port/crime-status' && method === 'GET') {
+          response = await handleCrimeStatus(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
         }
         else if (path === '/api/action/upgrade' && method === 'POST') {
           response = await handleUpgrade(auth, request, env.DB);
