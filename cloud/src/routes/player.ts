@@ -267,6 +267,22 @@ export async function handleCreateShip(
          ON CONFLICT(player_id, galaxy_id) DO UPDATE SET
            ship_name = excluded.ship_name,
            class_id = excluded.class_id,
+           credits = 5000,
+           current_sector = 0,
+           cargo_json = '{}',
+           hull = excluded.hull,
+           shield = 0,
+           turns = excluded.turns,
+           max_turns = excluded.max_turns,
+           upgrades_json = '{}',
+           fighters = 30,
+           limpets = 0,
+           armids = 0,
+           limpet_attached = 0,
+           alignment = 0,
+           experience = 0,
+           rank = 1,
+           commissioned = 0,
            updated_at = datetime('now')`
       )
       .bind(auth.playerId, galaxyId, shipName, classId, stats.hull, stats.turns, stats.maxTurns)
