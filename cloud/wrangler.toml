@@ -9,10 +9,12 @@ database_id = "cf9e7fc7-22f8-4743-94bb-f3f014ba1b35"
 
 [vars]
 ENVIRONMENT = "development"
-# OpenRouter model for NPC brain decisions.
-# Update this to use newer models as they become available.
-# See https://openrouter.ai/models for current options.
-NPC_MODEL = "openai/gpt-5.4-nano"
+NPC_LLM_ENABLED = "true"
+# Cloudflare Workers AI model for NPC decisions.
+NPC_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+
+[ai]
+binding = "AI"
 
 # Secrets (set via `wrangler secret put` — NOT in this file)
 # OPENROUTER_API_KEY

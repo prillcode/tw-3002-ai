@@ -36,12 +36,19 @@ interface TickSummary {
   combats: number;
   deaths: number;
   newsGenerated: number;
+  llmDecisions: number;
+}
+
+interface NPCTickOptions {
+  ai?: { run: (model: string, input: Record<string, unknown>) => Promise<unknown> };
+  model?: string;
+  enabled?: boolean;
 }
 
 /**
  * Run one tick of NPC activity for a galaxy.
  */
-export async function runNPCTick(db: D1Database, galaxyId: number): Promise<TickSummary> {
+export async function runNPCTick(db: D1Database, galaxyId: number, options?: NPCTickOptions): Promise<TickSummary> {
   const summary: TickSummary = {
     npcsProcessed: 0,
     moves: 0,
@@ -49,6 +56,7 @@ export async function runNPCTick(db: D1Database, galaxyId: number): Promise<Tick
     combats: 0,
     deaths: 0,
     newsGenerated: 0,
+    llmDecisions: 0,
   };
 
   // Fetch all active NPCs
@@ -102,7 +110,13 @@ export async function runNPCTick(db: D1Database, galaxyId: number): Promise<Tick
     if (!currentSector) continue;
 
     // Decide action based on persona type
-    const actionRoll = Math.random();
+    let actionRoll = Math.random();
+
+    const llmAction = await decideActionWithLLM(options, persona, currentSector);
+    if (llmAction) {
+      summary.llmDecisions++;
+      actionRoll = mapActionToRoll(llmAction, persona.type);
+    }
 
     if (persona.type === 'raider') {
       const isSardaukar = persona.faction === 'sardaukar';
@@ -356,7 +370,8 @@ async function resolveNPCCombat(db: D1Database, galaxyId: number, attacker: NPCR
 export async function handleNPCTick(
   request: Request,
   db: D1Database,
-  adminSecret: string | undefined
+  adminSecret: string | undefined,
+  options?: NPCTickOptions
 ): Promise<Response> {
   if (request.method !== 'POST') return jsonError('Method not allowed', 405);
 
@@ -374,8 +389,252 @@ export async function handleNPCTick(
   }
 
   const galaxyId = body.galaxyId ?? 1;
-  const summary = await runNPCTick(db, galaxyId);
+  const summary = await runNPCTick(db, galaxyId, options);
   return json(summary);
+}
+
+/**
+ * Admin-only LLM health check endpoint.
+ * Returns a lore-themed quote to verify model connectivity.
+ */
+export async function handleNPCLLMHealth(
+  request: Request,
+  adminSecret: string | undefined,
+  options?: NPCTickOptions
+): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'POST') return jsonError('Method not allowed', 405);
+
+  const providedSecret = request.headers.get('X-Admin-Secret');
+  if (!adminSecret || providedSecret !== adminSecret) {
+    return jsonError('Forbidden', 403);
+  }
+
+  if (!options?.enabled || !options.ai) {
+    return json({ ok: false, enabled: false, message: 'NPC_LLM_ENABLED is false or AI binding unavailable.' }, 200);
+  }
+
+  const debug = new URL(request.url).searchParams.get('debug') === '1';
+  const model = options.model ?? '@cf/qwen/qwen3-30b-a3b-fp8';
+  try {
+    const result = await options.ai.run(model, {
+      prompt: 'Return one single-line in-universe TW 3002 quote (max 18 words) about trade, raiders, warp lanes, and survival in The Void. Output only the quote text.',
+      max_tokens: 32,
+      temperature: 0.8,
+    });
+
+    const raw = extractAIText(result).trim();
+    const withoutThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    const firstLine = (withoutThink || raw).split('\n').map(s => s.trim()).find(Boolean) ?? '';
+    const quote = firstLine.slice(0, 200);
+
+    const payload: Record<string, unknown> = {
+      ok: quote.length > 0,
+      enabled: true,
+      model,
+      quote,
+      at: new Date().toISOString(),
+    };
+
+    if (debug) {
+      const obj = result && typeof result === 'object' ? (result as Record<string, unknown>) : null;
+      payload.debug = {
+        keys: obj ? Object.keys(obj) : [],
+        extractedTextLength: raw.length,
+        rawPreview: safePreview(result),
+      };
+    }
+
+    return json(payload);
+  } catch (err) {
+    return json({
+      ok: false,
+      enabled: true,
+      model,
+      error: err instanceof Error ? err.message : 'Unknown AI error',
+      at: new Date().toISOString(),
+    }, 500);
+  }
+}
+
+function mapActionToRoll(action: 'move' | 'combat' | 'trade' | 'idle', type: Persona['type']): number {
+  if (action === 'move') return 0.2;
+  if (action === 'idle') return 0.95;
+  if (action === 'trade') return type === 'trader' ? 0.75 : 0.95;
+  return 0.75; // combat
+}
+
+async function decideActionWithLLM(
+  options: NPCTickOptions | undefined,
+  persona: Persona,
+  sector: { danger: string; hasPort: boolean; connections: number[] }
+): Promise<'move' | 'combat' | 'trade' | 'idle' | null> {
+  if (!options?.enabled || !options.ai) return null;
+
+  const model = options.model ?? '@cf/qwen/qwen3-30b-a3b-fp8';
+  try {
+    const prompt = `You choose one action for an NPC in a space trading game. Reply with JSON only: {"action":"move|combat|trade|idle"}.\nNPC: ${persona.type} (${persona.faction ?? 'independent'})\nSector danger: ${sector.danger}\nHas port: ${sector.hasPort}\nWarp exits: ${sector.connections.length}`;
+
+    const result = await options.ai.run(model, {
+      prompt,
+      max_tokens: 48,
+      temperature: 0.4,
+    });
+
+    const text = extractAIText(result).trim();
+    if (!text) return null;
+
+    return parseActionFromText(text);
+  } catch {
+    return null;
+  }
+}
+
+export async function handleNPCModelBenchmark(
+  request: Request,
+  adminSecret: string | undefined,
+  options?: NPCTickOptions
+): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'POST') return jsonError('Method not allowed', 405);
+
+  const providedSecret = request.headers.get('X-Admin-Secret');
+  if (!adminSecret || providedSecret !== adminSecret) return jsonError('Forbidden', 403);
+  if (!options?.enabled || !options.ai) {
+    return json({ ok: false, enabled: false, message: 'NPC_LLM_ENABLED is false or AI binding unavailable.' }, 200);
+  }
+
+  const url = new URL(request.url);
+  const modelsParam = url.searchParams.get('models');
+  const models = (modelsParam ? modelsParam.split(',') : [options.model ?? '@cf/qwen/qwen3-30b-a3b-fp8'])
+    .map(m => m.trim())
+    .filter(Boolean);
+
+  const decisionRuns = Math.max(1, Math.min(50, Number(url.searchParams.get('decisionRuns') ?? '10')));
+  const quoteRuns = Math.max(1, Math.min(20, Number(url.searchParams.get('quoteRuns') ?? '5')));
+
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const model of models) {
+    let decisionParseable = 0;
+    let decisionErrors = 0;
+    let decisionLatencyTotal = 0;
+
+    for (let i = 0; i < decisionRuns; i++) {
+      const t0 = Date.now();
+      try {
+        const prompt = `You choose one action for an NPC in a space trading game. Reply with JSON only: {"action":"move|combat|trade|idle"}.\nNPC: trader (independent)\nSector danger: caution\nHas port: true\nWarp exits: 4`;
+        const res = await options.ai.run(model, { prompt, max_tokens: 48, temperature: 0.3 });
+        const txt = extractAIText(res).trim();
+        if (parseActionFromText(txt)) decisionParseable++;
+      } catch {
+        decisionErrors++;
+      } finally {
+        decisionLatencyTotal += Date.now() - t0;
+      }
+    }
+
+    let quoteNonEmpty = 0;
+    let quoteErrors = 0;
+    let quoteLatencyTotal = 0;
+    const quoteSamples: string[] = [];
+
+    for (let i = 0; i < quoteRuns; i++) {
+      const t0 = Date.now();
+      try {
+        const res = await options.ai.run(model, {
+          prompt: 'Return one single-line in-universe TW 3002 quote (max 18 words) about trade, raiders, warp lanes, and survival in The Void. Output only the quote text.',
+          max_tokens: 32,
+          temperature: 0.8,
+        });
+        const raw = extractAIText(res).trim();
+        const quote = raw.split('\n').map(s => s.trim()).find(Boolean) ?? '';
+        if (quote) {
+          quoteNonEmpty++;
+          if (quoteSamples.length < 3) quoteSamples.push(quote.slice(0, 180));
+        }
+      } catch {
+        quoteErrors++;
+      } finally {
+        quoteLatencyTotal += Date.now() - t0;
+      }
+    }
+
+    results.push({
+      model,
+      decisionRuns,
+      decisionParseable,
+      decisionParseRate: Number((decisionParseable / decisionRuns).toFixed(3)),
+      decisionErrors,
+      decisionAvgLatencyMs: Math.round(decisionLatencyTotal / decisionRuns),
+      quoteRuns,
+      quoteNonEmpty,
+      quoteNonEmptyRate: Number((quoteNonEmpty / quoteRuns).toFixed(3)),
+      quoteErrors,
+      quoteAvgLatencyMs: Math.round(quoteLatencyTotal / quoteRuns),
+      quoteSamples,
+      score: Number((((decisionParseable / decisionRuns) * 0.8) + ((quoteNonEmpty / quoteRuns) * 0.2)).toFixed(3)),
+    });
+  }
+
+  results.sort((a, b) => Number((b.score as number) - (a.score as number)));
+
+  return json({
+    ok: true,
+    enabled: true,
+    decisionRuns,
+    quoteRuns,
+    ranked: results,
+    winner: results[0] ?? null,
+    at: new Date().toISOString(),
+  });
+}
+
+function parseActionFromText(text: string): 'move' | 'combat' | 'trade' | 'idle' | null {
+  if (!text) return null;
+  let action: string | undefined;
+  try {
+    action = (JSON.parse(text) as { action?: string }).action;
+  } catch {}
+  if (action === 'move' || action === 'combat' || action === 'trade' || action === 'idle') return action;
+
+  const lower = text.toLowerCase();
+  if (lower.includes('"action":"move"') || lower.includes("'action':'move'")) return 'move';
+  if (lower.includes('"action":"combat"') || lower.includes("'action':'combat'")) return 'combat';
+  if (lower.includes('"action":"trade"') || lower.includes("'action':'trade'")) return 'trade';
+  if (lower.includes('"action":"idle"') || lower.includes("'action':'idle'")) return 'idle';
+  const wordMatch = lower.match(/\b(move|combat|trade|idle)\b/);
+  if (wordMatch?.[1] === 'move' || wordMatch?.[1] === 'combat' || wordMatch?.[1] === 'trade' || wordMatch?.[1] === 'idle') {
+    return wordMatch[1];
+  }
+  return null;
+}
+
+function safePreview(result: unknown): string {
+  try {
+    return JSON.stringify(result).slice(0, 1200);
+  } catch {
+    return String(result).slice(0, 1200);
+  }
+}
+
+function extractAIText(result: unknown): string {
+  if (!result || typeof result !== 'object') return '';
+  const r = result as Record<string, any>;
+
+  if (typeof r.response === 'string') return r.response;
+  if (typeof r.output_text === 'string') return r.output_text;
+  if (typeof r.text === 'string') return r.text;
+
+  const choiceText = r.choices?.[0]?.text;
+  if (typeof choiceText === 'string') return choiceText;
+
+  const choiceContent = r.choices?.[0]?.message?.content;
+  if (typeof choiceContent === 'string') return choiceContent;
+  if (Array.isArray(choiceContent)) {
+    const t = choiceContent.map((c: any) => (typeof c?.text === 'string' ? c.text : '')).join(' ').trim();
+    if (t) return t;
+  }
+
+  return '';
 }
 
 function factionPrefix(persona: Persona): string {

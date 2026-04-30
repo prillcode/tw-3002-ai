@@ -1,6 +1,6 @@
 # TW 3002 AI — Session Handoff
 
-Date: 2026-04-28
+Date: 2026-04-30
 Version: CLI v0.6.0 | API v0.5.5 | Web Client v0.5.5
 Repo: https://github.com/prillcode/tw-3002-ai
 
@@ -8,87 +8,83 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ## Session Accomplishments
 
-### ✅ TW-15 Phase 2 (Crime Path) — committed
-
-Commit:
-- `67d4e4c` — `feat(tw-15): add outlaw rob/steal crime path + market UI`
+### ✅ Cloudflare Workers AI integration for cloud/web NPC path
 
 Implemented:
-- New cloud endpoints:
-  - `GET /api/port/crime-status?galaxyId=&sectorId=`
-  - `POST /api/action/rob`
-  - `POST /api/action/steal`
-- Route wiring in `cloud/src/index.ts`
-- Crime mechanics in `cloud/src/routes/action.ts`:
-  - Outlaw gating (`alignment <= -100`)
-  - Experience-scaled rob/steal limits
-  - Bust chance scaling above safe limits
-  - Bust penalties (XP loss, cargo loss, alignment penalties)
-  - News entries for successful and busted crime attempts
-- Market integration in `web/game/src/views/MarketView.vue`:
-  - Crime status panel
-  - Rob/Steal actions
-  - User feedback + refresh of stats/inventory
+- Added Workers AI binding + env config in `cloud/wrangler.toml`
+  - `NPC_LLM_ENABLED`
+  - `NPC_MODEL`
+  - `[ai] binding = "AI"`
+- Wired AI options through worker runtime in `cloud/src/index.ts`
+  - `/api/npc/tick` now receives AI options
+  - scheduled cron tick now receives AI options
+- Extended NPC tick logic in `cloud/src/routes/npc.ts`
+  - LLM-assisted action selection with deterministic fallback
+  - `llmDecisions` metric added to tick summary
 
-Validation:
-- `npm --prefix cloud run typecheck` ✅
-- `npm --prefix web/game run build` ✅
+### ✅ Admin AI test endpoint + debugging
+
+Added endpoint:
+- `GET/POST /api/npc/llm-health` (admin header required)
+
+Capabilities:
+- Runs model smoke test and returns lore quote
+- Supports `?debug=1` for payload-shape diagnostics (keys/raw preview)
+
+### ✅ Model benchmarking endpoint
+
+Added endpoint:
+- `GET/POST /api/npc/model-benchmark` (admin header required)
+
+Capabilities:
+- Benchmarks one or more models
+- Reports:
+  - decision parse rate
+  - quote non-empty rate
+  - avg latency
+  - score + ranked winner
+- Query params:
+  - `models` (comma-separated)
+  - `decisionRuns` (1–50)
+  - `quoteRuns` (1–20)
+
+### ✅ Response parsing fixes for Cloudflare model outputs
+
+Fixes:
+- Added support for `choices[0].text` extraction
+- Hardened action parsing with JSON + heuristic fallbacks
+- Prevented JSON parse failures from short-circuiting fallback parsing
+
+### ✅ Active model update
+
+Current worker var default:
+- `NPC_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"`
 
 ---
 
-### ✅ New game/reset behavior fixed — committed
+## Validation + Deployment
 
-Commit:
-- `8fb22f4` — `fix(player): reset existing galaxy ship to full starter state on create`
+Executed:
+- `cd cloud && bun run typecheck` ✅
+- multiple `wrangler deploy` runs ✅
 
-Behavior change:
-- `handleCreateShip()` now fully resets starter state when a ship already exists for `(player_id, galaxy_id)`, including:
-  - `fighters = 30`
-  - credits/sector/cargo/hull/shield/turns
-  - upgrades and mines
-  - alignment/experience/rank/commissioned
+Latest deployed worker version (during this session):
+- `b8e4d425-d2cf-42ee-9216-df831c8adee0`
 
-Validation:
-- `npm --prefix cloud run typecheck` ✅
-
----
-
-### ✅ Remote live data fix applied
-
-Manual D1 update executed for active player record:
-- `player_id=3`, `galaxy_id=1` → `fighters=30`
-
----
-
-## Current Product Status
-
-| Work Item | Status |
-|---|---|
-| TW-13 Fighter Deployment/Sector Control | ✅ Complete + live |
-| TW-14 Planets & Citadels | ✅ Phases 1–4 live |
-| TW-15 Alignment System | 🚧 Phase 1 live, Phase 2 core crime loop now committed |
-| TW-16 Comm/Event Log | 📋 Planned |
-| TW-17 Combat Depth | 📋 Planned |
-
-StarDocks in galaxy 1:
-- Sectors **13, 250, 500, 750**
+Observed behavior:
+- `llm-health` now returns non-empty text for current model
+- `npc/tick` now shows non-zero `llmDecisions` in at least some runs
 
 ---
 
 ## Next Steps (Recommended)
 
-1. **Deploy latest commits**
-   - Ensure `67d4e4c` and `8fb22f4` are live on worker
-   - Smoke test `crime-status`, `rob`, `steal` in production
-
-2. **Balance tuning for crime loop**
-   - Calibrate rob/steal limits, bust chance scaling, and penalties to target economy pacing
-
-3. **TW-14 Phase 5 follow-through**
-   - Verify/complete planetary trading + transport loop integration
-
-4. **TW-16 Comm/Event Log**
-   - Replace `ship.message` with structured event log store + UI
+1. **Run model benchmark bake-off** on 3–5 candidate models and compare parse rate/latency/cost.
+2. **Split model roles** if needed:
+   - cheap model for high-volume NPC action selection
+   - better narrative model for lore quotes/news flavor
+3. **Tighten quote prompt post-processing** to suppress occasional instruction-like outputs.
+4. Optional: persist benchmark snapshots in DB/news for trend tracking.
 
 ---
 
@@ -97,27 +93,34 @@ StarDocks in galaxy 1:
 ```bash
 cd /home/prill/dev/tw-3002-ai
 
-# verify latest commits
-git log --oneline -n 8
-
-# validate
-npm --prefix cloud run typecheck
-npm --prefix web/game run build
+# validate cloud worker
+cd cloud && bun run typecheck
 
 # deploy
-cd cloud && npx wrangler deploy
+bun run deploy
+
+# AI health (admin)
+curl -sS "https://tw3002-api.prilldev.workers.dev/api/npc/llm-health" \
+  -H "X-Admin-Secret: <ADMIN_SECRET>"
+
+# AI health with debug payload shape
+curl -sS "https://tw3002-api.prilldev.workers.dev/api/npc/llm-health?debug=1" \
+  -H "X-Admin-Secret: <ADMIN_SECRET>"
+
+# model benchmark
+curl -sS "https://tw3002-api.prilldev.workers.dev/api/npc/model-benchmark?models=@cf/qwen/qwen3-30b-a3b-fp8,@cf/zai-org/glm-4.7-flash&decisionRuns=20&quoteRuns=8" \
+  -H "X-Admin-Secret: <ADMIN_SECRET>"
 ```
 
 ---
 
-## Key Recent Commits
+## Files Changed This Session
 
-- `8fb22f4` — reset existing galaxy ship to starter state on create (includes 30 fighters)
-- `67d4e4c` — TW-15 Phase 2 crime path + market UI
-- `dae5de7` — fix cloud cron trigger config for NPC tick scheduling
-- `dc4702a` — toggle StarDock route guidance on/off with K
-- `8e21fc6` — shortest route to nearest StarDock in sector view
-- `d74469d` — TW-15 Phase 1 alignment foundation
+- `cloud/wrangler.toml`
+- `cloud/src/index.ts`
+- `cloud/src/routes/npc.ts`
+- `cloud/README.md`
+- `HANDOFF.md`
 
 ---
 

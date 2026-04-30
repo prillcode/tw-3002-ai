@@ -7,7 +7,7 @@ A Cloudflare Worker-based REST API for a shared online space trading/combat game
 - **Runtime:** Cloudflare Worker (TypeScript, Wrangler v4)
 - **Database:** Cloudflare D1 (SQLite) — schema includes galaxies, sectors, players, ships, NPCs, news, and PvP kills
 - **Package Manager:** Bun
-- **AI Integration:** OpenRouter (`openai/gpt-5.4-nano`) configured for NPC brain / decision-making
+- **AI Integration:** Cloudflare Workers AI (optional) for NPC action decisions; falls back to deterministic rule-based logic
 
 ## The Void — Shared Galaxy
 
@@ -50,6 +50,8 @@ The current deployed galaxy:
 | `POST /api/player/ship/move` | Yes | Move ship between sectors |
 | `POST /api/action/trade` | Yes | Trading actions |
 | `POST /api/action/combat` | Yes | Combat actions |
+| `GET/POST /api/npc/llm-health` | Admin header | Workers AI smoke test + lore quote |
+| `GET/POST /api/npc/model-benchmark` | Admin header | Benchmarks model parse reliability, quote yield, and latency |
 
 ## Key Features
 
@@ -82,17 +84,23 @@ bun run db:migrate   # Apply D1 migrations
 bun run typecheck    # TypeScript check
 ```
 
+## Worker AI Configuration
+
+Set these in `wrangler.toml` / dashboard vars:
+
+- `NPC_LLM_ENABLED` — `"true"` to enable LLM-assisted NPC action selection (`"false"` by default)
+- `NPC_MODEL` — Workers AI model slug (default: `@cf/qwen/qwen3-30b-a3b-fp8`)
+- `AI` binding — configured via `[ai] binding = "AI"`
+
 ## Wrangler Secrets
 
 Set these via `wrangler secret put <name>` — **do not** commit them:
 
 ```bash
-npx wrangler secret put OPENROUTER_API_KEY
 npx wrangler secret put DISCORD_WEBHOOK_URL
 npx wrangler secret put ADMIN_SECRET
 ```
 
-- `OPENROUTER_API_KEY` — For NPC AI decisions
 - `DISCORD_WEBHOOK_URL` — Notifications
 - `ADMIN_SECRET` — Admin operations
 

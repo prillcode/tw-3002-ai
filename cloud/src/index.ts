@@ -25,7 +25,7 @@ import {
   handleInsuranceBuy,
   handleInsuranceStatus,
 } from './routes/combat.js';
-import { handleNPCTick, runNPCTick } from './routes/npc.js';
+import { handleNPCTick, handleNPCLLMHealth, handleNPCModelBenchmark, runNPCTick } from './routes/npc.js';
 import { handleGetNews, handleAddNews, handleLeaderboard } from './routes/news.js';
 import {
   handleBuyFighters,
@@ -54,7 +54,10 @@ import {
 
 export interface Env {
   DB: D1Database;
+  AI: { run: (model: string, input: Record<string, unknown>) => Promise<unknown> };
   ADMIN_SECRET?: string;
+  NPC_MODEL?: string;
+  NPC_LLM_ENABLED?: string;
 }
 
 export default {
@@ -113,6 +116,20 @@ export default {
       // News (read is public, write is auth-gated)
       else if (path === '/api/news' && method === 'GET') {
         response = await handleGetNews(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
+      }
+      else if (path === '/api/npc/llm-health' && (method === 'GET' || method === 'POST')) {
+        response = await handleNPCLLMHealth(request, env.ADMIN_SECRET, {
+          ai: env.AI,
+          model: env.NPC_MODEL,
+          enabled: env.NPC_LLM_ENABLED === 'true',
+        });
+      }
+      else if (path === '/api/npc/model-benchmark' && (method === 'GET' || method === 'POST')) {
+        response = await handleNPCModelBenchmark(request, env.ADMIN_SECRET, {
+          ai: env.AI,
+          model: env.NPC_MODEL,
+          enabled: env.NPC_LLM_ENABLED === 'true',
+        });
       }
 
       // Everything below requires authentication
@@ -235,7 +252,11 @@ export default {
           response = await handleClearLimpets(auth, request, env.DB);
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
-          response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET);
+          response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET, {
+            ai: env.AI,
+            model: env.NPC_MODEL,
+            enabled: env.NPC_LLM_ENABLED === 'true',
+          });
         }
         else {
           response = jsonError('Not found', 404);
@@ -250,7 +271,11 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runNPCTick(env.DB, 1));
+    ctx.waitUntil(runNPCTick(env.DB, 1, {
+      ai: env.AI,
+      model: env.NPC_MODEL,
+      enabled: env.NPC_LLM_ENABLED === 'true',
+    }));
     ctx.waitUntil(handleProductionTick(env.DB, 1));
     return;
   },
