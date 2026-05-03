@@ -89,7 +89,8 @@ bun run typecheck    # TypeScript check
 Set these in `wrangler.toml` / dashboard vars:
 
 - `NPC_LLM_ENABLED` — `"true"` to enable LLM-assisted NPC action selection (`"false"` by default)
-- `NPC_MODEL` — Workers AI model slug (default: `@cf/qwen/qwen3-30b-a3b-fp8`)
+- `NPC_MODEL` — Workers AI model slug for NPC action decisions (default: `@cf/qwen/qwen3-30b-a3b-fp8`)
+- `NPC_QUOTE_MODEL` — Workers AI model slug for quote/main-screen flavor text (default: `@cf/zai-org/glm-4.7-flash`)
 - `AI` binding — configured via `[ai] binding = "AI"`
 
 ## Wrangler Secrets

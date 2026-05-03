@@ -42,6 +42,7 @@ interface TickSummary {
 interface NPCTickOptions {
   ai?: { run: (model: string, input: Record<string, unknown>) => Promise<unknown> };
   model?: string;
+  quoteModel?: string;
   enabled?: boolean;
 }
 
@@ -414,7 +415,7 @@ export async function handleNPCLLMHealth(
   }
 
   const debug = new URL(request.url).searchParams.get('debug') === '1';
-  const model = options.model ?? '@cf/qwen/qwen3-30b-a3b-fp8';
+  const model = options.quoteModel ?? options.model ?? '@cf/qwen/qwen3-30b-a3b-fp8';
   try {
     const result = await options.ai.run(model, {
       prompt: 'Return one single-line in-universe TW 3002 quote (max 18 words) about trade, raiders, warp lanes, and survival in The Void. Output only the quote text.',
@@ -540,7 +541,8 @@ export async function handleNPCModelBenchmark(
     for (let i = 0; i < quoteRuns; i++) {
       const t0 = Date.now();
       try {
-        const res = await options.ai.run(model, {
+        const quoteModel = options.quoteModel ?? model;
+        const res = await options.ai.run(quoteModel, {
           prompt: 'Return one single-line in-universe TW 3002 quote (max 18 words) about trade, raiders, warp lanes, and survival in The Void. Output only the quote text.',
           max_tokens: 32,
           temperature: 0.8,
@@ -570,6 +572,7 @@ export async function handleNPCModelBenchmark(
       quoteNonEmptyRate: Number((quoteNonEmpty / quoteRuns).toFixed(3)),
       quoteErrors,
       quoteAvgLatencyMs: Math.round(quoteLatencyTotal / quoteRuns),
+      quoteModel: options.quoteModel ?? model,
       quoteSamples,
       score: Number((((decisionParseable / decisionRuns) * 0.8) + ((quoteNonEmpty / quoteRuns) * 0.2)).toFixed(3)),
     });

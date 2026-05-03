@@ -57,6 +57,7 @@ export interface Env {
   AI: { run: (model: string, input: Record<string, unknown>) => Promise<unknown> };
   ADMIN_SECRET?: string;
   NPC_MODEL?: string;
+  NPC_QUOTE_MODEL?: string;
   NPC_LLM_ENABLED?: string;
 }
 
@@ -121,6 +122,7 @@ export default {
         response = await handleNPCLLMHealth(request, env.ADMIN_SECRET, {
           ai: env.AI,
           model: env.NPC_MODEL,
+          quoteModel: env.NPC_QUOTE_MODEL,
           enabled: env.NPC_LLM_ENABLED === 'true',
         });
       }
@@ -128,6 +130,7 @@ export default {
         response = await handleNPCModelBenchmark(request, env.ADMIN_SECRET, {
           ai: env.AI,
           model: env.NPC_MODEL,
+          quoteModel: env.NPC_QUOTE_MODEL,
           enabled: env.NPC_LLM_ENABLED === 'true',
         });
       }
@@ -255,6 +258,7 @@ export default {
           response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET, {
             ai: env.AI,
             model: env.NPC_MODEL,
+            quoteModel: env.NPC_QUOTE_MODEL,
             enabled: env.NPC_LLM_ENABLED === 'true',
           });
         }
@@ -274,6 +278,7 @@ export default {
     ctx.waitUntil(runNPCTick(env.DB, 1, {
       ai: env.AI,
       model: env.NPC_MODEL,
+      quoteModel: env.NPC_QUOTE_MODEL,
       enabled: env.NPC_LLM_ENABLED === 'true',
     }));
     ctx.waitUntil(handleProductionTick(env.DB, 1));
