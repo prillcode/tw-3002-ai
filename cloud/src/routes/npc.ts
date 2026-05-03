@@ -424,9 +424,7 @@ export async function handleNPCLLMHealth(
     });
 
     const raw = extractAIText(result).trim();
-    const withoutThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-    const firstLine = (withoutThink || raw).split('\n').map(s => s.trim()).find(Boolean) ?? '';
-    const quote = firstLine.slice(0, 200);
+    const quote = cleanQuote(raw) ?? '';
 
     const payload: Record<string, unknown> = {
       ok: quote.length > 0,
@@ -548,7 +546,7 @@ export async function handleNPCModelBenchmark(
           temperature: 0.8,
         });
         const raw = extractAIText(res).trim();
-        const quote = raw.split('\n').map(s => s.trim()).find(Boolean) ?? '';
+        const quote = cleanQuote(raw) ?? '';
         if (quote) {
           quoteNonEmpty++;
           if (quoteSamples.length < 3) quoteSamples.push(quote.slice(0, 180));
@@ -617,6 +615,39 @@ function safePreview(result: unknown): string {
   } catch {
     return String(result).slice(0, 1200);
   }
+}
+
+/**
+ * Strip AI thinking tags, instruction echoes, and validate word count.
+ * Returns a clean in-universe quote or null if invalid.
+ */
+function cleanQuote(raw: string): string | null {
+  // 1. Remove <think> </think> blocks
+  let text = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. Take first non-empty line only
+  const firstLine = text.split('\n').map(s => s.trim()).find(Boolean) ?? '';
+
+  // 3. Strip obvious instruction echoes (model repeating prompt fragments)
+  const instructionPatterns = [
+    /^(do not|no |don'?t |never |always )/i,
+    /^(return |output |only |give me |here is |here'?s )/i,
+    /^(one single-line|in-universe|max \d+ words)/i,
+    /^(keep it|strictly|without|no preamble|no postscript|no formatting)/i,
+    /^(> |"> |`)/,          // meta-commentary
+    /^\(no numbering\)/i,
+    /^\"/,                   // starts with bare quote
+  ];
+
+  for (const pattern of instructionPatterns) {
+    if (pattern.test(firstLine)) return null;
+  }
+
+  // 4. Must be 3–22 words (catches single-word and overlong outputs)
+  const wordCount = firstLine.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 3 || wordCount > 22) return null;
+
+  return firstLine.slice(0, 200);
 }
 
 function extractAIText(result: unknown): string {
