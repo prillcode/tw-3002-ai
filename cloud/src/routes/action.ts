@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
-import { json, jsonError } from '../utils/cors.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 import { UPGRADE_CATALOG, computeEffectiveStats } from '../upgrades.js';
 import { resolveDefeat } from './combat.js';
 import { applyAlignmentAndExperience } from '../utils/alignment.js';
@@ -93,6 +94,9 @@ export async function handleTrade(
   if (!galaxyId || sectorId === undefined || !commodity || !quantity || !action) {
     return jsonError('galaxyId, sectorId, commodity, quantity, action required');
   }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'trade');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const allowedCommodities = new Set(['ore', 'organics', 'equipment', 'melange']);
   if (!allowedCommodities.has(commodity)) {
@@ -237,6 +241,9 @@ export async function handleRob(auth: AuthContext, request: Request, db: D1Datab
     return jsonError('galaxyId, sectorId, amount required', 400);
   }
 
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'rob');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   const ship = await db
     .prepare('SELECT credits, cargo_json, current_sector, alignment, experience FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
@@ -318,6 +325,9 @@ export async function handleSteal(auth: AuthContext, request: Request, db: D1Dat
   if (!galaxyId || sectorId === undefined || !commodity || !quantity || quantity <= 0) {
     return jsonError('galaxyId, sectorId, commodity, quantity required', 400);
   }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'steal');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const allowedCommodities = new Set(['ore', 'organics', 'equipment', 'melange']);
   if (!allowedCommodities.has(commodity)) return jsonError('Invalid commodity', 400);
@@ -423,6 +433,9 @@ export async function handleCombat(
   if (!galaxyId || sectorId === undefined || !enemyNpcId || !playerAction) {
     return jsonError('galaxyId, sectorId, enemyNpcId, playerAction required');
   }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'combat');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Get ship and enemy
   const ship = await db
@@ -645,6 +658,9 @@ export async function handleUpgrade(
   if (!galaxyId || sectorId === undefined || !upgradeId) {
     return jsonError('galaxyId, sectorId, upgradeId required');
   }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'upgrade');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Verify sector has a stardock
   const sector = await db

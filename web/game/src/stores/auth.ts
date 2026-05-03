@@ -16,23 +16,47 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value);
 
-  async function register(emailInput: string) {
+  /** Step 1: Register — sends OTP email, no token yet. */
+  async function register(emailInput: string, turnstileToken?: string) {
     loading.value = true;
     error.value = null;
     try {
       const res = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailInput }),
+        body: JSON.stringify({ email: emailInput, turnstileToken }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Registration failed');
-      token.value = data.token;
-      email.value = data.email;
-      localStorage.setItem('tw3002_token', data.token);
-      localStorage.setItem('tw3002_email', data.email);
+      email.value = emailInput;
+      localStorage.setItem('tw3002_email', emailInput);
+      return data;
     } catch (err: any) {
       error.value = err.message;
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Step 2: Verify OTP — returns bearer token. */
+  async function verifyEmail(emailInput: string, otp: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Verification failed');
+      token.value = data.authToken;
+      localStorage.setItem('tw3002_token', data.authToken);
+      return data;
+    } catch (err: any) {
+      error.value = err.message;
+      throw err;
     } finally {
       loading.value = false;
     }
@@ -51,5 +75,15 @@ export const useAuthStore = defineStore('auth', () => {
     return h;
   }
 
-  return { token, email, loading, error, isAuthenticated, register, logout, getHeaders };
+  return {
+    token,
+    email,
+    loading,
+    error,
+    isAuthenticated,
+    register,
+    verifyEmail,
+    logout,
+    getHeaders,
+  };
 });

@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
-import { json, jsonError } from '../utils/cors.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 import { resolveDefeat } from './combat.js';
 
 const FIGHTER_PRICE = 100;
@@ -617,6 +618,9 @@ export async function handleBuyFighters(
   const quantity = asPositiveInt(body.quantity);
   if (!galaxyId || !quantity) return jsonError('galaxyId and positive quantity required');
 
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'fighters-buy');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   const ship = await db
     .prepare('SELECT credits, fighters, current_sector FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
@@ -677,6 +681,9 @@ export async function handleDeployFighters(
     return jsonError('galaxyId, sectorId, and positive quantity required');
   }
   if (!MODES.has(mode)) return jsonError('Invalid mode. Use defensive, offensive, or tolled');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'fighters-deploy');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const ship = await db
     .prepare('SELECT fighters, current_sector FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
@@ -794,6 +801,9 @@ export async function handleRecallFighters(
   const sectorId = body.sectorId;
   if (!galaxyId || sectorId === undefined) return jsonError('galaxyId and sectorId required');
 
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'fighters-recall');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   const ship = await db
     .prepare('SELECT current_sector, fighters FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
@@ -863,6 +873,9 @@ export async function handleResolveEncounter(
   if (!galaxyId || targetSectorId === undefined || !action) {
     return jsonError('galaxyId, targetSectorId, and action required');
   }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'encounter-resolve');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const validActions: EncounterAction[] = ['attack', 'retreat', 'surrender', 'pay_toll'];
   if (!validActions.includes(action)) return jsonError('Invalid action');

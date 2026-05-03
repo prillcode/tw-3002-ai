@@ -1,5 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { json, jsonError } from '../utils/cors.js';
+import type { AuthContext } from '../utils/auth.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 
 /**
  * GET /api/news?galaxyId=&limit=
@@ -30,7 +32,11 @@ export async function handleGetNews(
  * Admin/internal: add a news item.
  * Body: { galaxyId, headline, type, sectorId?, playerId? }
  */
-export async function handleAddNews(request: Request, db: D1Database): Promise<Response> {
+export async function handleAddNews(
+  auth: AuthContext,
+  request: Request,
+  db: D1Database
+): Promise<Response> {
   if (request.method !== 'POST') return jsonError('Method not allowed', 405);
 
   let body: {
@@ -48,6 +54,9 @@ export async function handleAddNews(request: Request, db: D1Database): Promise<R
 
   const { galaxyId, headline, type = 'event', sectorId, playerId } = body;
   if (!galaxyId || !headline) return jsonError('galaxyId and headline required');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'add-news');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   await db
     .prepare(

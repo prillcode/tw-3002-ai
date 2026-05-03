@@ -14,6 +14,9 @@
         <a href="/guide/getting-started" class="text-sm font-mono text-terminal-muted hover:text-terminal-cyan transition-colors">
           Guide
         </a>
+        <a href="/api" class="text-sm font-mono text-terminal-muted hover:text-terminal-cyan transition-colors">
+          API Docs
+        </a>
         <a href="https://portal.playtradewars.net" class="btn-primary text-sm">
           Play Now →
         </a>

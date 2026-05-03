@@ -1,47 +1,45 @@
 # TW-12 Execution Plan
 
+**Updated:** 2026-05-03 — refreshed endpoint inventory (42 endpoints, up from ~22) and added Scalar API Reference as primary docs UI.
+
 ## Phase 1: Rate Limiting (Cloudflare Worker)
 **Goal:** Prevent speed-based bot advantages
 
-1. Add rate limit maps to `cloud/src/index.ts`:
+1. Create `cloud/src/utils/rateLimit.ts` — in-memory rate limiting
+2. Create `cloud/src/utils/actionBudget.ts` — D1-backed action budget
+3. Wire into `cloud/src/index.ts` for all 42 endpoints:
    - Auth: 5/min per IP
-   - Gameplay (trade/combat/move/upgrade): 10/min per player ID
-   - Galaxy reads: 60/min per player ID
-   - Public (leaderboard/news): 30/min per IP
-2. Return 429 with `Retry-After` header when exceeded
-3. Add `X-RateLimit-*` headers to responses
-4. Add `action_points` to `player_ships` (regenerates 1/min, cap 60)
-5. Deduct points on gameplay actions; return 403 if insufficient
-6. Deploy and verify
+   - Gameplay (all POST actions): 10/min per playerId + action budget
+   - Reads (auth GET): 60/min per playerId
+   - Public reads: 60/min per IP
+   - Admin: 10/min per IP + secret
+4. Migration `0010_action_points.sql` — add `action_points` + `action_points_refill_at` to `player_ships`
+5. Return 429 with `Retry-After` on rate limit; 403 on insufficient action points
+6. Add `X-RateLimit-*` headers to all responses
+7. Deploy and verify
 
-## Phase 2: API Docs Content Collection
-**Goal:** Document every endpoint on the Astro site
+## Phase 2: API Docs — Scalar + Markdown
+**Goal:** Interactive API reference + narrative docs
 
-1. Add `api` content collection in `web/main/src/content/config.ts`
-2. Create `ApiLayout.astro` (terminal theme, sidebar nav)
-3. Write pages:
-   - `api/index.md` — Overview, base URL, philosophy
-   - `api/getting-started.md` — curl examples, auth flow
-   - `api/authentication.md` — register, verify, bearer tokens
-   - `api/reference/galaxy.md` — GET endpoints
-   - `api/reference/player.md` — ship, move, stats
-   - `api/reference/actions.md` — trade, combat, upgrade
-   - `api/reference/news.md` — news, leaderboard
-   - `api/tutorials/stats-dashboard.md` — read-only dashboard
-   - `api/tutorials/news-bot.md` — Discord webhook tutorial
-4. Add `/api/` link to main nav in `Layout.astro`
+1. Install `@scalar/api-reference` in `web/main/`
+2. Create `web/main/src/data/openapi.yaml` — OpenAPI 3.1 spec covering all 42 endpoints
+3. Create `web/main/src/pages/api/reference.astro` — Scalar UI page
+4. Minimal markdown prose pages (overview, getting-started, auth, tutorials)
+5. Navigation links
 
 ## Phase 3: Fair Play & Terms
 **Goal:** Set expectations about automated play
 
 1. Write `web/main/src/pages/api/fair-play.md`
-2. Content: rate limits exist, action budgets exist, what custom clients are OK
-3. Link from API overview page
+2. Optional: Terms of Service stub
+3. Link from API overview and tutorials
 
 ## Order
 Phase 1 → Phase 2 → Phase 3
 
+(Phase 3 is content-only; can overlap with Phase 2 if desired.)
+
 ## Notes
-- Keep docs honest — the API is public, hiding it doesn't help
 - Action budget is the real anti-bot mechanism, not rate limits
-- Tutorials should be read-only tools, not gameplay automation
+- Scalar eliminates the need for manual endpoint reference pages — the OpenAPI spec is the source of truth
+- Keep OpenAPI spec in sync with API; add CI linting

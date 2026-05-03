@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
-import { json, jsonError } from '../utils/cors.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 import { resolveDefeat } from './combat.js';
 import type { OperationStep } from './fighters.js';
 
@@ -205,6 +206,9 @@ export async function handleBuyMines(auth: AuthContext, request: Request, db: D1
   if (!galaxyId || !type || !quantity) return jsonError('galaxyId, type, and positive quantity required');
   if (type !== 'limpet' && type !== 'armid') return jsonError('type must be limpet or armid');
 
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'mines-buy');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   const ship = await db
     .prepare('SELECT credits, current_sector, limpets, armids FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
@@ -259,6 +263,9 @@ export async function handleDeployMines(auth: AuthContext, request: Request, db:
     return jsonError('galaxyId, sectorId, type, and positive quantity required');
   }
   if (type !== 'limpet' && type !== 'armid') return jsonError('type must be limpet or armid');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'mines-deploy');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const ship = await db
     .prepare('SELECT current_sector, limpets, armids FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
@@ -360,6 +367,9 @@ export async function handleClearLimpets(auth: AuthContext, request: Request, db
   const galaxyId = body.galaxyId;
   const sectorId = body.sectorId;
   if (!galaxyId || sectorId === undefined) return jsonError('galaxyId and sectorId required');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'clear-limpets');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const ship = await db
     .prepare('SELECT current_sector, limpet_attached, credits FROM player_ships WHERE player_id = ? AND galaxy_id = ?')

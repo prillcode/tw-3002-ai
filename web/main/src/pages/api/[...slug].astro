@@ -1,0 +1,57 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import TerminalHeader from '../../components/TerminalHeader.vue';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('api');
+  return docs.map((doc) => ({
+    params: { slug: doc.slug },
+    props: { doc },
+  }));
+}
+
+const { doc } = Astro.props;
+const { Content } = await doc.render();
+---
+
+<Layout title={`${doc.data.title} — TW 3002 AI API`} description={doc.data.description}>
+  <TerminalHeader client:load />
+  <div class="max-w-6xl mx-auto px-4 py-8 flex gap-8">
+    <!-- Sidebar -->
+    <aside class="hidden md:block w-64 shrink-0">
+      <nav class="sticky top-4 space-y-6">
+        <div>
+          <p class="text-xs font-mono text-terminal-muted uppercase tracking-wider mb-3">Overview</p>
+          <ul class="space-y-2">
+            <li><a href="/api" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Introduction</a></li>
+            <li><a href="/api/getting-started" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Getting Started</a></li>
+            <li><a href="/api/authentication" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Authentication</a></li>
+            <li><a href="/api/fair-play" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Fair Play</a></li>
+            <li><a href="/api/terms" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Terms of Service</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="text-xs font-mono text-terminal-muted uppercase tracking-wider mb-3">Reference</p>
+          <ul class="space-y-2">
+            <li><a href="/api/reference" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Endpoint Reference →</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="text-xs font-mono text-terminal-muted uppercase tracking-wider mb-3">Tutorials</p>
+          <ul class="space-y-2">
+            <li><a href="/api/tutorials/stats-dashboard" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Stats Dashboard</a></li>
+            <li><a href="/api/tutorials/news-bot" class="text-sm font-mono hover:text-terminal-cyan transition-colors">News Bot</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Content -->
+    <article class="flex-1 min-w-0">
+      <div class="prose prose-invert prose-cyan max-w-none">
+        <Content />
+      </div>
+    </article>
+  </div>
+</Layout>

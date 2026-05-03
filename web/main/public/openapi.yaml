@@ -1,0 +1,1349 @@
+openapi: 3.1.0
+info:
+  title: TW 3002 AI API
+  version: 0.6.0
+  description: |
+    REST API for TW 3002 AI — a spiritual successor to Trade Wars 2002.
+    All responses are JSON. Base URL: `https://api.playtradewars.net`.
+
+    ## Rate Limits
+    | Category | Limit | Window |
+    |----------|-------|--------|
+    | Auth (register/verify) | 5 | per IP per minute |
+    | Gameplay (all POST actions) | 10 | per player per minute |
+    | Reads (auth-gated GET) | 60 | per player per minute |
+    | Public reads | 60 | per IP per minute |
+    | Admin | 10 | per IP per minute |
+
+    Rate limit headers are included on every response:
+    - `X-RateLimit-Limit`
+    - `X-RateLimit-Remaining`
+    - `X-RateLimit-Reset`
+
+    ## Action Budget
+    Every player has 60 action points (regenerates 1/min, cap 60). Gameplay actions
+    deduct points. Insufficient points returns **403** with `X-ActionPoints-Remaining`
+    and `X-ActionPoints-NextRefill` headers.
+
+  contact:
+    name: TW 3002 AI
+    url: https://playtradewars.net
+
+servers:
+  - url: https://api.playtradewars.net
+    description: Production
+
+tags:
+  - name: Meta
+    description: Health and status
+  - name: Auth
+    description: Registration and authentication
+  - name: Galaxy
+    description: Galaxy and sector data
+  - name: Player
+    description: Player profile, ship, alignment
+  - name: Actions
+    description: Trade, combat, crime, upgrades
+  - name: Insurance
+    description: Guild Protection Contracts
+  - name: Fighters
+    description: Fighter management and encounters
+  - name: Planets
+    description: Planet creation, colonization, citadels
+  - name: Mines
+    description: Mine purchase and deployment
+  - name: News
+    description: Galaxy news feed
+  - name: Leaderboard
+    description: Player rankings
+  - name: Bounty
+    description: Wanted status and bounty board
+  - name: NPC
+    description: Admin NPC management
+
+paths:
+  /health:
+    get:
+      tags: [Meta]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  version: { type: string, example: '0.5.5' }
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new player
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Verification token sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/auth/verify:
+    post:
+      tags: [Auth]
+      summary: Verify email and receive bearer token
+      operationId: verify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, token]
+              properties:
+                email: { type: string }
+                token: { type: string }
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  authToken: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/galaxy:
+    get:
+      tags: [Galaxy]
+      summary: List all galaxies
+      operationId: listGalaxies
+      responses:
+        '200':
+          description: List of galaxies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  galaxies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        slug: { type: string }
+                        sector_count: { type: integer }
+                        active: { type: integer }
+
+  /api/galaxy/{id}:
+    get:
+      tags: [Galaxy]
+      summary: Get galaxy details
+      operationId: getGalaxy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Galaxy details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  galaxy:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+                      slug: { type: string }
+                      sector_count: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/galaxy/{id}/sectors:
+    get:
+      tags: [Galaxy]
+      summary: List all sectors in a galaxy
+      operationId: getSectors
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of sectors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sectors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sector_index: { type: integer }
+                        name: { type: string }
+                        danger: { type: string }
+                        port_class: { type: integer, nullable: true }
+
+  /api/galaxy/{id}/sector:
+    get:
+      tags: [Galaxy]
+      summary: Get a single sector
+      operationId: getSector
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: sectorId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Sector details with connections and NPCs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sector:
+                    type: object
+                    properties:
+                      sector_index: { type: integer }
+                      name: { type: string }
+                      danger: { type: string }
+                      port_class: { type: integer, nullable: true }
+                      port_name: { type: string, nullable: true }
+                      connections_json: { type: string }
+                      npcs_json: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/leaderboard:
+    get:
+      tags: [Leaderboard]
+      summary: Get player rankings
+      operationId: getLeaderboard
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: string, default: '10' }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [net_worth, kills, deaths, wanted]
+      responses:
+        '200':
+          description: Ranked list of players
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leaderboard:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ship_name: { type: string }
+                        class_id: { type: string }
+                        net_worth: { type: integer }
+                        kills: { type: integer }
+                        deaths: { type: integer }
+                        display_name: { type: string }
+
+  /api/news:
+    get:
+      tags: [News]
+      summary: Get galaxy news feed
+      operationId: getNews
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: string, default: '20' }
+      responses:
+        '200':
+          description: News items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  news:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        galaxy_id: { type: integer }
+                        headline: { type: string }
+                        type: { type: string }
+                        sector_id: { type: integer, nullable: true }
+                        player_id: { type: integer, nullable: true }
+                        timestamp: { type: string, format: date-time }
+    post:
+      tags: [News]
+      summary: Add a news item (auth required)
+      operationId: addNews
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, headline]
+              properties:
+                galaxyId: { type: integer }
+                headline: { type: string }
+                type: { type: string, default: event }
+                sectorId: { type: integer }
+                playerId: { type: integer }
+      responses:
+        '200':
+          description: News item created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/bounty/board:
+    get:
+      tags: [Bounty]
+      summary: Get wanted players board
+      operationId: getBountyBoard
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Bounty board
+
+  /api/player:
+    get:
+      tags: [Player]
+      summary: Get current player profile
+      operationId: getPlayer
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Player profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      email: { type: string }
+                      display_name: { type: string }
+                      created_at: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/player/ship:
+    get:
+      tags: [Player]
+      summary: Get ship in a galaxy
+      operationId: getShip
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ship status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ship:
+                    type: object
+                    properties:
+                      ship_name: { type: string }
+                      class_id: { type: string }
+                      credits: { type: integer }
+                      current_sector: { type: integer }
+                      hull: { type: integer }
+                      shield: { type: integer }
+                      turns: { type: integer }
+                      max_turns: { type: integer }
+                      cargo_json: { type: string }
+                      upgrades_json: { type: string }
+                      fighters: { type: integer }
+                      net_worth: { type: integer }
+                      kills: { type: integer }
+                      deaths: { type: integer }
+                      alignment: { type: integer }
+                      experience: { type: integer }
+                      rank: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Player]
+      summary: Create or reset ship in a galaxy
+      operationId: createShip
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, shipName]
+              properties:
+                galaxyId: { type: integer }
+                shipName: { type: string }
+                classId:
+                  type: string
+                  enum: [merchant, scout, interceptor]
+                  default: merchant
+      responses:
+        '200':
+          description: Ship created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ship: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/player/ship/move:
+    post:
+      tags: [Player]
+      summary: Move ship to a connected sector
+      operationId: moveShip
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+      responses:
+        '200':
+          description: Move result with operation log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ship: { type: object }
+                  moved: { type: boolean }
+                  operations: { type: array }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/player/alignment:
+    get:
+      tags: [Player]
+      summary: Get alignment, rank, and faction standing
+      operationId: getAlignment
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Alignment and standing info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alignment: { type: integer }
+                  alignmentLabel: { type: string }
+                  factionStanding: { type: string }
+                  experience: { type: integer }
+                  rank: { type: integer }
+                  rankTitle: { type: string }
+                  commissioned: { type: boolean }
+                  canRob: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/player/stats:
+    get:
+      tags: [Player]
+      summary: Get combat stats (kills, deaths, KDR)
+      operationId: getPlayerStats
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Player combat statistics
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/player/pay-taxes:
+    post:
+      tags: [Player]
+      summary: Pay CHOAM tariffs to gain alignment
+      operationId: payTaxes
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, amount]
+              properties:
+                galaxyId: { type: integer }
+                amount: { type: integer, minimum: 1500 }
+      responses:
+        '200':
+          description: Tax payment result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  amountPaid: { type: integer }
+                  alignmentGained: { type: integer }
+                  remainingCredits: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/player/commission:
+    post:
+      tags: [Player]
+      summary: Request Guild Commission (+1000 alignment required)
+      operationId: requestCommission
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId]
+              properties:
+                galaxyId: { type: integer }
+      responses:
+        '200':
+          description: Commission granted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/action/trade:
+    post:
+      tags: [Actions]
+      summary: Buy or sell commodities at a port
+      operationId: trade
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, commodity, quantity, action]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                commodity:
+                  type: string
+                  enum: [ore, organics, equipment, melange]
+                quantity: { type: integer }
+                action:
+                  type: string
+                  enum: [buy, sell]
+      responses:
+        '200':
+          description: Trade executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  action: { type: string }
+                  commodity: { type: string }
+                  quantity: { type: integer }
+                  cost: { type: integer }
+                  revenue: { type: integer }
+                  remainingCredits: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/action/combat:
+    post:
+      tags: [Actions]
+      summary: Engage an NPC in combat
+      operationId: combat
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, enemyNpcId, playerAction]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                enemyNpcId: { type: string }
+                playerAction:
+                  type: string
+                  enum: [attack, flee, bribe]
+      responses:
+        '200':
+          description: Combat result with narrative
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      won: { type: boolean }
+                      fled: { type: boolean }
+                      bribed: { type: boolean }
+                      playerHullRemaining: { type: integer }
+                      creditsGained: { type: integer }
+                      destroyed: { type: boolean }
+                  narrative: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/action/rob:
+    post:
+      tags: [Actions]
+      summary: Rob a port (requires Outlaw alignment)
+      operationId: rob
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, amount]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                amount: { type: integer }
+      responses:
+        '200':
+          description: Robbery result
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/action/steal:
+    post:
+      tags: [Actions]
+      summary: Steal cargo from a port (requires Outlaw alignment)
+      operationId: steal
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, commodity, quantity]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                commodity:
+                  type: string
+                  enum: [ore, organics, equipment, melange]
+                quantity: { type: integer }
+      responses:
+        '200':
+          description: Theft result
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/action/upgrade:
+    post:
+      tags: [Actions]
+      summary: Buy a ship upgrade at StarDock
+      operationId: upgrade
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, upgradeId]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                upgradeId: { type: string }
+      responses:
+        '200':
+          description: Upgrade purchased
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  upgradeId: { type: string }
+                  upgradeName: { type: string }
+                  remainingCredits: { type: integer }
+                  stats: { type: object }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/port/crime-status:
+    get:
+      tags: [Actions]
+      summary: Get crime limits and bust chance for current port
+      operationId: getCrimeStatus
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sectorId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Crime status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  canRob: { type: boolean }
+                  alignment: { type: integer }
+                  experience: { type: integer }
+                  robLimit: { type: integer }
+                  stealLimit: { type: integer }
+                  bustBaseChance: { type: number }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/insurance/buy:
+    post:
+      tags: [Insurance]
+      summary: Purchase Guild Protection Contract
+      operationId: buyInsurance
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+      responses:
+        '200':
+          description: Insurance purchased
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/insurance/status:
+    get:
+      tags: [Insurance]
+      summary: Check insurance status
+      operationId: getInsuranceStatus
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Insurance status
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/bounty/status:
+    get:
+      tags: [Bounty]
+      summary: Check own wanted status
+      operationId: getBountyStatus
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Wanted status
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/notifications/digest:
+    get:
+      tags: [News]
+      summary: Get "while you were away" digest
+      operationId: getDigest
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Activity digest
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/fighters/buy:
+    post:
+      tags: [Fighters]
+      summary: Buy fighters at StarDock
+      operationId: buyFighters
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, quantity]
+              properties:
+                galaxyId: { type: integer }
+                quantity: { type: integer }
+      responses:
+        '200':
+          description: Fighters purchased
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/fighters/deploy:
+    post:
+      tags: [Fighters]
+      summary: Deploy fighters to a sector
+      operationId: deployFighters
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, quantity, mode]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                quantity: { type: integer }
+                mode:
+                  type: string
+                  enum: [defensive, offensive, tolled]
+      responses:
+        '200':
+          description: Fighters deployed
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/fighters/sector:
+    get:
+      tags: [Fighters]
+      summary: List fighters in a sector
+      operationId: getSectorFighters
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sectorId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Fighter groups in sector
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/fighters/recall:
+    post:
+      tags: [Fighters]
+      summary: Recall deployed fighters
+      operationId: recallFighters
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                quantity: { type: integer }
+      responses:
+        '200':
+          description: Fighters recalled
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/fighters/encounter/resolve:
+    post:
+      tags: [Fighters]
+      summary: Resolve a fighter encounter (attack, retreat, surrender, pay toll)
+      operationId: resolveEncounter
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, targetSectorId, action]
+              properties:
+                galaxyId: { type: integer }
+                targetSectorId: { type: integer }
+                action:
+                  type: string
+                  enum: [attack, retreat, surrender, pay_toll]
+      responses:
+        '200':
+          description: Encounter resolved with move result
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/planets/create:
+    post:
+      tags: [Planets]
+      summary: Create a planet with a Genesis Torpedo
+      operationId: createPlanet
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+      responses:
+        '200':
+          description: Planet created
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/planets/sector:
+    get:
+      tags: [Planets]
+      summary: List planets in a sector
+      operationId: getSectorPlanets
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sectorId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Planets in sector
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/planets/{id}:
+    get:
+      tags: [Planets]
+      summary: Get planet details
+      operationId: getPlanet
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Planet details
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/planets/colonize:
+    post:
+      tags: [Planets]
+      summary: Transport colonists to a planet
+      operationId: colonize
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, planetId, quantity]
+              properties:
+                galaxyId: { type: integer }
+                planetId: { type: integer }
+                quantity: { type: integer }
+      responses:
+        '200':
+          description: Colonists transported
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/planets/citadel/advance:
+    post:
+      tags: [Planets]
+      summary: Advance citadel to next level
+      operationId: advanceCitadel
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planetId]
+              properties:
+                planetId: { type: integer }
+      responses:
+        '200':
+          description: Citadel advanced
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/planets/qcannon:
+    post:
+      tags: [Planets]
+      summary: Configure Q-cannon defense percentages
+      operationId: configureQCannon
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planetId]
+              properties:
+                planetId: { type: integer }
+                sectPct: { type: integer, minimum: 0, maximum: 100 }
+                atmoPct: { type: integer, minimum: 0, maximum: 100 }
+      responses:
+        '200':
+          description: Q-cannon configured
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/planets/transport:
+    post:
+      tags: [Planets]
+      summary: Deposit or withdraw resources from a planet
+      operationId: planetTransport
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planetId, direction]
+              properties:
+                planetId: { type: integer }
+                direction:
+                  type: string
+                  enum: [deposit, withdraw]
+                fuel: { type: integer }
+                organics: { type: integer }
+                equipment: { type: integer }
+      responses:
+        '200':
+          description: Transport completed
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/planets/citadel-costs:
+    get:
+      tags: [Planets]
+      summary: Get citadel advancement costs
+      operationId: getCitadelCosts
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: planetId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Cost breakdown
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/mines/buy:
+    post:
+      tags: [Mines]
+      summary: Buy limpet or armid mines at StarDock
+      operationId: buyMines
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, type, quantity]
+              properties:
+                galaxyId: { type: integer }
+                type:
+                  type: string
+                  enum: [limpet, armid]
+                quantity: { type: integer }
+      responses:
+        '200':
+          description: Mines purchased
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/mines/deploy:
+    post:
+      tags: [Mines]
+      summary: Deploy mines to a sector
+      operationId: deployMines
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId, type, quantity]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+                type:
+                  type: string
+                  enum: [limpet, armid]
+                quantity: { type: integer }
+      responses:
+        '200':
+          description: Mines deployed
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/mines/sector:
+    get:
+      tags: [Mines]
+      summary: List mines in a sector
+      operationId: getSectorMines
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: galaxyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sectorId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Mines in sector
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/mines/clear-limpets:
+    post:
+      tags: [Mines]
+      summary: Clear limpet mines from ship at StarDock
+      operationId: clearLimpets
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [galaxyId, sectorId]
+              properties:
+                galaxyId: { type: integer }
+                sectorId: { type: integer }
+      responses:
+        '200':
+          description: Limpets cleared
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ActionBudgetExceeded' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/npc/tick:
+    post:
+      tags: [NPC]
+      summary: Trigger NPC tick (admin only)
+      operationId: npcTick
+      security: [ { adminSecret: [] } ]
+      responses:
+        '200':
+          description: NPC tick completed
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/npc/llm-health:
+    get:
+      tags: [NPC]
+      summary: Check NPC LLM service health (admin)
+      operationId: npcllmHealth
+      security: [ { adminSecret: [] } ]
+      responses:
+        '200':
+          description: LLM health status
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [NPC]
+      summary: Test NPC LLM service (admin)
+      operationId: npcllmHealthPost
+      security: [ { adminSecret: [] } ]
+      responses:
+        '200':
+          description: LLM test result
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/npc/model-benchmark:
+    get:
+      tags: [NPC]
+      summary: Run NPC model benchmark (admin)
+      operationId: npcModelBenchmark
+      security: [ { adminSecret: [] } ]
+      responses:
+        '200':
+          description: Benchmark results
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      tags: [NPC]
+      summary: Run NPC model benchmark (admin)
+      operationId: npcModelBenchmarkPost
+      security: [ { adminSecret: [] } ]
+      responses:
+        '200':
+          description: Benchmark results
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token from `/api/auth/verify`
+    adminSecret:
+      type: apiKey
+      in: header
+      name: X-Admin-Secret
+      description: Admin secret key
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: Unauthorized }
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds until retry is allowed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: 'Rate limit exceeded. Retry in 45s.' }
+    ActionBudgetExceeded:
+      description: Insufficient action points
+      headers:
+        X-ActionPoints-Remaining:
+          schema: { type: integer }
+        X-ActionPoints-NextRefill:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: 'Insufficient action points. Refills in 5 minutes.' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: 'Not found' }

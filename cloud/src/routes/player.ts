@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
-import { json, jsonError } from '../utils/cors.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 import {
   baseEntryOperations,
   getEntryEncounter,
@@ -131,6 +132,9 @@ export async function handlePayTaxes(
   if (!galaxyId || amount <= 0) return jsonError('galaxyId and positive amount required');
   if (amount < 1500) return jsonError('Minimum CHOAM tariff payment is 1,500 credits');
 
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'pay-taxes');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   const ship = await db
     .prepare('SELECT credits, current_sector FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
@@ -188,6 +192,9 @@ export async function handleRequestCommission(
   const galaxyId = body.galaxyId;
   if (!galaxyId) return jsonError('galaxyId required');
 
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'commission');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   const ship = await db
     .prepare('SELECT current_sector, alignment, commissioned FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
@@ -242,6 +249,18 @@ export async function handleCreateShip(
   const classId = body.classId ?? 'merchant';
 
   if (!galaxyId || !shipName) return jsonError('galaxyId and shipName required');
+
+  // Require email verification before creating a ship
+  const player = await db
+    .prepare('SELECT email_verified FROM players WHERE id = ?')
+    .bind(auth.playerId)
+    .first<{ email_verified: number }>();
+  if (!player || player.email_verified !== 1) {
+    return jsonError('Email verification required. Please verify your email before creating a ship.', 403);
+  }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'create-ship');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Check if galaxy exists
   const galaxy = await db
@@ -324,6 +343,9 @@ export async function handleMoveShip(
   if (galaxyId === undefined || sectorId === undefined) {
     return jsonError('galaxyId and sectorId required');
   }
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'move');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Verify sector exists and is connected
   const ship = await db

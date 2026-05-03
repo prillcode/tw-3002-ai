@@ -3,7 +3,8 @@
  * TW-14: Planets & Citadels
  */
 import type { D1Database } from '@cloudflare/workers-types';
-import { json, jsonError } from '../utils/cors.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 import { verifyToken, type AuthContext } from '../utils/auth.js';
 import { applyAlignmentAndExperience } from '../utils/alignment.js';
 import { resolveDefeat } from './combat.js';
@@ -170,6 +171,9 @@ export async function handleCreatePlanet(auth: AuthContext, request: Request, db
 
   const { galaxyId, sectorId } = body;
   if (!galaxyId || !sectorId) return jsonError('galaxyId and sectorId required');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'planet-create');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Get player's ship
   const ship = await db
@@ -339,6 +343,9 @@ export async function handleColonize(auth: AuthContext, request: Request, db: D1
   const { galaxyId, planetId, quantity } = body;
   if (!galaxyId || !planetId || !quantity) return jsonError('galaxyId, planetId, and quantity required');
   if (quantity <= 0) return jsonError('Quantity must be positive');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'planet-colonize');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Get planet
   const planet = await db
@@ -623,6 +630,10 @@ export async function handleAdvanceCitadel(auth: AuthContext, request: Request, 
 
   if (!planet) return jsonError('Planet not found', 404);
   if (planet.owner_id !== auth.playerId) return jsonError('Not your planet', 403);
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, planet.galaxy_id, 'citadel-advance');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
+
   if (planet.citadel_level >= 6) return jsonError('Citadel already at maximum level', 403);
 
   const costs = CITADEL_COSTS[planet.class];
@@ -692,10 +703,13 @@ export async function handleConfigureQCannon(auth: AuthContext, request: Request
   const planet = await db
     .prepare('SELECT id, owner_id, citadel_level FROM planets WHERE id = ?')
     .bind(planetId)
-    .first<{ id: number; owner_id: number; citadel_level: number }>();
+    .first<{ id: number; owner_id: number; galaxy_id: number; citadel_level: number }>();
 
   if (!planet) return jsonError('Planet not found', 404);
   if (planet.owner_id !== auth.playerId) return jsonError('Not your planet', 403);
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, planet.galaxy_id, 'qcannon');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   const updates: string[] = [];
   const values: number[] = [];
@@ -753,11 +767,14 @@ export async function handlePlanetTransport(auth: AuthContext, request: Request,
     .prepare('SELECT * FROM planets WHERE id = ?')
     .bind(planetId)
     .first<{
-      id: number; owner_id: number; fuel: number; organics: number; equipment: number;
+      id: number; owner_id: number; galaxy_id: number; fuel: number; organics: number; equipment: number;
     }>();
 
   if (!planet) return jsonError('Planet not found', 404);
   if (planet.owner_id !== auth.playerId) return jsonError('Not your planet', 403);
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, planet.galaxy_id, 'planet-transport');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Get player's ship cargo
   const ship = await db

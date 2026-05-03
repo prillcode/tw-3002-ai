@@ -1,0 +1,128 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import TerminalHeader from '../../components/TerminalHeader.vue';
+---
+
+<Layout title="API Documentation — TW 3002 AI">
+  <TerminalHeader client:load />
+
+  <main class="max-w-6xl mx-auto px-4 py-12">
+    <!-- Hero -->
+    <section class="text-center mb-16">
+      <div class="inline-block mb-4 px-4 py-1 rounded-full border border-terminal-cyan/30 bg-terminal-cyan/5 text-terminal-cyan text-xs font-mono">
+        API v0.6.0
+      </div>
+      <h1 class="text-4xl md:text-5xl font-mono font-bold mb-4">
+        <span class="text-terminal-cyan">TW 3002 AI</span> API
+      </h1>
+      <p class="text-xl text-terminal-muted max-w-2xl mx-auto leading-relaxed">
+        Build tools, dashboards, and bots for the galaxy. The API is public because
+        the game is played through it.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mt-8">
+        <a href="/api/reference" class="btn-primary text-lg">
+          Browse API Reference →
+        </a>
+        <a href="/api/getting-started" class="btn-secondary text-lg">
+          Getting Started
+        </a>
+      </div>
+    </section>
+
+    <!-- Cards -->
+    <section class="grid md:grid-cols-3 gap-6 mb-16">
+      <a href="/api/getting-started" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">🚀</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">Getting Started</h3>
+        <p class="text-terminal-muted text-sm">Your first API request, response format, and rate limits explained.</p>
+      </a>
+      <a href="/api/authentication" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">🔐</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">Authentication</h3>
+        <p class="text-terminal-muted text-sm">Register with email, verify, and use bearer tokens.</p>
+      </a>
+      <a href="/api/reference" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">📚</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">Endpoint Reference</h3>
+        <p class="text-terminal-muted text-sm">Interactive Scalar UI with all 42 endpoints, schemas, and try-it-out.</p>
+      </a>
+      <a href="/api/fair-play" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">⚖️</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">Fair Play</h3>
+        <p class="text-terminal-muted text-sm">What's encouraged, what's not, and why limits exist.</p>
+      </a>
+      <a href="/api/terms" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">📜</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">Terms of Service</h3>
+        <p class="text-terminal-muted text-sm">The legal stuff. As-is service, 13+, data may be deleted.</p>
+      </a>
+      <a href="/api/tutorials/stats-dashboard" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">📊</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">Stats Dashboard Tutorial</h3>
+        <p class="text-terminal-muted text-sm">Build a read-only HTML dashboard showing ship stats and news.</p>
+      </a>
+      <a href="/api/tutorials/news-bot" class="terminal-border p-6 hover:border-terminal-cyan/50 transition-colors">
+        <div class="text-2xl mb-3">🤖</div>
+        <h3 class="font-mono font-bold text-terminal-cyan mb-2">News Bot Tutorial</h3>
+        <p class="text-terminal-muted text-sm">Build a Discord webhook that posts galaxy news every 5 minutes.</p>
+      </a>
+    </section>
+
+    <!-- Base URL -->
+    <section class="terminal-border p-6 mb-12">
+      <h2 class="font-mono font-bold text-lg mb-4">Base URL</h2>
+      <code class="block bg-void-900 rounded p-4 font-mono text-terminal-cyan">https://api.playtradewars.net</code>
+      <p class="text-terminal-muted text-sm mt-3">
+        All endpoints are relative to this base URL. The API is versioned implicitly —
+        check the <code class="text-terminal-cyan">/health</code> endpoint for the current version.
+      </p>
+    </section>
+
+    <!-- Rate limits at a glance -->
+    <section class="terminal-border p-6">
+      <h2 class="font-mono font-bold text-lg mb-4">Rate Limits at a Glance</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-void-700 text-terminal-muted font-mono text-left">
+              <th class="pb-3 pr-4">Category</th>
+              <th class="pb-3 pr-4">Limit</th>
+              <th class="pb-3">Key</th>
+            </tr>
+          </thead>
+          <tbody class="text-terminal-white">
+            <tr class="border-b border-void-700/50">
+              <td class="py-3 pr-4">Auth (register/verify)</td>
+              <td class="py-3 pr-4 font-mono text-terminal-cyan">5/min</td>
+              <td class="py-3">IP address</td>
+            </tr>
+            <tr class="border-b border-void-700/50">
+              <td class="py-3 pr-4">Gameplay (all POST actions)</td>
+              <td class="py-3 pr-4 font-mono text-terminal-cyan">10/min</td>
+              <td class="py-3">Player ID</td>
+            </tr>
+            <tr class="border-b border-void-700/50">
+              <td class="py-3 pr-4">Reads (auth-gated GET)</td>
+              <td class="py-3 pr-4 font-mono text-terminal-cyan">60/min</td>
+              <td class="py-3">Player ID</td>
+            </tr>
+            <tr class="border-b border-void-700/50">
+              <td class="py-3 pr-4">Public reads</td>
+              <td class="py-3 pr-4 font-mono text-terminal-cyan">60/min</td>
+              <td class="py-3">IP address</td>
+            </tr>
+            <tr>
+              <td class="py-3 pr-4">Admin</td>
+              <td class="py-3 pr-4 font-mono text-terminal-cyan">10/min</td>
+              <td class="py-3">IP + secret</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-terminal-muted text-sm mt-4">
+        Every response includes <code class="text-terminal-cyan">X-RateLimit-*</code> headers.
+        Exceeding a limit returns <strong class="text-terminal-red">429</strong> with a <code class="text-terminal-cyan">Retry-After</code> header.
+      </p>
+    </section>
+  </main>
+</Layout>

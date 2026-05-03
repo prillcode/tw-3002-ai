@@ -3,9 +3,10 @@
  * Cloudflare Worker serving REST endpoints for shared galaxy state.
  */
 
-import { corsHeaders, json, jsonError, applyCors } from './utils/cors.js';
+import { corsHeaders, json, jsonError, applyCors, rateLimitedResponse, addRateLimitHeaders } from './utils/cors.js';
 import { verifyToken, type AuthContext } from './utils/auth.js';
-import { handleRegister, handleVerify } from './routes/auth.js';
+import { checkRateLimit, getClientIP } from './utils/rateLimit.js';
+import { handleRegister, handleVerify, handleVerifyEmail } from './routes/auth.js';
 import { handleListGalaxies, handleGetGalaxy, handleGetSectors, handleGetSector } from './routes/galaxy.js';
 import {
   handleGetPlayer,
@@ -59,6 +60,20 @@ export interface Env {
   NPC_MODEL?: string;
   NPC_QUOTE_MODEL?: string;
   NPC_LLM_ENABLED?: string;
+  RESEND_API_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
+}
+
+// ─── Rate limit helpers ─────────────────────────────────────
+
+/** Wrap an auth-gated gameplay handler with rate limiting (10/min per playerId). */
+async function withGameplayRateLimit(
+  playerId: number,
+  handler: () => Promise<Response>,
+): Promise<Response> {
+  const rl = checkRateLimit(`gameplay:${playerId}`, 10);
+  if (!rl.allowed) return rateLimitedResponse(rl);
+  return addRateLimitHeaders(await handler(), rl);
 }
 
 export default {
@@ -72,195 +87,262 @@ export default {
       return applyCors(new Response(null, { status: 204, headers: corsHeaders }), request);
     }
 
+    const ip = getClientIP(request);
+
     let response: Response;
     try {
-      // Health check (no auth)
+      // ─── Public routes (no auth) ──────────────────────────
+
+      // Health check
       if (path === '/health') {
-        response = json({ status: 'ok', version: '0.5.5' });
+        const rl = checkRateLimit(`public:${ip}`, 60);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(json({ status: 'ok', version: '0.6.0' }), rl); }
       }
 
-      // Auth routes (no auth required)
+      // Auth routes (rate-limited by IP)
       else if (path === '/api/auth/register') {
-        response = await handleRegister(request, env.DB);
+        const rl = checkRateLimit(`auth:${ip}`, 5);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleRegister(request, env), rl); }
       }
       else if (path === '/api/auth/verify') {
-        response = await handleVerify(request, env.DB);
+        const rl = checkRateLimit(`auth:${ip}`, 5);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleVerify(request, env.DB), rl); }
+      }
+      else if (path === '/api/auth/verify-email') {
+        const rl = checkRateLimit(`auth:${ip}`, 5);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleVerifyEmail(request, env.DB), rl); }
       }
 
-      // Galaxy routes (no auth required for read)
+      // Galaxy routes (public reads)
       else if (path === '/api/galaxy' && method === 'GET') {
-        response = await handleListGalaxies(env.DB);
+        const rl = checkRateLimit(`public:${ip}`, 60);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleListGalaxies(env.DB), rl); }
       }
       else if (path.startsWith('/api/galaxy/')) {
-        const parts = path.split('/');
-        const galaxyId = parts[3];
-
-        if (parts[4] === 'sectors' && method === 'GET') {
-          response = await handleGetSectors(galaxyId, env.DB);
-        }
-        else if (parts[4] === 'sector' && method === 'GET') {
-          response = await handleGetSector(galaxyId, url.searchParams.get('id'), env.DB);
-        }
-        else if (parts.length === 4 && method === 'GET') {
-          response = await handleGetGalaxy(galaxyId, env.DB);
-        }
+        const rl = checkRateLimit(`public:${ip}`, 60);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
         else {
-          response = jsonError('Not found', 404);
+          const parts = path.split('/');
+          const galaxyId = parts[3];
+
+          if (parts[4] === 'sectors' && method === 'GET') {
+            response = addRateLimitHeaders(await handleGetSectors(galaxyId, env.DB), rl);
+          }
+          else if (parts[4] === 'sector' && method === 'GET') {
+            response = addRateLimitHeaders(await handleGetSector(galaxyId, url.searchParams.get('id'), env.DB), rl);
+          }
+          else if (parts.length === 4 && method === 'GET') {
+            response = addRateLimitHeaders(await handleGetGalaxy(galaxyId, env.DB), rl);
+          }
+          else {
+            response = jsonError('Not found', 404);
+          }
         }
       }
 
-      // Leaderboard (no auth)
+      // Leaderboard (public)
       else if (path === '/api/leaderboard' && method === 'GET') {
-        response = await handleLeaderboard(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), url.searchParams.get('sort'), env.DB);
+        const rl = checkRateLimit(`public:${ip}`, 60);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleLeaderboard(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), url.searchParams.get('sort'), env.DB), rl); }
       }
 
-      // News (read is public, write is auth-gated)
+      // News GET (public read)
       else if (path === '/api/news' && method === 'GET') {
-        response = await handleGetNews(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB);
+        const rl = checkRateLimit(`public:${ip}`, 60);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleGetNews(url.searchParams.get('galaxyId'), url.searchParams.get('limit'), env.DB), rl); }
       }
+
+      // Bounty board (public read)
+      else if (path === '/api/bounty/board' && method === 'GET') {
+        const rl = checkRateLimit(`public:${ip}`, 60);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleBountyBoard(url.searchParams.get('galaxyId'), env.DB), rl); }
+      }
+
+      // Admin/NPC routes
       else if (path === '/api/npc/llm-health' && (method === 'GET' || method === 'POST')) {
-        response = await handleNPCLLMHealth(request, env.ADMIN_SECRET, {
+        const rl = checkRateLimit(`admin:${ip}`, 10);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleNPCLLMHealth(request, env.ADMIN_SECRET, {
           ai: env.AI,
           model: env.NPC_MODEL,
           quoteModel: env.NPC_QUOTE_MODEL,
           enabled: env.NPC_LLM_ENABLED === 'true',
-        });
+        }), rl); }
       }
       else if (path === '/api/npc/model-benchmark' && (method === 'GET' || method === 'POST')) {
-        response = await handleNPCModelBenchmark(request, env.ADMIN_SECRET, {
+        const rl = checkRateLimit(`admin:${ip}`, 10);
+        if (!rl.allowed) { response = rateLimitedResponse(rl); }
+        else { response = addRateLimitHeaders(await handleNPCModelBenchmark(request, env.ADMIN_SECRET, {
           ai: env.AI,
           model: env.NPC_MODEL,
           quoteModel: env.NPC_QUOTE_MODEL,
           enabled: env.NPC_LLM_ENABLED === 'true',
-        });
+        }), rl); }
       }
 
-      // Everything below requires authentication
+      // ─── Authenticated routes ────────────────────────────
       else {
         const auth = await verifyToken(env.DB, request.headers.get('Authorization'));
         if (!auth) {
           response = jsonError('Unauthorized', 401);
         }
+        // ── Auth-gated POSTs (gameplay: rate limit + action budget) ──
         else if (path === '/api/news' && method === 'POST') {
-          response = await handleAddNews(request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleAddNews(auth, request, env.DB));
         }
+        // ── Auth-gated GETs (reads) ──
         else if (path === '/api/player' && method === 'GET') {
-          response = await handleGetPlayer(auth, env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetPlayer(auth, env.DB), rl); }
         }
         else if (path === '/api/player/ship' && method === 'GET') {
-          response = await handleGetShip(auth, url.searchParams.get('galaxyId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetShip(auth, url.searchParams.get('galaxyId'), env.DB), rl); }
         }
         else if (path === '/api/player/ship' && method === 'POST') {
-          response = await handleCreateShip(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleCreateShip(auth, request, env.DB));
         }
         else if (path === '/api/player/ship/move' && method === 'POST') {
-          response = await handleMoveShip(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleMoveShip(auth, request, env.DB));
         }
         else if (path === '/api/player/alignment' && method === 'GET') {
-          response = await handleGetAlignment(auth, url.searchParams.get('galaxyId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetAlignment(auth, url.searchParams.get('galaxyId'), env.DB), rl); }
         }
         else if (path === '/api/player/pay-taxes' && method === 'POST') {
-          response = await handlePayTaxes(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handlePayTaxes(auth, request, env.DB));
         }
         else if (path === '/api/player/commission' && method === 'POST') {
-          response = await handleRequestCommission(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleRequestCommission(auth, request, env.DB));
         }
         else if (path === '/api/action/trade' && method === 'POST') {
-          response = await handleTrade(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleTrade(auth, request, env.DB));
         }
         else if (path === '/api/action/combat' && method === 'POST') {
-          response = await handleCombat(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleCombat(auth, request, env.DB));
         }
         else if (path === '/api/action/rob' && method === 'POST') {
-          response = await handleRob(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleRob(auth, request, env.DB));
         }
         else if (path === '/api/action/steal' && method === 'POST') {
-          response = await handleSteal(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleSteal(auth, request, env.DB));
         }
         else if (path === '/api/port/crime-status' && method === 'GET') {
-          response = await handleCrimeStatus(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleCrimeStatus(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB), rl); }
         }
         else if (path === '/api/action/upgrade' && method === 'POST') {
-          response = await handleUpgrade(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleUpgrade(auth, request, env.DB));
         }
         else if (path === '/api/player/stats' && method === 'GET') {
-          response = await handlePlayerStats(auth, url.searchParams.get('galaxyId'), env.DB);
-        }
-        else if (path === '/api/bounty/board' && method === 'GET') {
-          response = await handleBountyBoard(url.searchParams.get('galaxyId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handlePlayerStats(auth, url.searchParams.get('galaxyId'), env.DB), rl); }
         }
         else if (path === '/api/bounty/status' && method === 'GET') {
-          response = await handleBountyStatus(auth, env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleBountyStatus(auth, env.DB), rl); }
         }
         else if (path === '/api/notifications/digest' && method === 'GET') {
-          response = await handleDigest(auth, url.searchParams.get('galaxyId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleDigest(auth, url.searchParams.get('galaxyId'), env.DB), rl); }
         }
         else if (path === '/api/insurance/buy' && method === 'POST') {
-          response = await handleInsuranceBuy(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleInsuranceBuy(auth, request, env.DB));
         }
         else if (path === '/api/insurance/status' && method === 'GET') {
-          response = await handleInsuranceStatus(auth, url.searchParams.get('galaxyId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleInsuranceStatus(auth, url.searchParams.get('galaxyId'), env.DB), rl); }
         }
         else if (path === '/api/fighters/buy' && method === 'POST') {
-          response = await handleBuyFighters(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleBuyFighters(auth, request, env.DB));
         }
         else if (path === '/api/fighters/deploy' && method === 'POST') {
-          response = await handleDeployFighters(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleDeployFighters(auth, request, env.DB));
         }
         else if (path === '/api/fighters/sector' && method === 'GET') {
-          response = await handleGetSectorFighters(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetSectorFighters(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB), rl); }
         }
         else if (path === '/api/fighters/recall' && method === 'POST') {
-          response = await handleRecallFighters(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleRecallFighters(auth, request, env.DB));
         }
         else if (path === '/api/fighters/encounter/resolve' && method === 'POST') {
-          response = await handleResolveEncounter(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleResolveEncounter(auth, request, env.DB));
         }
         // Planet routes
         else if (path === '/api/planets/create' && method === 'POST') {
-          response = await handleCreatePlanet(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleCreatePlanet(auth, request, env.DB));
         }
         else if (path === '/api/planets/sector' && method === 'GET') {
-          response = await handleGetSectorPlanets(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetSectorPlanets(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB), rl); }
         }
         else if (path === '/api/planets/colonize' && method === 'POST') {
-          response = await handleColonize(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleColonize(auth, request, env.DB));
         }
         else if (path === '/api/planets/citadel/advance' && method === 'POST') {
-          response = await handleAdvanceCitadel(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleAdvanceCitadel(auth, request, env.DB));
         }
         else if (path === '/api/planets/qcannon' && method === 'POST') {
-          response = await handleConfigureQCannon(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleConfigureQCannon(auth, request, env.DB));
         }
         else if (path === '/api/planets/transport' && method === 'POST') {
-          response = await handlePlanetTransport(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handlePlanetTransport(auth, request, env.DB));
         }
         else if (path === '/api/planets/citadel-costs' && method === 'GET') {
-          response = await handleGetCitadelCosts(auth, url.searchParams.get('planetId') ?? '', env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetCitadelCosts(auth, url.searchParams.get('planetId') ?? '', env.DB), rl); }
         }
         else if (path.startsWith('/api/planets/') && method === 'GET') {
-          const planetId = path.split('/').pop()!;
-          response = await handleGetPlanet(auth, planetId, env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else {
+            const planetId = path.split('/').pop()!;
+            response = addRateLimitHeaders(await handleGetPlanet(auth, planetId, env.DB), rl);
+          }
         }
         else if (path === '/api/mines/buy' && method === 'POST') {
-          response = await handleBuyMines(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleBuyMines(auth, request, env.DB));
         }
         else if (path === '/api/mines/deploy' && method === 'POST') {
-          response = await handleDeployMines(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleDeployMines(auth, request, env.DB));
         }
         else if (path === '/api/mines/sector' && method === 'GET') {
-          response = await handleGetSectorMines(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB);
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetSectorMines(auth, url.searchParams.get('galaxyId'), url.searchParams.get('sectorId'), env.DB), rl); }
         }
         else if (path === '/api/mines/clear-limpets' && method === 'POST') {
-          response = await handleClearLimpets(auth, request, env.DB);
+          response = await withGameplayRateLimit(auth.playerId, () => handleClearLimpets(auth, request, env.DB));
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
-          response = await handleNPCTick(request, env.DB, env.ADMIN_SECRET, {
+          const rl = checkRateLimit(`admin:${ip}`, 10);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleNPCTick(request, env.DB, env.ADMIN_SECRET, {
             ai: env.AI,
             model: env.NPC_MODEL,
             quoteModel: env.NPC_QUOTE_MODEL,
             enabled: env.NPC_LLM_ENABLED === 'true',
-          });
+          }), rl); }
         }
         else {
           response = jsonError('Not found', 404);

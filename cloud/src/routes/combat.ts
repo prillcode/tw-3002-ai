@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
-import { json, jsonError } from '../utils/cors.js';
+import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
+import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
 import { applyAlignmentAndExperience, getFactionStanding, getRankInfo } from '../utils/alignment.js';
 
 // ─── Constants ───────────────────────────────────────────
@@ -420,6 +421,9 @@ export async function handleInsuranceBuy(
 
   const { galaxyId, sectorId } = body;
   if (!galaxyId || sectorId === undefined) return jsonError('galaxyId and sectorId required');
+
+  const budget = await checkAndDeductActionPoints(db, auth.playerId, galaxyId, 'insurance-buy');
+  if (!budget.allowed) return actionBudgetExceededResponse(budget);
 
   // Verify stardock
   const sector = await db
