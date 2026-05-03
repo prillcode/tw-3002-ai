@@ -74,16 +74,12 @@ Repo: https://github.com/prillcode/tw-3002-ai
 ## Currently Troubleshooting
 
 ### ✅ Fixed: Turnstile "Resend Code" Fails
-**Symptom:** First register works. Clicking "Resend code" fails with "Turnstile verification failed".
-**Root cause:** Turnstile tokens are single-use. After first `register()`, the token is consumed.
-**Fix:** Added `resetTurnstile()` helper that calls `window.turnstile.reset()` after each register/resend, clearing the consumed token and forcing the widget to re-render for a fresh token.
-**Status:** ✅ Deployed to game client.
+**Fix:** Added `resetTurnstile()` helper that calls `window.turnstile.reset()` after each register/resend.
+**Status:** ✅ Deployed.
 
-### In Progress: Resend Emails
-**Symptom:** Register with valid email → no email received.
-**Action taken:** `playtradewars.net` domain added to Resend dashboard, DNS records auto-configured in Cloudflare.
-**Sender changed:** `noreply@playtradewars.net` → `welcome@playtradewars.net` (deployed to Worker).
-**Status:** DNS propagating. Test and check spam folder. Resend dashboard should show delivery status.
+### ✅ Fixed: Resend Emails
+**Fix:** `playtradewars.net` domain verified in Resend, DNS auto-configured in Cloudflare. Sender set to `welcome@playtradewars.net`.
+**Status:** ✅ Confirmed working — OTP emails arrive and verification succeeds end-to-end.
 
 ---
 
@@ -110,11 +106,14 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ## Next Steps
 
-### Immediate (this session / next)
-1. **Test Resend email delivery** — verify OTP emails arrive at `prilldev@gmail.com`
-2. **Test full auth flow end-to-end**
-   - Register → receive OTP email → verify → create ship → enter galaxy
-3. **If emails still don't arrive:** Check Resend dashboard delivery logs, check spam, consider using Resend's default onboarding domain for testing
+### Immediate
+1. ✅ Test Resend email delivery — confirmed working
+2. ✅ Test full auth flow end-to-end — register → OTP → verify → ship → galaxy works
+
+### Next Session
+3. **TW-11 Phase 3** — Subscriber & Player Management (marketing consent, admin export, unsubscribe)
+4. **Invite real players** — auth system is production-ready
+5. **Monitor Resend deliverability** — bounce rates, spam complaints
 
 ### Short Term
 4. **TW-11 Phase 3** — Subscriber & Player Management
