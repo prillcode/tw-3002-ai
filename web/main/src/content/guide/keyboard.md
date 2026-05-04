@@ -1,10 +1,12 @@
 ---
 title: "Keyboard Reference"
-description: "All the keys you need to play"
+description: "Legacy CLI keyboard bindings"
 order: 5
 ---
 
 # Keyboard Reference
+
+> **Note:** This reference covers the **legacy CLI client**. The web client uses mouse interactions, on-screen buttons, and a subset of keyboard shortcuts (M, D, B, N, L, H, Esc). Most players use the [web client](https://portal.playtradewars.net).
 
 ## Global
 

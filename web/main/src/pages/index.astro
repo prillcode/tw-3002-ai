@@ -65,34 +65,39 @@ import TerminalHeader from '../components/TerminalHeader.vue';
       </div>
     </section>
 
-    <!-- Platforms -->
+    <!-- Play Now -->
     <section class="py-16 border-t border-void-700">
       <div class="text-center mb-12">
-        <h2 class="text-2xl font-mono font-bold mb-4">Play Your Way</h2>
-        <p class="text-terminal-muted">Terminal purist or browser captain — the galaxy is the same.</p>
+        <h2 class="text-2xl font-mono font-bold mb-4">Play in Your Browser</h2>
+        <p class="text-terminal-muted">No install. No setup. Just register and launch.</p>
       </div>
-      <div class="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-        <div class="terminal-border p-8 text-center">
-          <div class="text-4xl mb-4">💻</div>
-          <h3 class="font-mono font-bold text-lg mb-2">Terminal CLI</h3>
-          <p class="text-terminal-muted text-sm mb-6">
-            The authentic experience. Build from source or install via npm. Keyboard-driven, fast, and offline-capable.
+      <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+        <div class="terminal-border p-6 text-center">
+          <div class="text-3xl mb-4">📧</div>
+          <h3 class="font-mono font-bold text-lg mb-2">Register</h3>
+          <p class="text-terminal-muted text-sm">
+            Enter your email, verify with a 6-digit code. No passwords to forget.
           </p>
-          <code class="block bg-void-900 rounded p-3 text-xs font-mono text-terminal-cyan mb-4">
-            npm install -g tw3002-ai<br/>tw3002
-          </code>
-          <a href="/guide/local-cli-gameplay" class="text-terminal-cyan text-sm font-mono hover:underline">CLI Setup Guide →</a>
         </div>
-        <div class="terminal-border p-8 text-center terminal-glow">
-          <div class="text-4xl mb-4">🌐</div>
-          <h3 class="font-mono font-bold text-lg mb-2 text-terminal-cyan">Web Client</h3>
-          <p class="text-terminal-muted text-sm mb-6">
-            Play in your browser. Same shared galaxy, no installation. Cloud saves, leaderboards, and cross-device play.
+        <div class="terminal-border p-6 text-center">
+          <div class="text-3xl mb-4">🚀</div>
+          <h3 class="font-mono font-bold text-lg mb-2">Launch</h3>
+          <p class="text-terminal-muted text-sm">
+            Pick a ship class, name your vessel, and enter the galaxy at Sector 0.
           </p>
-          <a href="https://portal.playtradewars.net" class="btn-primary inline-block">
-            Play in Browser →
-          </a>
         </div>
+        <div class="terminal-border p-6 text-center terminal-glow">
+          <div class="text-3xl mb-4">🌌</div>
+          <h3 class="font-mono font-bold text-lg mb-2 text-terminal-cyan">Explore</h3>
+          <p class="text-terminal-muted text-sm">
+            Trade, fight, claim planets, chase bounties. Your progress is saved to the cloud.
+          </p>
+        </div>
+      </div>
+      <div class="text-center mt-10">
+        <a href="https://portal.playtradewars.net" class="btn-primary text-lg inline-block">
+          Launch Web Client →
+        </a>
       </div>
     </section>
 

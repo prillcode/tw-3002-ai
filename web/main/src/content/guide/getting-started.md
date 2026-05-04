@@ -1,6 +1,6 @@
 ---
 title: "Getting Started"
-description: "Install and launch TW 3002 AI"
+description: "Launch TW 3002 AI in your browser"
 order: 1
 ---
 
@@ -8,67 +8,39 @@ order: 1
 
 *A spiritual successor to Trade Wars 2002. Explore. Trade. Fight. Survive.*
 
-## Installation
-
-### Web Client (Recommended)
+## Launch the Game
 
 The fastest way to play — no installation required.
 
 [→ Launch Web Client](https://portal.playtradewars.net)
-
-### Terminal CLI
-
-```bash
-# Install globally via npm
-npm install -g tw3002-ai
-
-# Run the game
-tw3002
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/prillcode/tw-3002-ai.git
-cd tw-3002-ai/cli
-bun install
-bun run build
-./tw3002
-```
-
-> **Tip:** The binary is self-contained (~100MB). You can copy `tw3002` anywhere and run it.
 
 ## System Requirements
 
 | Platform | Requirement |
 |----------|-------------|
 | **Web** | Modern browser (Chrome, Firefox, Safari, Edge) |
-| **CLI** | Linux, macOS, or WSL on Windows |
-| **Display** | Terminal 80×24 minimum (100+ cols recommended) |
 
 ## Your First Game
 
-When you launch the game, you'll see the **Welcome Screen**.
+### 1. Register
 
-### 1. Choose New Game
+Enter your email address and complete the CAPTCHA. A verification code will be sent to your inbox.
 
-### 2. Pick a Save Slot
+> **Note:** We use email for account recovery and game notifications. No passwords — just a secure bearer token.
 
-Three slots: **Galaxy A**, **Galaxy B**, **Galaxy C**. Each is an independent universe.
+### 2. Verify Your Email
 
-### 3. Choose Galaxy Size
+Check your email for a 6-digit code. Enter it to verify your account.
 
-| Size | Sectors | Best For |
-|------|---------|----------|
-| Small | 100 | Quick sessions, tight trading routes |
-| Medium | 500 | More exploration, longer trade loops |
-| Large | 1,000 | Deep space, epic exploration |
+> **Tip:** Verification prevents spam and keeps the galaxy clean. You'll need a verified email before creating a ship.
 
-### 4. Name Your Ship
+### 3. Name Your Ship
 
-Type a name and press **Enter**.
+Pick a callsign. Something intimidating. Something that strikes fear into pirates.
 
-### 5. Choose a Ship Class
+> **Pro tip:** You can only have one ship per galaxy, so choose wisely.
+
+### 4. Choose a Ship Class
 
 | Class | Strength | Weakness | Best For |
 |-------|----------|----------|----------|
@@ -77,3 +49,35 @@ Type a name and press **Enter**.
 | **Interceptor** | Tough hull (120) | Small cargo (70) | Combat, fighting pirates |
 
 > **Beginner tip:** Start with a **Merchant Vessel**. Trading is the safest way to build wealth.
+
+### 5. Enter the Galaxy
+
+You're dropped in **Sector 0**, the heart of FedSpace. From here:
+
+- **Trade** at nearby ports to build credits
+- **Explore** connected sectors to find better deals
+- **Fight** NPC pirates for loot and experience
+- **Claim planets** in deep space for passive income
+- **Check your daily bounties** with the **B** key
+
+### Quick Controls
+
+| Key | Action |
+|-----|--------|
+| **↑ / ↓** | Select warp destination |
+| **Enter** | Jump to selected sector |
+| **M** | Open Market (if port present) |
+| **D** | Dock at StarDock (if present) |
+| **B** | Daily Bounties |
+| **N** | Navigation Log |
+| **L** | Leaderboard |
+| **H** | Help |
+| **Esc** | Back / Close |
+
+> **Daily Bounties** (press **B**) give you 3 rotating missions every day. Complete them for credit rewards.
+
+## What's Next?
+
+- **[Trading Guide](/guide/trading)** — Master the economy
+- **[Combat Guide](/guide/combat)** — Survive encounters
+- **[StarDock & Upgrades](/guide/stardock)** — Build your dream ship
