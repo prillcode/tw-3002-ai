@@ -197,6 +197,14 @@ npx wrangler d1 execute tw3002-galaxy --remote \
 
 **CLI source code preserved** in `cli/` directory for historical reference and potential future revival.
 
+**Remaining CLI cleanup for future sessions:**
+- `README.md` ✅ Updated (just done)
+- `GAME_GUIDE.md` (root) — Still CLI-centric, lists cloud multiplayer as "coming soon". Consider adding a deprecation banner at top, or redirecting to `playtradewars.net/guide`
+- `cli/README.md` — Fine to leave as-is (it's the CLI's own docs)
+- `GAMEPLAY_SCREENSHOTS.md` — CLI screenshots, fine as historical record
+- Root `package.json` — if `tw3002-ai` npm package is published, consider adding deprecation notice
+- `TerminalHeader.vue` component name — harmless, but references "terminal age" branding. Could rename to `SiteHeader.vue` if desired (cosmetic only)
+
 ---
 
 ## Planet Seeding
