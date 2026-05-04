@@ -184,6 +184,21 @@ npx wrangler d1 execute tw3002-galaxy --remote \
 
 ---
 
+## CLI Deprecation
+
+**2026-05-03:** CLI client deprecated from public-facing docs and website.
+
+**Reason:** Web client is the canonical, feature-rich experience. CLI lacks email verification, daily missions, leaderboards, planets, fighters, mines, alignment system, and more. Advertising it as a first-class option confuses new players.
+
+**Changes made:**
+- `web/main/src/content/guide/getting-started.md` — Rewritten web-first (register → verify email → name ship → choose class)
+- `web/main/src/pages/index.astro` — Replaced "Play Your Way" dual-platform section with web-focused flow
+- `web/main/src/content/guide/keyboard.md` — Added deprecation note (legacy CLI reference)
+
+**CLI source code preserved** in `cli/` directory for historical reference and potential future revival.
+
+---
+
 ## Planet Seeding
 
 **2026-05-03:** Seeded 10 unclaimed starter planets into production galaxy (The Void — 1000 sectors):
