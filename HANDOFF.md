@@ -184,6 +184,27 @@ npx wrangler d1 execute tw3002-galaxy --remote \
 
 ---
 
+## Planet Seeding
+
+**2026-05-03:** Seeded 10 unclaimed starter planets into production galaxy (The Void — 1000 sectors):
+
+| Sector | Planet | Class |
+|---|---|---|
+| 152 | Merak Colony | M (Earth Type) |
+| 165 | Altair Wastes | K (Desert) |
+| 233 | Mira Deep | O (Oceanic) |
+| 240 | Lyra Spire | L (Mountainous) |
+| 283 | Castor Frost | C (Glacial) |
+| 319 | Sirius Caldera | H (Volcanic) |
+| 396 | Mira Garden | M (Earth Type) |
+| 451 | Polaris Dunes | K (Desert) |
+| 545 | Castor Abyss | O (Oceanic) |
+| 767 | Antares Crag | L (Mountainous) |
+
+All unclaimed (`owner_id = 0`), zero colonists, citadel level 0. Documentation: `.planning/TW-14-planets-citadels/phases/PLANET-SEED.md`
+
+---
+
 ## How to Play Guide Gap Analysis
 
 **Existing guides** (`web/main/src/content/guide/`):
@@ -212,6 +233,93 @@ npx wrangler d1 execute tw3002-galaxy --remote \
 3. `guide/fighters-mines.md` — Fighter deployment modes, mines, blockades
 
 These cover the biggest "how do I...?" gaps a new player would face.
+
+---
+
+## Guide Writing Context (For Fresh Session)
+
+**Content collection:** `web/main/src/content/guide/` — Astro content collection `guide`
+**Frontmatter format:**
+```yaml
+---
+title: "Guide Title"
+description: "Short description"
+order: N
+---
+```
+**Order of existing guides:** Getting Started (1), Trading (2), Combat (3), StarDock (4), Keyboard (5)
+**Nav link:** `TerminalHeader.vue` links to `/guide/getting-started` — no changes needed for new guides
+**Rendering:** `web/main/src/pages/guide/[...slug].astro` renders all guides via `GuideLayout`
+**Build & deploy:** `cd web/main && bun run build && wrangler pages deploy dist --project-name tw-3002-ai`
+
+### Reference Files for Each Guide
+
+#### Daily Bounties Guide
+**Source of truth:** `cloud/src/utils/dailyMissions.ts`
+- 3 missions/day, UTC midnight reset
+- 5 types: kill_npcs, trade_credits, visit_sectors, claim_planet, pay_taxes
+- Difficulty: easy (40%), medium (35%), hard (25%)
+- Reroll cost: `max(500, floor(reward * 0.5))`
+- `B` key in game, claim button, progress bars
+- Reward range: 300cr (easy pay_taxes) to 5,000cr (hard kill_npcs)
+
+#### Planets & Colonization Guide
+**Source of truth:** `cloud/src/routes/planets.ts` (lines 1-140 for config)
+**Planet classes:**
+| Class | Name | Best For | Max Colonists |
+|---|---|---|---|
+| M | Earth Type | Balanced | 30,000 |
+| K | Desert | Fuel ore | 40,000 |
+| O | Oceanic | Organics | 200,000 |
+| L | Mountainous | Fighters | 40,000 |
+| C | Glacial | Low production | 100,000 |
+| H | Volcanic | Fuel farming | 100,000 |
+| U | Gas | No production | 3,000 |
+- Genesis Torpedo: 80,000cr, press `G` in sector view (dangerous sectors only, max 5 planets/sector)
+- Colonization: transport colonists from StarDock, costs fuel + credits
+- Citadel levels: advance at StarDock for defenses + Q-Cannon
+- Production tick: every 5 min (cron), resources accumulate based on colonists + class ratios
+- 10 seeded planets exist — see PLANET-SEED.md for locations
+
+#### Fighters & Mines Guide
+**Source of truth:** `cloud/src/routes/fighters.ts` and `cloud/src/routes/mines.ts`
+- **Fighter deployment modes:**
+  - Defensive: attack only if attacked
+  - Offensive: attack all entrants
+  - Tolled: attack unless toll paid
+- Buy at StarDock, deploy with `F` key, recall with `R` key
+- **Mines:**
+  - Limpets: stick to enemy ships, drain hull over time
+  - Armids: area denial, explode on entry
+  - Buy at StarDock, deploy with `1` (limpet) / `2` (armid) keys
+- Blockades: fighter + mine combinations create layered defenses
+- Insurance: 5% of net worth, 7 days, reduces death penalty from 25% to 5%
+
+#### Medium-Priority Guides (if time permits)
+
+**Alignment & Factions:**
+- Source: `cloud/src/utils/alignment.ts`
+- CHOAM (positive alignment): pay taxes, get commissioned at +1000
+- Fremen (neutral at 0): avoid unless you want trouble
+- Sardaukar (target positive players): hard to bribe, hard to flee
+- Alignment range: -1000 to +1000
+- Ranks: 22 military ranks from Private to Fleet Admiral (based on experience)
+
+**Navigation & Sectors:**
+- Safe sectors: FedSpace, no combat, CHOAM tariffs can be paid
+- Caution sectors: moderate danger
+- Dangerous sectors: 91.4% of galaxy, combat possible, planets can be created
+- StarDocks: 4 in galaxy, free repair/recharge, buy upgrades/fighters/mines
+- Connections: each sector connects to 2–6 neighbors
+- Port classes: 1, 2, 3 (different buy/sell specialties)
+
+#### Insurance Guide (low priority)
+- Source: `cloud/src/routes/combat.ts` (lines ~20-30 for constants)
+- Cost: 5% of net worth
+- Duration: 7 days
+- Death penalty without: lose 25% credits + all cargo
+- Death penalty with: lose 5% credits + all cargo
+- Buy at StarDock
 
 ---
 
