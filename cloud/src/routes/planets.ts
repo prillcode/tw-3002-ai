@@ -5,6 +5,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
 import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
+import { trackMissionProgress } from '../utils/dailyMissions.js';
 import { verifyToken, type AuthContext } from '../utils/auth.js';
 import { applyAlignmentAndExperience } from '../utils/alignment.js';
 import { resolveDefeat } from './combat.js';
@@ -400,6 +401,9 @@ export async function handleColonize(auth: AuthContext, request: Request, db: D1
     db.prepare('UPDATE player_ships SET credits = credits - ?, cargo_json = ? WHERE id = ?')
       .bind(creditCost, JSON.stringify(cargo), ship.id),
   ]);
+
+  // Track daily mission progress for colonizing planets
+  await trackMissionProgress(db, auth.playerId, galaxyId, 'claim_planet', 1);
 
   return json({
     success: true,

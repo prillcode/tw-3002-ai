@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
 import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
+import { trackMissionProgress } from '../utils/dailyMissions.js';
 import {
   baseEntryOperations,
   getEntryEncounter,
@@ -163,6 +164,9 @@ export async function handlePayTaxes(
     alignmentDelta: alignmentGained,
     experienceDelta: Math.floor(amount / 5000),
   });
+
+  // Track daily mission progress for paying taxes
+  await trackMissionProgress(db, auth.playerId, galaxyId, 'pay_taxes', 1);
 
   return json({
     success: true,
@@ -349,9 +353,9 @@ export async function handleMoveShip(
 
   // Verify sector exists and is connected
   const ship = await db
-    .prepare('SELECT current_sector, turns FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
+    .prepare('SELECT current_sector, turns, visited_sectors_json FROM player_ships WHERE player_id = ? AND galaxy_id = ?')
     .bind(auth.playerId, galaxyId)
-    .first<{ current_sector: number; turns: number }>();
+    .first<{ current_sector: number; turns: number; visited_sectors_json: string | null }>();
 
   if (!ship) return jsonError('Ship not found', 404);
   if (ship.turns <= 0) return jsonError('Out of turns', 403);
@@ -457,13 +461,25 @@ export async function handleMoveShip(
 
   operations.push({ step: 'fighters', status: 'skipped_no_hostiles' });
 
+  // Track visited sectors for daily missions
+  const visited: number[] = JSON.parse(ship.visited_sectors_json ?? '[]');
+  const isNewSector = !visited.includes(sectorId);
+  if (isNewSector) {
+    visited.push(sectorId);
+  }
+
   // Update position and decrement turns
   await db
     .prepare(
-      'UPDATE player_ships SET current_sector = ?, turns = turns - 1, shield = max_turns, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?'
+      'UPDATE player_ships SET current_sector = ?, turns = turns - 1, shield = max_turns, visited_sectors_json = ?, updated_at = datetime("now") WHERE player_id = ? AND galaxy_id = ?'
     )
-    .bind(sectorId, auth.playerId, galaxyId)
+    .bind(sectorId, JSON.stringify(visited), auth.playerId, galaxyId)
     .run();
+
+  // Track mission progress for visiting new sectors
+  if (isNewSector) {
+    await trackMissionProgress(db, auth.playerId, galaxyId, 'visit_sectors', 1);
+  }
 
   const shipCombat = await resolveShipToShipAfterEntry(db, auth.playerId, galaxyId, sectorId);
   operations.push(shipCombat.operation);

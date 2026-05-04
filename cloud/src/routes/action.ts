@@ -2,6 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { AuthContext } from '../utils/auth.js';
 import { json, jsonError, actionBudgetExceededResponse } from '../utils/cors.js';
 import { checkAndDeductActionPoints } from '../utils/actionBudget.js';
+import { trackMissionProgress } from '../utils/dailyMissions.js';
 import { UPGRADE_CATALOG, computeEffectiveStats } from '../upgrades.js';
 import { resolveDefeat } from './combat.js';
 import { applyAlignmentAndExperience } from '../utils/alignment.js';
@@ -190,6 +191,9 @@ export async function handleTrade(
     if (expGain > 0) {
       await applyAlignmentAndExperience(db, auth.playerId, galaxyId, { experienceDelta: expGain });
     }
+
+    // Track daily mission progress for trading
+    await trackMissionProgress(db, auth.playerId, galaxyId, 'trade_credits', revenue);
 
     return json({ success: true, action: 'sell', commodity, quantity, revenue, remainingCredits: ship.credits + revenue, experienceGained: expGain });
   }
@@ -532,6 +536,9 @@ export async function handleCombat(
       alignmentDelta,
       experienceDelta: xpDelta,
     });
+
+    // Track daily mission progress
+    await trackMissionProgress(db, auth.playerId, galaxyId, 'kill_npcs', 1);
   }
 
   // Generate narrative

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TW 3002 AI API
-  version: 0.6.0
+  version: 0.6.5
   description: |
     REST API for TW 3002 AI — a spiritual successor to Trade Wars 2002.
     All responses are JSON. Base URL: `https://api.playtradewars.net`.

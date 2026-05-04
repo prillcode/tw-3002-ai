@@ -15,6 +15,12 @@
 
     <!-- Game Screen -->
     <div v-else-if="currentSector && ship.ship" class="max-w-6xl mx-auto">
+      <!-- Mission completion toast -->
+      <div v-if="missionToast" class="fixed top-4 right-4 z-50">
+        <div class="terminal-panel px-4 py-2 border-terminal-green/50 bg-terminal-green/10 text-terminal-green font-mono text-sm animate-pulse">
+          {{ missionToast.message }}
+        </div>
+      </div>
       <!-- Top Bar -->
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
@@ -182,6 +188,12 @@
               class="w-full terminal-btn text-left"
             >
               🏆 Leaderboard [L]
+            </button>
+            <button
+              @click="ui.openModal('missions')"
+              class="w-full terminal-btn text-left"
+            >
+              📋 Daily Bounties [B]
             </button>
             <button
               @click="routeToNearestStarDock"
@@ -440,6 +452,7 @@
               <div><span class="text-terminal-cyan">D</span> <span class="text-terminal-muted">StarDock</span></div>
               <div><span class="text-terminal-cyan">N</span> <span class="text-terminal-muted">Navigation</span></div>
               <div><span class="text-terminal-cyan">L</span> <span class="text-terminal-muted">Leaderboard</span></div>
+              <div><span class="text-terminal-cyan">B</span> <span class="text-terminal-muted">Daily Bounties</span></div>
               <div><span class="text-terminal-cyan">K</span> <span class="text-terminal-muted">Nearest StarDock Route</span></div>
               <div><span class="text-terminal-cyan">F</span> <span class="text-terminal-muted">Deploy Fighters</span></div>
               <div><span class="text-terminal-cyan">R</span> <span class="text-terminal-muted">Recall Fighters</span></div>
@@ -469,6 +482,10 @@
           <div v-else-if="ui.activeModal === 'leaderboard'">
             <p class="text-terminal-muted font-mono text-sm">Coming soon — leaderboard data will appear here.</p>
           </div>
+          <!-- Missions Content -->
+          <div v-else-if="ui.activeModal === 'missions'">
+            <MissionPanel @close="ui.closeModal()" />
+          </div>
         </div>
       </div>
     </Teleport>
@@ -486,6 +503,7 @@ import WarpOverlay from '../components/WarpOverlay.vue';
 import DeployFightersModal from '../components/DeployFightersModal.vue';
 import FighterEncounterModal from '../components/FighterEncounterModal.vue';
 import PlanetModal from '../components/PlanetModal.vue';
+import MissionPanel from '../components/MissionPanel.vue';
 
 const router = useRouter();
 const galaxy = useGalaxyStore();
@@ -505,6 +523,8 @@ const sectorMines = ref<Array<{ ownerId: number; hostile: boolean; limpets?: num
 const showDeployModal = ref(false);
 const activeEncounter = ref<any | null>(null);
 const operationLog = ref<Array<{ step: string; status: string; details?: Record<string, unknown> }>>([]);
+const missionToast = ref<{ message: string; visible: boolean } | null>(null);
+const lastMissions = ref<Array<{ id: number; completed: boolean }>>([]);
 const sectorPlanets = ref<Array<{ id: number; className: string; colonists?: number; citadelLevel: number; isOwn: boolean }>>([]);
 const selectedPlanet = ref<any | null>(null);
 const creatingPlanet = ref(false);
@@ -675,6 +695,7 @@ async function handleJump() {
       await loadSectorData(ship.ship.currentSector);
     }
     selectedNeighbor.value = null;
+    await checkMissionProgress();
   } else if (result.status === 'encounter') {
     operationLog.value = result.encounter.operations ?? [];
     ship.message = 'Fighter encounter detected. Choose your response.';
@@ -696,6 +717,7 @@ async function handleEncounterResolved(data: any) {
     galaxy.visit(ship.ship.currentSector);
     await loadSectorData(ship.ship.currentSector);
   }
+  await checkMissionProgress();
 }
 
 function handleQuit() {
@@ -816,6 +838,43 @@ function handleKey(e: KeyboardEvent) {
   if (e.key === 'k' || e.key === 'K') routeToNearestStarDock();
   if (e.key === 'h' || e.key === 'H' || e.key === '?') ui.openModal('help');
   if (e.key === 'l' || e.key === 'L') router.push(`/galaxy/${galaxyId}/leaderboard`);
+  if (e.key === 'b' || e.key === 'B') ui.openModal('missions');
+}
+
+async function checkMissionProgress() {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.playtradewars.net'}/api/player/missions?galaxyId=${galaxyId}`, {
+      headers: auth.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+
+    const missions = data.missions ?? [];
+    const newlyCompleted = missions.find((m: any) => {
+      if (!m.completed) return false;
+      const old = lastMissions.value.find(om => om.id === m.id);
+      return !old || !old.completed;
+    });
+
+    if (newlyCompleted) {
+      const labels: Record<string, string> = {
+        kill_npcs: 'Hunt Pirates',
+        trade_credits: 'Trade Profits',
+        visit_sectors: 'Explore Sectors',
+        claim_planet: 'Colonize Planets',
+        pay_taxes: 'Pay CHOAM Tariffs',
+      };
+      missionToast.value = {
+        message: `🎉 Bounty complete: ${labels[newlyCompleted.type] || newlyCompleted.type}!`,
+        visible: true,
+      };
+      setTimeout(() => { missionToast.value = null; }, 4000);
+    }
+
+    lastMissions.value = missions.map((m: any) => ({ id: m.id, completed: m.completed }));
+  } catch {
+    // silently fail
+  }
 }
 
 async function loadFighters(sectorId: number) {
@@ -926,6 +985,7 @@ onMounted(async () => {
     galaxy.visit(ship.ship.currentSector);
     await loadSectorData(ship.ship.currentSector);
   }
+  await checkMissionProgress();
   window.addEventListener('keydown', handleKey);
 });
 

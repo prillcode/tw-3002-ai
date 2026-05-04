@@ -52,6 +52,7 @@ import {
   handleGetSectorMines,
   handleClearLimpets,
 } from './routes/mines.js';
+import { handleGetMissions, handleClaimMission, handleRerollMission } from './routes/missions.js';
 
 export interface Env {
   DB: D1Database;
@@ -97,7 +98,7 @@ export default {
       if (path === '/health') {
         const rl = checkRateLimit(`public:${ip}`, 60);
         if (!rl.allowed) { response = rateLimitedResponse(rl); }
-        else { response = addRateLimitHeaders(json({ status: 'ok', version: '0.6.0' }), rl); }
+        else { response = addRateLimitHeaders(json({ status: 'ok', version: '0.6.5' }), rl); }
       }
 
       // Auth routes (rate-limited by IP)
@@ -333,6 +334,17 @@ export default {
         }
         else if (path === '/api/mines/clear-limpets' && method === 'POST') {
           response = await withGameplayRateLimit(auth.playerId, () => handleClearLimpets(auth, request, env.DB));
+        }
+        else if (path === '/api/player/missions' && method === 'GET') {
+          const rl = checkRateLimit(`read:${auth.playerId}`, 60);
+          if (!rl.allowed) { response = rateLimitedResponse(rl); }
+          else { response = addRateLimitHeaders(await handleGetMissions(auth, url.searchParams.get('galaxyId'), env.DB), rl); }
+        }
+        else if (path === '/api/player/missions/claim' && method === 'POST') {
+          response = await withGameplayRateLimit(auth.playerId, () => handleClaimMission(auth, request, env.DB));
+        }
+        else if (path === '/api/player/missions/reroll' && method === 'POST') {
+          response = await withGameplayRateLimit(auth.playerId, () => handleRerollMission(auth, request, env.DB));
         }
         else if (path === '/api/npc/tick' && method === 'POST') {
           const rl = checkRateLimit(`admin:${ip}`, 10);

@@ -46,6 +46,6 @@ We encourage:
 
 ## Version
 
-Current API version: **0.6.0**
+Current API version: **0.6.5**
 
 Check `/health` for the live version string.

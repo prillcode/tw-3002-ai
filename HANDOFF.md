@@ -87,10 +87,10 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 | Component | Status | URL |
 |---|---|---|
-| API Worker | ✅ Deployed v0.6.0 | `https://tw3002-api.prilldev.workers.dev` |
-| Astro Site (docs) | ✅ Deployed | `https://playtradewars.net` |
-| Game Client | ✅ Deployed v0.6.0 | `https://portal.playtradewars.net` |
-| D1 Migrations | ✅ 0010 + 0011 applied | `tw3002-galaxy` |
+| API Worker | ✅ Deployed v0.6.5 | `https://tw3002-api.prilldev.workers.dev` |
+| Astro Site (docs) | ✅ Deployed v0.6.5 | `https://playtradewars.net` |
+| Game Client | ✅ Deployed v0.6.5 | `https://portal.playtradewars.net` |
+| D1 Migrations | ✅ 0010 + 0011 + 0012 applied | `tw3002-galaxy` |
 
 **Worker secrets configured:**
 - `ADMIN_SECRET`
@@ -104,28 +104,37 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ---
 
+## In Progress
+
+### ✅ TW-19: Leaderboards & Daily Bounties
+
+**Phase 01 — Daily Bounty System: Server** ✅ COMPLETE & DEPLOYED
+- D1 migration `0012_daily_missions.sql` applied to production
+- `player_daily_missions` table + `visited_sectors_json` column on `player_ships`
+- Mission generator: 3 missions/day, 5 types, no duplicates
+- API endpoints live: GET missions, POST claim, POST reroll
+- Progress hooks in 5 action endpoints (combat, trade, move, colonize, taxes)
+
+**Phase 02 — Daily Bounty System: Web Client** ✅ COMPLETE & DEPLOYED
+- `MissionPanel.vue` component with progress bars, claim/reroll buttons
+- Integrated into `SectorView.vue` via modal system (`B` key)
+- Toast notifications when missions complete during gameplay
+- All builds clean, deployed to `portal.playtradewars.net`
+
+**Files:** `cloud/migrations/0012_daily_missions.sql`, `cloud/src/utils/dailyMissions.ts`, `cloud/src/routes/missions.ts`, `cloud/src/routes/action.ts`, `cloud/src/routes/player.ts`, `cloud/src/routes/planets.ts`, `cloud/src/index.ts`, `web/game/src/components/MissionPanel.vue`, `web/game/src/views/SectorView.vue`
+
+---
+
 ## Next Steps
 
 ### Immediate
-1. ✅ Test Resend email delivery — confirmed working
-2. ✅ Test full auth flow end-to-end — register → OTP → verify → ship → galaxy works
-
-### Next Session
-3. **TW-11 Phase 3** — Subscriber & Player Management (marketing consent, admin export, unsubscribe)
-4. **Invite real players** — auth system is production-ready
-5. **Monitor Resend deliverability** — bounce rates, spam complaints
+1. **TW-19 Phase 03** — Leaderboard Enhancements
+   - Weekly/all-time tabs, new stats (planets, experience, trades)
+   - Player public profile pages
 
 ### Short Term
-4. **TW-11 Phase 3** — Subscriber & Player Management
-   - Marketing consent checkbox
-   - Admin player export endpoint
-   - Unsubscribe flow
-5. **Update API docs** if auth endpoint changes during debugging
-6. **Add "resend OTP" endpoint** — currently re-uses `/api/auth/register`, which is fine but could be cleaner
-
-### Medium Term
-7. **Invite real players** — auth system is now production-ready with verification + anti-spam
-8. **Monitor Resend deliverability** — bounce rates, spam complaints
+2. **Skip TW-11 Phase 3** (subscriber management) — defer until player base justifies it
+3. **Invite real players** — auth + daily missions + leaderboard = solid onboarding
 
 ---
 
@@ -207,6 +216,18 @@ web/game/src/views/LoginView.vue                (rewritten)
 
 .planning/TW-12-api-docs-rate-limiting/*         (updated)
 .planning/TW-11-email-player-polish/phases/*     (new)
+.planning/TW-19-leaderboards-and-daily-bounties/*  (new)
+cloud/migrations/0012_daily_missions.sql         (new)
+cloud/src/utils/dailyMissions.ts                 (new)
+cloud/src/routes/missions.ts                     (new)
+web/game/src/components/MissionPanel.vue         (new)
+web/game/src/views/SectorView.vue                (modified)
+web/game/src/views/LoginView.vue                 (modified)
+web/main/public/openapi.yaml                     (modified)
+web/main/src/pages/index.astro                   (modified)
+web/main/src/pages/api/index.astro               (modified)
+web/main/src/content/api/introduction.md         (modified)
+web/main/src/content/api/getting-started.md      (modified)
 ```
 
 ---
