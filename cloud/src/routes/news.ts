@@ -85,14 +85,12 @@ export async function handleLeaderboard(
 
   const count = Math.min(parseInt(limit ?? '10', 10), 100);
 
-  let orderBy = 'ps.net_worth DESC';
-  if (sort === 'kills') orderBy = 'ps.kills DESC';
-  else if (sort === 'deaths') orderBy = 'ps.deaths DESC';
-  else if (sort === 'wanted') {
+  if (sort === 'wanted') {
     // wanted = players with most kills in last 24h
     const result = await db
       .prepare(
         `SELECT ps.ship_name, ps.class_id, ps.net_worth, ps.kills, ps.deaths,
+                ps.alignment, ps.experience, ps.rank, ps.commissioned,
                 p.display_name, p.email,
                 (SELECT COUNT(*) FROM pvp_kills pk WHERE pk.killer_player_id = ps.player_id AND pk.timestamp > datetime('now', '-24 hours')) as recent_kills
          FROM player_ships ps
@@ -106,10 +104,18 @@ export async function handleLeaderboard(
     return json({ leaderboard: result.results ?? [] });
   }
 
+  let orderBy = 'ps.net_worth DESC';
+  if (sort === 'kills') orderBy = 'ps.kills DESC';
+  else if (sort === 'deaths') orderBy = 'ps.deaths DESC';
+  else if (sort === 'planets') orderBy = 'planets_held DESC';
+  else if (sort === 'experience') orderBy = 'ps.experience DESC';
+
   const result = await db
     .prepare(
       `SELECT ps.ship_name, ps.class_id, ps.net_worth, ps.kills, ps.deaths,
-              p.display_name, p.email
+              ps.alignment, ps.experience, ps.rank, ps.commissioned,
+              p.display_name, p.email,
+              (SELECT COUNT(*) FROM planets pl WHERE pl.owner_id = ps.player_id AND pl.galaxy_id = ps.galaxy_id) as planets_held
        FROM player_ships ps
        JOIN players p ON ps.player_id = p.id
        WHERE ps.galaxy_id = ?

@@ -7,7 +7,7 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-2 mb-4">
+      <div class="flex gap-2 mb-4 flex-wrap">
         <button
           v-for="tab in tabs"
           :key="tab.key"
@@ -45,8 +45,9 @@
             <tr
               v-for="(entry, i) in entries"
               :key="entry.ship_name + '-' + i"
+              @click="selectedPlayer = entry"
               :class="[
-                'border-b border-void-800 hover:bg-void-800 transition-colors',
+                'border-b border-void-800 hover:bg-void-800 transition-colors cursor-pointer',
                 isMe(entry.email) ? 'bg-terminal-cyan/5' : ''
               ]"
             >
@@ -64,6 +65,14 @@
         </table>
       </div>
     </div>
+
+    <!-- Player Profile Modal -->
+    <PlayerProfileModal
+      v-if="selectedPlayer"
+      :player="selectedPlayer"
+      :is-me="isMe(selectedPlayer.email)"
+      @close="selectedPlayer = null"
+    />
   </div>
 </template>
 
@@ -72,6 +81,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { SHIP_CLASSES } from '../data/ships';
+import PlayerProfileModal from '../components/PlayerProfileModal.vue';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -81,19 +91,24 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const entries = ref<Array<any>>([]);
 const activeTab = ref('networth');
+const selectedPlayer = ref<any | null>(null);
 
 const tabs = [
   { key: 'networth', label: 'Net Worth' },
   { key: 'kills', label: 'Kills' },
   { key: 'deaths', label: 'Deaths' },
-  { key: 'wanted', label: 'CHOAM Bounty Board' },
+  { key: 'planets', label: 'Planets' },
+  { key: 'experience', label: 'Experience' },
+  { key: 'wanted', label: 'CHOAM Bounty' },
 ];
 
 const valueLabel = computed(() => {
   switch (activeTab.value) {
     case 'kills': return 'Kills';
     case 'deaths': return 'Deaths';
-    case 'wanted': return 'CHOAM Bounty Score';
+    case 'planets': return 'Planets';
+    case 'experience': return 'XP';
+    case 'wanted': return 'Bounty Score';
     default: return 'Net Worth';
   }
 });
@@ -102,6 +117,8 @@ const valueColor = computed(() => {
   switch (activeTab.value) {
     case 'kills': return 'text-terminal-red';
     case 'deaths': return 'text-terminal-yellow';
+    case 'planets': return 'text-terminal-magenta';
+    case 'experience': return 'text-terminal-cyan';
     case 'wanted': return 'text-terminal-red';
     default: return 'text-terminal-green';
   }
@@ -111,6 +128,8 @@ function formatValue(entry: any) {
   switch (activeTab.value) {
     case 'kills': return entry.kills ?? 0;
     case 'deaths': return entry.deaths ?? 0;
+    case 'planets': return entry.planets_held ?? 0;
+    case 'experience': return (entry.experience ?? 0).toLocaleString();
     case 'wanted': return entry.recent_kills ?? 0;
     default: return `${(entry.net_worth ?? 0).toLocaleString()} cr`;
   }
@@ -148,6 +167,10 @@ function goBack() {
 }
 
 function handleKey(e: KeyboardEvent) {
+  if (selectedPlayer.value && e.key === 'Escape') {
+    selectedPlayer.value = null;
+    return;
+  }
   if (e.key === 'Escape') goBack();
 }
 
