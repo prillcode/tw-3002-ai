@@ -119,22 +119,24 @@ Repo: https://github.com/prillcode/tw-3002-ai
 - `MissionPanel.vue` component with progress bars, claim/reroll buttons
 - Integrated into `SectorView.vue` via modal system (`B` key)
 - Toast notifications when missions complete during gameplay
-- All builds clean, deployed to `portal.playtradewars.net`
 
-**Files:** `cloud/migrations/0012_daily_missions.sql`, `cloud/src/utils/dailyMissions.ts`, `cloud/src/routes/missions.ts`, `cloud/src/routes/action.ts`, `cloud/src/routes/player.ts`, `cloud/src/routes/planets.ts`, `cloud/src/index.ts`, `web/game/src/components/MissionPanel.vue`, `web/game/src/views/SectorView.vue`
+**Phase 03 — Leaderboard Enhancements** ✅ COMPLETE & DEPLOYED
+- 6 leaderboard tabs: Net Worth, Kills, Deaths, Planets, Experience, CHOAM Bounty
+- Click any player → profile modal with full stats (standing, rank, planets, commission)
+- API: `sort=planets` and `sort=experience` added to `/api/leaderboard`
+
+**Files:** `cloud/migrations/0012_daily_missions.sql`, `cloud/src/utils/dailyMissions.ts`, `cloud/src/routes/missions.ts`, `cloud/src/routes/news.ts`, `cloud/src/routes/action.ts`, `cloud/src/routes/player.ts`, `cloud/src/routes/planets.ts`, `cloud/src/index.ts`, `web/game/src/components/MissionPanel.vue`, `web/game/src/components/PlayerProfileModal.vue`, `web/game/src/views/LeaderboardView.vue`, `web/game/src/views/SectorView.vue`
 
 ---
 
 ## Next Steps
 
 ### Immediate
-1. **TW-19 Phase 03** — Leaderboard Enhancements
-   - Weekly/all-time tabs, new stats (planets, experience, trades)
-   - Player public profile pages
+1. **Update player guides** — see "How to Play Guide Gap Analysis" below
+2. **Invite real players** — auth + daily missions + leaderboard = solid onboarding
 
 ### Short Term
-2. **Skip TW-11 Phase 3** (subscriber management) — defer until player base justifies it
-3. **Invite real players** — auth + daily missions + leaderboard = solid onboarding
+3. **Skip TW-11 Phase 3** (subscriber management) — defer until player base justifies it
 
 ---
 
@@ -182,6 +184,37 @@ npx wrangler d1 execute tw3002-galaxy --remote \
 
 ---
 
+## How to Play Guide Gap Analysis
+
+**Existing guides** (`web/main/src/content/guide/`):
+1. ✅ Getting Started — install, first game, ship classes
+2. ✅ Trading — commodities, port classes, basic strategy
+3. ✅ Combat — options, mechanics, death/respawn
+4. ✅ StarDock & Upgrades — repairs, upgrade categories/tiers
+5. ✅ Keyboard Reference — key bindings
+
+**Missing guides** (critical for new players):
+
+| Gap | Priority | Why |
+|---|---|---|
+| **Daily Bounties** | 🔴 High | New feature, completely undocumented. Players won't know `B` key or how missions work |
+| **Planets & Colonization** | 🔴 High | Major feature (TW-14). Genesis torpedo, colonists, citadels, Q-cannons — none explained |
+| **Fighters & Mines** | 🟡 Medium | Deploy/recall fighters, limpets, armids, blockades — in game but not in guides |
+| **Alignment & Factions** | 🟡 Medium | CHOAM, Fremen, Sardaukar, Guild commissions — core to identity but unexplained |
+| **Navigation & Sectors** | 🟡 Medium | Danger levels, FedSpace, connections, how the galaxy is structured |
+| **Insurance** | 🟢 Low | Mentioned in combat guide but deserves its own section |
+| **Leaderboard & Bounty Board** | 🟢 Low | Social features, wanted system — nice to document |
+| **Cloud vs Local** | 🟢 Low | Clarify web client vs CLI differences |
+
+**Recommendation:** Write 3 new guide pages before inviting players:
+1. `guide/daily-bounties.md` — How missions work, types, rewards, rerolling
+2. `guide/planets.md` — Genesis torpedo, colonization, citadels, production
+3. `guide/fighters-mines.md` — Fighter deployment modes, mines, blockades
+
+These cover the biggest "how do I...?" gaps a new player would face.
+
+---
+
 ## Key Files Changed This Session
 
 ```
@@ -220,7 +253,10 @@ web/game/src/views/LoginView.vue                (rewritten)
 cloud/migrations/0012_daily_missions.sql         (new)
 cloud/src/utils/dailyMissions.ts                 (new)
 cloud/src/routes/missions.ts                     (new)
+cloud/src/routes/news.ts                         (modified)
 web/game/src/components/MissionPanel.vue         (new)
+web/game/src/components/PlayerProfileModal.vue   (new)
+web/game/src/views/LeaderboardView.vue           (modified)
 web/game/src/views/SectorView.vue                (modified)
 web/game/src/views/LoginView.vue                 (modified)
 web/main/public/openapi.yaml                     (modified)
