@@ -141,7 +141,7 @@ export const useShipStore = defineStore('ship', () => {
     }
   }
 
-  async function moveShip(galaxyId: number, sectorId: number): Promise<{ status: 'moved'; ship: any; operations?: any[]; outcome?: any } | { status: 'encounter'; encounter: any } | { status: 'error'; error: string }> {
+  async function moveShip(galaxyId: number, sectorId: number): Promise<{ status: 'moved'; ship: any; operations?: any[]; outcome?: any; npcEncounter?: any } | { status: 'encounter'; encounter: any } | { status: 'error'; error: string }> {
     const auth = useAuthStore();
     try {
       const res = await fetch(`${API_BASE}/api/player/ship/move`, {
@@ -170,7 +170,7 @@ export const useShipStore = defineStore('ship', () => {
         ship.value.limpetAttached = nextShip.limpet_attached ?? ship.value.limpetAttached;
       }
 
-      return { status: 'moved', ship: nextShip, operations: data.operations, outcome: data.outcome };
+      return { status: 'moved', ship: nextShip, operations: data.operations, outcome: data.outcome, npcEncounter: data.npcEncounter };
     } catch (err: any) {
       message.value = err.message;
       return { status: 'error', error: err.message };

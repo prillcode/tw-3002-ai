@@ -1,7 +1,11 @@
 ---
+import { getCollection } from 'astro:content';
 import Layout from './Layout.astro';
 import TerminalHeader from '../components/TerminalHeader.vue';
 const { frontmatter } = Astro.props;
+
+const guides = await getCollection('guide');
+guides.sort((a, b) => (a.data.order ?? 99) - (b.data.order ?? 99));
 ---
 <Layout title={`${frontmatter.title} — TW 3002 AI Guide`} description={frontmatter.description}>
   <TerminalHeader client:load />
@@ -11,11 +15,13 @@ const { frontmatter } = Astro.props;
       <nav class="sticky top-4">
         <p class="text-xs font-mono text-terminal-muted uppercase tracking-wider mb-4">Guide</p>
         <ul class="space-y-2">
-          <li><a href="/guide/getting-started" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Getting Started</a></li>
-          <li><a href="/guide/trading" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Trading</a></li>
-          <li><a href="/guide/combat" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Combat</a></li>
-          <li><a href="/guide/stardock" class="text-sm font-mono hover:text-terminal-cyan transition-colors">StarDock & Upgrades</a></li>
-          <li><a href="/guide/keyboard" class="text-sm font-mono hover:text-terminal-cyan transition-colors">Keyboard Reference</a></li>
+          {guides.map((guide) => (
+            <li>
+              <a href={`/guide/${guide.slug}`} class="text-sm font-mono hover:text-terminal-cyan transition-colors">
+                {guide.data.title}
+              </a>
+            </li>
+          ))}
         </ul>
       </nav>
     </aside>

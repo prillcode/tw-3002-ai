@@ -1,6 +1,6 @@
 # TW 3002 AI — Session Handoff
 
-Date: 2026-05-03
+Date: 2026-05-04
 Version: CLI v0.6.0 | API v0.6.0 | Web Client v0.6.0
 Repo: https://github.com/prillcode/tw-3002-ai
 
@@ -129,14 +129,77 @@ Repo: https://github.com/prillcode/tw-3002-ai
 
 ---
 
+## Session Accomplishments (2026-05-04)
+
+### ✅ NPC Combat on Sector Entry
+**Problem:** Warping into dangerous sectors never triggered combat. NPC raiders were visible in the sector view but required manual "⚔ Attack" clicks. The entry pipeline (`handleMoveShip`) had no `npc_encounter` step.
+
+**Fix:**
+- Added `getHostileNpcsInSector()` query to detect raider NPCs in destination sector
+- Added NPC encounter step after ship-to-ship PvP in the entry pipeline
+- Returns `npcEncounter: { npcs, encounterRequired: true }` when raiders present
+- Client (`SectorView.vue`) auto-routes to `CombatView` on `npcEncounter` response
+- Added `npc_encounter` to `OperationStep` union type (`fighters.ts`)
+
+**Current NPC density:** 122 active NPCs across 1,000 sectors (914 dangerous):
+- Raiders: 21 (Fremen) — only type that auto-attacks
+- Patrols: 34 (CHOAM) — hunt Sardaukar NPCs only
+- Merchants: 67 (CHOAM/Independent) — non-combat
+
+**Operations panel now shows:**
+```
+nav_hazard     → skipped_not_implemented
+limpet_mines   → skipped_no_hostiles
+armid_mines    → skipped_no_hostiles
+q_cannon       → skipped_no_hostiles
+fighters       → skipped_no_hostiles
+ship_to_ship   → no_op / resolved
+npc_encounter  → awaiting_player_choice / skipped_no_hostiles  ← NEW
+```
+
+**Files:** `cloud/src/routes/player.ts`, `cloud/src/routes/fighters.ts`, `web/game/src/views/SectorView.vue`, `web/game/src/stores/ship.ts`
+
+### ✅ Player Guides (3 New)
+Wrote and deployed 3 critical guides before inviting players:
+
+| Guide | Order | Coverage |
+|-------|-------|----------|
+| **Daily Bounties** | 6 | 3 missions/day, 5 types, difficulties, reroll costs, rewards, CHOAM leaderboard |
+| **Planets & Colonization** | 7 | 7 classes, genesis torpedo, colonist transport, production curves, citadels, Q-cannons |
+| **Fighters & Mines** | 8 | 3 deployment modes, tolled blockades, limpet/armid mines, blockade levels, insurance |
+
+- Guide sidebar (`GuideLayout.astro`) now dynamically loads from content collection — no more hardcoded links
+- Updated `getting-started.md` "What's Next" section to link to new guides
+
+**Files:** `web/main/src/content/guide/daily-bounties.md`, `web/main/src/content/guide/planets.md`, `web/main/src/content/guide/fighters-mines.md`, `web/main/src/layouts/GuideLayout.astro`, `web/main/src/content/guide/getting-started.md`
+
+### ✅ UI Polish
+- **Moved "Ships in Sector" panel to top** — immediately below sector banner, before the 3-column grid
+- Added red border (`border-terminal-red/30`) and red "⚠ Ships in Sector" header for threat visibility
+- Fixed duplicate 3-column grid bug (removed stray first grid from template refactor)
+
+**Files:** `web/game/src/views/SectorView.vue`
+
+---
+
 ## Next Steps
 
 ### Immediate
-1. **Update player guides** — see "How to Play Guide Gap Analysis" below
-2. **Invite real players** — auth + daily missions + leaderboard = solid onboarding
+1. **🎯 Spawn ~70 additional raider NPCs** — Combat density is too low for a solo/low-pop galaxy
+   - **Current:** 21 raiders across 914 dangerous sectors = ~1 per 43 dangerous sectors
+   - **Target:** ~90 raiders = ~1 per 10 dangerous sectors
+   - **Why:** In TW2002, *every* dangerous sector had threat potential because players were everywhere. NPCs are our only substitute. At 1:10 density, a player encounters a fight roughly every 10 warps — tension stays alive without blocking trade/exploration.
+   - **How:** Insert new raider rows into `npcs` table targeting empty dangerous sectors. Use existing `persona_json` templates from current Fremen raiders.
+   - **Follow-up idea:** Make CHOAM patrols auto-attack players with negative alignment on entry. Gives evil path a real cost even without human enforcers.
+
+2. **Invite real players** — auth + daily missions + leaderboard + guides + combat = solid onboarding
 
 ### Short Term
 3. **Skip TW-11 Phase 3** (subscriber management) — defer until player base justifies it
+4. **Medium-priority guides** (if player feedback demands it):
+   - Alignment & Factions
+   - Navigation & Sectors
+   - Insurance
 
 ---
 
@@ -228,121 +291,27 @@ All unclaimed (`owner_id = 0`), zero colonists, citadel level 0. Documentation: 
 
 ---
 
-## How to Play Guide Gap Analysis
+## How to Play Guide Status
 
-**Existing guides** (`web/main/src/content/guide/`):
-1. ✅ Getting Started — install, first game, ship classes
-2. ✅ Trading — commodities, port classes, basic strategy
-3. ✅ Combat — options, mechanics, death/respawn
-4. ✅ StarDock & Upgrades — repairs, upgrade categories/tiers
-5. ✅ Keyboard Reference — key bindings
+**All critical guides complete.** 8 guides live at `playtradewars.net/guide/*`.
 
-**Missing guides** (critical for new players):
+| # | Guide | Status | Order |
+|---|-------|--------|-------|
+| 1 | Getting Started | ✅ | 1 |
+| 2 | Trading | ✅ | 2 |
+| 3 | Combat | ✅ | 3 |
+| 4 | StarDock & Upgrades | ✅ | 4 |
+| 5 | Keyboard Reference | ✅ | 5 |
+| 6 | Daily Bounties | ✅ **New** | 6 |
+| 7 | Planets & Colonization | ✅ **New** | 7 |
+| 8 | Fighters & Mines | ✅ **New** | 8 |
 
-| Gap | Priority | Why |
-|---|---|---|
-| **Daily Bounties** | 🔴 High | New feature, completely undocumented. Players won't know `B` key or how missions work |
-| **Planets & Colonization** | 🔴 High | Major feature (TW-14). Genesis torpedo, colonists, citadels, Q-cannons — none explained |
-| **Fighters & Mines** | 🟡 Medium | Deploy/recall fighters, limpets, armids, blockades — in game but not in guides |
-| **Alignment & Factions** | 🟡 Medium | CHOAM, Fremen, Sardaukar, Guild commissions — core to identity but unexplained |
-| **Navigation & Sectors** | 🟡 Medium | Danger levels, FedSpace, connections, how the galaxy is structured |
-| **Insurance** | 🟢 Low | Mentioned in combat guide but deserves its own section |
-| **Leaderboard & Bounty Board** | 🟢 Low | Social features, wanted system — nice to document |
-| **Cloud vs Local** | 🟢 Low | Clarify web client vs CLI differences |
+**Sidebar:** Dynamically generated from `guide` content collection (`GuideLayout.astro` updated 2026-05-04).
 
-**Recommendation:** Write 3 new guide pages before inviting players:
-1. `guide/daily-bounties.md` — How missions work, types, rewards, rerolling
-2. `guide/planets.md` — Genesis torpedo, colonization, citadels, production
-3. `guide/fighters-mines.md` — Fighter deployment modes, mines, blockades
-
-These cover the biggest "how do I...?" gaps a new player would face.
-
----
-
-## Guide Writing Context (For Fresh Session)
-
-**Content collection:** `web/main/src/content/guide/` — Astro content collection `guide`
-**Frontmatter format:**
-```yaml
----
-title: "Guide Title"
-description: "Short description"
-order: N
----
-```
-**Order of existing guides:** Getting Started (1), Trading (2), Combat (3), StarDock (4), Keyboard (5)
-**Nav link:** `TerminalHeader.vue` links to `/guide/getting-started` — no changes needed for new guides
-**Rendering:** `web/main/src/pages/guide/[...slug].astro` renders all guides via `GuideLayout`
-**Build & deploy:** `cd web/main && bun run build && wrangler pages deploy dist --project-name tw-3002-ai`
-
-### Reference Files for Each Guide
-
-#### Daily Bounties Guide
-**Source of truth:** `cloud/src/utils/dailyMissions.ts`
-- 3 missions/day, UTC midnight reset
-- 5 types: kill_npcs, trade_credits, visit_sectors, claim_planet, pay_taxes
-- Difficulty: easy (40%), medium (35%), hard (25%)
-- Reroll cost: `max(500, floor(reward * 0.5))`
-- `B` key in game, claim button, progress bars
-- Reward range: 300cr (easy pay_taxes) to 5,000cr (hard kill_npcs)
-
-#### Planets & Colonization Guide
-**Source of truth:** `cloud/src/routes/planets.ts` (lines 1-140 for config)
-**Planet classes:**
-| Class | Name | Best For | Max Colonists |
-|---|---|---|---|
-| M | Earth Type | Balanced | 30,000 |
-| K | Desert | Fuel ore | 40,000 |
-| O | Oceanic | Organics | 200,000 |
-| L | Mountainous | Fighters | 40,000 |
-| C | Glacial | Low production | 100,000 |
-| H | Volcanic | Fuel farming | 100,000 |
-| U | Gas | No production | 3,000 |
-- Genesis Torpedo: 80,000cr, press `G` in sector view (dangerous sectors only, max 5 planets/sector)
-- Colonization: transport colonists from StarDock, costs fuel + credits
-- Citadel levels: advance at StarDock for defenses + Q-Cannon
-- Production tick: every 5 min (cron), resources accumulate based on colonists + class ratios
-- 10 seeded planets exist — see PLANET-SEED.md for locations
-
-#### Fighters & Mines Guide
-**Source of truth:** `cloud/src/routes/fighters.ts` and `cloud/src/routes/mines.ts`
-- **Fighter deployment modes:**
-  - Defensive: attack only if attacked
-  - Offensive: attack all entrants
-  - Tolled: attack unless toll paid
-- Buy at StarDock, deploy with `F` key, recall with `R` key
-- **Mines:**
-  - Limpets: stick to enemy ships, drain hull over time
-  - Armids: area denial, explode on entry
-  - Buy at StarDock, deploy with `1` (limpet) / `2` (armid) keys
-- Blockades: fighter + mine combinations create layered defenses
-- Insurance: 5% of net worth, 7 days, reduces death penalty from 25% to 5%
-
-#### Medium-Priority Guides (if time permits)
-
-**Alignment & Factions:**
-- Source: `cloud/src/utils/alignment.ts`
-- CHOAM (positive alignment): pay taxes, get commissioned at +1000
-- Fremen (neutral at 0): avoid unless you want trouble
-- Sardaukar (target positive players): hard to bribe, hard to flee
-- Alignment range: -1000 to +1000
-- Ranks: 22 military ranks from Private to Fleet Admiral (based on experience)
-
-**Navigation & Sectors:**
-- Safe sectors: FedSpace, no combat, CHOAM tariffs can be paid
-- Caution sectors: moderate danger
-- Dangerous sectors: 91.4% of galaxy, combat possible, planets can be created
-- StarDocks: 4 in galaxy, free repair/recharge, buy upgrades/fighters/mines
-- Connections: each sector connects to 2–6 neighbors
-- Port classes: 1, 2, 3 (different buy/sell specialties)
-
-#### Insurance Guide (low priority)
-- Source: `cloud/src/routes/combat.ts` (lines ~20-30 for constants)
-- Cost: 5% of net worth
-- Duration: 7 days
-- Death penalty without: lose 25% credits + all cargo
-- Death penalty with: lose 5% credits + all cargo
-- Buy at StarDock
+**Remaining gaps** (medium/low priority — add if player feedback demands):
+- Alignment & Factions
+- Navigation & Sectors  
+- Insurance (currently covered in Fighters & Mines and Combat guides)
 
 ---
 
@@ -395,6 +364,11 @@ web/main/src/pages/index.astro                   (modified)
 web/main/src/pages/api/index.astro               (modified)
 web/main/src/content/api/introduction.md         (modified)
 web/main/src/content/api/getting-started.md      (modified)
+web/main/src/content/guide/daily-bounties.md     (new)
+web/main/src/content/guide/planets.md            (new)
+web/main/src/content/guide/fighters-mines.md     (new)
+web/main/src/content/guide/getting-started.md    (modified)
+web/main/src/layouts/GuideLayout.astro           (modified)
 ```
 
 ---

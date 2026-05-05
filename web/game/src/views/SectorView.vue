@@ -58,6 +58,36 @@
         </div>
       </div>
 
+      <!-- Ships in Sector -->
+      <div v-if="npcs.length > 0" class="mb-4 terminal-panel p-4 border-terminal-red/30">
+        <h3 class="font-mono font-bold text-terminal-red mb-2 text-sm">⚠ Ships in Sector</h3>
+        <div class="space-y-1">
+          <div
+            v-for="npc in npcs.slice(0, 3)"
+            :key="npc.npc_id"
+            class="flex items-center justify-between px-3 py-2 rounded hover:bg-void-800 transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-lg">
+                {{ npcFactionIcon(npc) }}
+              </span>
+              <span class="font-mono text-sm" :class="npcFactionColor(npc)">{{ npc.persona.name }}</span>
+              <span class="text-terminal-muted font-mono text-xs">{{ npcFactionLabel(npc) }}</span>
+            </div>
+            <button
+              v-if="npc.persona.type === 'raider'"
+              @click="initiateCombat(npc)"
+              class="terminal-btn text-xs text-terminal-red"
+            >
+              ⚔ Attack
+            </button>
+          </div>
+          <p v-if="npcs.length > 3" class="text-terminal-muted font-mono text-xs px-3">
+            … and {{ npcs.length - 3 }} more
+          </p>
+        </div>
+      </div>
+
       <div class="grid lg:grid-cols-3 gap-4">
         <!-- Ship Status -->
         <div class="terminal-panel p-4">
@@ -335,36 +365,6 @@
           <span><span class="text-terminal-yellow">●</span> Port</span>
           <span><span class="text-terminal-magenta">●</span> StarDock</span>
           <span><span class="text-terminal-green">●</span> Selected</span>
-        </div>
-      </div>
-
-      <!-- NPCs -->
-      <div v-if="npcs.length > 0" class="mt-4 terminal-panel p-4">
-        <h3 class="font-mono font-bold text-terminal-cyan mb-2 text-sm">Ships in Sector</h3>
-        <div class="space-y-1">
-          <div
-            v-for="npc in npcs.slice(0, 3)"
-            :key="npc.npc_id"
-            class="flex items-center justify-between px-3 py-2 rounded hover:bg-void-800 transition-colors"
-          >
-            <div class="flex items-center gap-2">
-              <span class="text-lg">
-                {{ npcFactionIcon(npc) }}
-              </span>
-              <span class="font-mono text-sm" :class="npcFactionColor(npc)">{{ npc.persona.name }}</span>
-              <span class="text-terminal-muted font-mono text-xs">{{ npcFactionLabel(npc) }}</span>
-            </div>
-            <button
-              v-if="npc.persona.type === 'raider'"
-              @click="initiateCombat(npc)"
-              class="terminal-btn text-xs text-terminal-red"
-            >
-              ⚔ Attack
-            </button>
-          </div>
-          <p v-if="npcs.length > 3" class="text-terminal-muted font-mono text-xs px-3">
-            … and {{ npcs.length - 3 }} more
-          </p>
         </div>
       </div>
 
@@ -696,6 +696,23 @@ async function handleJump() {
     }
     selectedNeighbor.value = null;
     await checkMissionProgress();
+
+    // Auto-trigger NPC combat if raiders are present in the sector
+    if (result.npcEncounter?.encounterRequired && result.npcEncounter.npcs?.length > 0) {
+      const target = result.npcEncounter.npcs[0];
+      isWarping.value = false;
+      jumping.value = false;
+      router.push({
+        path: `/galaxy/${galaxyId}/combat`,
+        query: {
+          enemyId: target.npc_id,
+          enemyName: target.name,
+          enemyType: target.type,
+          enemyFaction: target.faction || 'independent',
+        },
+      });
+      return;
+    }
   } else if (result.status === 'encounter') {
     operationLog.value = result.encounter.operations ?? [];
     ship.message = 'Fighter encounter detected. Choose your response.';

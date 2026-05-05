@@ -81,3 +81,6 @@ You're dropped in **Sector 0**, the heart of FedSpace. From here:
 - **[Trading Guide](/guide/trading)** — Master the economy
 - **[Combat Guide](/guide/combat)** — Survive encounters
 - **[StarDock & Upgrades](/guide/stardock)** — Build your dream ship
+- **[Daily Bounties](/guide/daily-bounties)** — Earn credits from missions
+- **[Planets & Colonization](/guide/planets)** — Claim worlds and build empires
+- **[Fighters & Mines](/guide/fighters-mines)** — Control territory and defend assets

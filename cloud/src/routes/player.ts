@@ -14,6 +14,38 @@ import { applyMineEntryEffects } from './mines.js';
 import { applyQCannonEntryEffects } from './planets.js';
 import { applyAlignmentAndExperience, getFactionStanding, getRankInfo } from '../utils/alignment.js';
 
+interface HostileNPC {
+  npc_id: string;
+  name: string;
+  type: string;
+  faction: string;
+}
+
+async function getHostileNpcsInSector(
+  db: D1Database,
+  galaxyId: number,
+  sectorId: number,
+): Promise<HostileNPC[]> {
+  const rows = await db
+    .prepare(
+      `SELECT npc_id, persona_json FROM npcs
+       WHERE galaxy_id = ? AND current_sector = ? AND is_active = 1
+         AND persona_json LIKE '%"type":"raider"%'`
+    )
+    .bind(galaxyId, sectorId)
+    .all<{ npc_id: string; persona_json: string }>();
+
+  return (rows.results ?? []).map((r) => {
+    const persona = JSON.parse(r.persona_json) as { name?: string; type?: string; faction?: string };
+    return {
+      npc_id: r.npc_id,
+      name: persona.name ?? 'Unknown',
+      type: persona.type ?? 'raider',
+      faction: persona.faction ?? 'independent',
+    };
+  });
+}
+
 /**
  * GET /api/player
  * Get current player profile.
@@ -484,5 +516,26 @@ export async function handleMoveShip(
   const shipCombat = await resolveShipToShipAfterEntry(db, auth.playerId, galaxyId, sectorId);
   operations.push(shipCombat.operation);
 
-  return json({ ship: shipCombat.ship, moved: !shipCombat.destroyed, operations });
+  if (shipCombat.destroyed) {
+    return json({ ship: shipCombat.ship, moved: false, operations });
+  }
+
+  // Check for hostile NPC raiders in the sector
+  const hostileNpcs = await getHostileNpcsInSector(db, galaxyId, sectorId);
+  if (hostileNpcs.length > 0) {
+    operations.push({
+      step: 'npc_encounter',
+      status: 'awaiting_player_choice',
+      details: { hostileCount: hostileNpcs.length, primaryTarget: hostileNpcs[0]!.name },
+    });
+    return json({
+      ship: shipCombat.ship,
+      moved: true,
+      operations,
+      npcEncounter: { npcs: hostileNpcs, encounterRequired: true },
+    });
+  }
+
+  operations.push({ step: 'npc_encounter', status: 'skipped_no_hostiles' });
+  return json({ ship: shipCombat.ship, moved: true, operations });
 }

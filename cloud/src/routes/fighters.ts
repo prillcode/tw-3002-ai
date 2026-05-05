@@ -11,7 +11,7 @@ const MODES = new Set(['defensive', 'offensive', 'tolled']);
 export type EncounterAction = 'attack' | 'retreat' | 'surrender' | 'pay_toll';
 
 export interface OperationStep {
-  step: 'nav_hazard' | 'limpet_mines' | 'armid_mines' | 'q_cannon' | 'fighters' | 'empty_ships' | 'ship_to_ship';
+  step: 'nav_hazard' | 'limpet_mines' | 'armid_mines' | 'q_cannon' | 'fighters' | 'empty_ships' | 'ship_to_ship' | 'npc_encounter';
   status: 'skipped_not_implemented' | 'skipped_no_hostiles' | 'awaiting_player_choice' | 'resolved' | 'no_op';
   details?: Record<string, unknown>;
 }
